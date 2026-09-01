@@ -1,0 +1,10 @@
+[Desktop Entry]
+Type=Application
+Name=FileSail
+Comment=Navigate local files
+Exec=filesail %U
+Icon=system-file-manager
+Terminal=false
+Categories=System;FileTools;FileManager;
+MimeType=inode/directory;
+StartupNotify=true

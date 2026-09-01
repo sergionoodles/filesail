@@ -1,0 +1,37 @@
+# CMake build trees (the documented build directory and in-source builds)
+/build/
+/CMakeCache.txt
+/CMakeFiles/
+/CMakeScripts/
+/Testing/
+/CTestTestfile.cmake
+/DartConfiguration.tcl
+/cmake_install.cmake
+/install_manifest.txt
+/Makefile
+/_deps/
+/*.cmake.user
+
+# Generated Qt/CMake artifacts and the local backend executable
+/.qt/
+/*_autogen/
+/filesail-backend
+/*.qmlc
+
+# Coverage and profiling output
+/coverage/
+/coverage-html/
+*.gcda
+*.gcno
+*.profraw
+*.profdata
+
+# Local editor and operating-system files
+.idea/
+.vscode/
+*.user
+*.swp
+*.swo
+*~
+.DS_Store
+Thumbs.db

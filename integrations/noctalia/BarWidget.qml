@@ -1,0 +1,50 @@
+import QtQuick
+import Quickshell
+import qs.Commons
+import qs.Services.UI
+
+Item {
+    id: root
+
+    property var pluginApi: null
+    property ShellScreen screen
+    property string widgetId: ""
+    property string section: ""
+
+    readonly property string screenName: screen ? screen.name : ""
+    readonly property real capsuleHeight: Style.getCapsuleHeightForScreen(screenName)
+    readonly property real contentWidth: capsuleHeight
+    readonly property real contentHeight: capsuleHeight
+
+    anchors.centerIn: parent
+    implicitWidth: contentWidth
+    implicitHeight: contentHeight
+
+    Rectangle {
+        anchors.centerIn: parent
+        width: root.contentWidth
+        height: root.contentHeight
+        radius: Style.radiusL
+        color: mouseArea.containsMouse ? Color.mHover : Style.capsuleColor
+        border.color: Style.capsuleBorderColor
+        border.width: Style.capsuleBorderWidth
+
+        Text {
+            anchors.centerIn: parent
+            text: "◢"
+            color: mouseArea.containsMouse ? Color.mOnHover : Color.mOnSurface
+            font.pixelSize: Math.max(13, root.capsuleHeight * 0.48)
+            font.bold: true
+        }
+    }
+
+    MouseArea {
+        id: mouseArea
+        anchors.fill: parent
+        hoverEnabled: true
+        cursorShape: Qt.PointingHandCursor
+        onClicked: pluginApi?.togglePanel(root.screen, root)
+        onEntered: TooltipService.show(root, "FileSail", BarService.getTooltipDirection(root.screenName))
+        onExited: TooltipService.hide()
+    }
+}

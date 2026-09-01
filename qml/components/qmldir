@@ -1,0 +1,9 @@
+module FileSail.Components
+FileIcon 1.0 FileIcon.qml
+IconButton 1.0 IconButton.qml
+BreadcrumbBar 1.0 BreadcrumbBar.qml
+Sidebar 1.0 Sidebar.qml
+ModalPrompt 1.0 ModalPrompt.qml
+BrowserToolbar 1.0 BrowserToolbar.qml
+FileBrowserPane 1.0 FileBrowserPane.qml
+FileSailView 1.0 FileSailView.qml

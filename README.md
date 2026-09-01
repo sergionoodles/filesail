@@ -4,6 +4,8 @@ FileSail is a Quickshell-native file manager designed for tiled Wayland
 desktops. The first host targets Noctalia 4 on Niri; the UI and backend are kept
 portable for Omarchy/Hyprland.
 
+![FileSail screenshot](docs/screenshot.jpg)
+
 The current MVP scaffold includes:
 
 - details/list and icon-grid browsing;

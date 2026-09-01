@@ -23,6 +23,10 @@ QtObject {
 
     property real scale: 1.0
     property real radiusRatio: 1.0
+    // Respect the desktop's configured application font. Sizes below use it as
+    // their baseline so FileSail remains legible without imposing a typeface.
+    property font systemFont: Qt.application.font
+    property FontLoader lucideFont: FontLoader { source: "../assets/lucide.ttf" }
     readonly property int spaceXs: Math.round(4 * scale)
     readonly property int spaceS: Math.round(6 * scale)
     readonly property int spaceM: Math.round(9 * scale)
@@ -31,8 +35,9 @@ QtObject {
     readonly property int radiusS: Math.round(8 * radiusRatio)
     readonly property int radiusM: Math.round(12 * radiusRatio)
     readonly property int radiusL: Math.round(16 * radiusRatio)
-    readonly property int fontSmall: Math.round(10 * scale)
-    readonly property int fontBody: Math.round(11 * scale)
-    readonly property int fontTitle: Math.round(16 * scale)
+    readonly property int fontSmall: Math.round(Math.max(11, systemFont.pixelSize * 0.9) * scale)
+    readonly property int fontBody: Math.round(Math.max(12, systemFont.pixelSize) * scale)
+    readonly property int fontTitle: Math.round(Math.max(18, systemFont.pixelSize * 1.45) * scale)
+    readonly property int iconSize: Math.round(Math.max(20, fontBody * 1.55))
     property int animationFast: 150
 }

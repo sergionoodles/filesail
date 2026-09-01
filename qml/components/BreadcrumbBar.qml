@@ -8,7 +8,50 @@ Item {
 
     property string path: "/"
     property bool editing: false
+    property var completions: []
+    property int completionRequest: -1
     signal navigate(string path)
+
+    function beginEditing() {
+        editing = true;
+    }
+
+    function complete(path) {
+        addressInput.text = path;
+        editing = false;
+        navigate(path);
+    }
+
+    function refreshCompletions() {
+        const value = addressInput.text.trim();
+        if (!value.startsWith("/")) {
+            completions = [];
+            return;
+        }
+
+        const slash = value.lastIndexOf("/");
+        const parentPath = slash <= 0 ? "/" : value.slice(0, slash);
+        const prefix = value.slice(slash + 1);
+        if (completionRequest >= 0)
+            BackendClient.cancel(completionRequest);
+        let requestId = -1;
+        requestId = BackendClient.listDirectory({
+            path: parentPath,
+            showHidden: true,
+            filter: prefix,
+            sortBy: "name"
+        }, result => {
+            if (requestId !== completionRequest)
+                return;
+            completionRequest = -1;
+            completions = (result.entries ?? []).filter(entry => entry.isDirectory).slice(0, 8);
+        }, () => {
+            if (requestId === completionRequest)
+                completionRequest = -1;
+            completions = [];
+        });
+        completionRequest = requestId;
+    }
 
     readonly property var crumbs: {
         const parts = path.split('/').filter(Boolean);
@@ -67,7 +110,7 @@ Item {
                         height: 28 * Theme.scale
                         anchors.verticalCenter: parent.verticalCenter
                         radius: Theme.radiusS
-                        color: crumbMouse.containsMouse ? Qt.alpha(Theme.text, 0.08) : "transparent"
+                        color: "transparent"
 
                         Text {
                             id: crumbText
@@ -79,13 +122,6 @@ Item {
                             elide: Text.ElideMiddle
                         }
 
-                        MouseArea {
-                            id: crumbMouse
-                            anchors.fill: parent
-                            hoverEnabled: true
-                            cursorShape: Qt.PointingHandCursor
-                            onClicked: root.navigate(modelData.path)
-                        }
                     }
                 }
             }
@@ -99,22 +135,84 @@ Item {
         text: root.path
         background: Item {}
 
-        onAccepted: {
-            root.editing = false;
-            root.navigate(text);
-        }
+        onAccepted: root.complete(text)
+        onTextEdited: completionDelay.restart()
         onVisibleChanged: if (visible) {
             text = root.path;
             forceActiveFocus();
             selectAll();
+            completionDelay.restart();
         }
-        Keys.onEscapePressed: root.editing = false
+        Keys.onEscapePressed: {
+            root.editing = false;
+            root.completions = [];
+        }
     }
 
     MouseArea {
         anchors.fill: parent
         visible: !root.editing
-        acceptedButtons: Qt.MiddleButton
-        onClicked: root.editing = true
+        acceptedButtons: Qt.LeftButton | Qt.MiddleButton
+        cursorShape: Qt.IBeamCursor
+        onClicked: root.beginEditing()
+    }
+
+    property Timer completionDelay: Timer {
+        interval: 120
+        onTriggered: root.refreshCompletions()
+    }
+
+    Popup {
+        id: completionPopup
+        x: 0
+        y: root.height + Theme.spaceXs
+        width: root.width
+        padding: Theme.spaceXs
+        visible: root.editing && root.completions.length > 0
+        closePolicy: Popup.NoAutoClose
+        background: Rectangle {
+            radius: Theme.radiusS
+            color: Theme.surface
+            border.color: Theme.divider
+            border.width: 1
+        }
+        contentItem: Column {
+            spacing: 1
+            Repeater {
+                model: root.completions
+                delegate: AbstractButton {
+                    required property var modelData
+                    width: completionPopup.availableWidth
+                    height: 32 * Theme.scale
+                    hoverEnabled: true
+                    onClicked: root.complete(modelData.path)
+                    background: Rectangle {
+                        radius: Theme.radiusS
+                        color: parent.hovered ? Theme.controlHover : "transparent"
+                    }
+                    RowLayout {
+                        anchors.fill: parent
+                        anchors.leftMargin: Theme.spaceM
+                        anchors.rightMargin: Theme.spaceM
+                        spacing: Theme.spaceS
+                        LucideIcon {
+                            Layout.preferredWidth: Theme.fontBody
+                            Layout.preferredHeight: Layout.preferredWidth
+                            Layout.alignment: Qt.AlignVCenter
+                            name: "folder"
+                            iconSize: Layout.preferredWidth
+                        }
+                        Text {
+                            Layout.fillWidth: true
+                            Layout.alignment: Qt.AlignVCenter
+                            text: modelData.path
+                            color: Theme.text
+                            font.pixelSize: Theme.fontBody
+                            elide: Text.ElideMiddle
+                        }
+                    }
+                }
+            }
+        }
     }
 }

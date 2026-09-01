@@ -88,15 +88,17 @@ QtObject {
         onFileChanged: root.scheduleReload()
     }
 
-    Binding { target: root.theme; property: "primary"; value: root.colors.primary; when: root.theme && root.colors.primary !== undefined }
-    Binding { target: root.theme; property: "primaryText"; value: root.colors.primaryText; when: root.theme && root.colors.primaryText !== undefined }
-    Binding { target: root.theme; property: "surface"; value: root.colors.surface; when: root.theme && root.colors.surface !== undefined }
-    Binding { target: root.theme; property: "surfaceVariant"; value: root.colors.surfaceVariant; when: root.theme && root.colors.surfaceVariant !== undefined }
-    Binding { target: root.theme; property: "text"; value: root.colors.text; when: root.theme && root.colors.text !== undefined }
-    Binding { target: root.theme; property: "textMuted"; value: root.colors.textMuted; when: root.theme && root.colors.textMuted !== undefined }
-    Binding { target: root.theme; property: "outline"; value: root.colors.outline; when: root.theme && root.colors.outline !== undefined }
-    Binding { target: root.theme; property: "error"; value: root.colors.error; when: root.theme && root.colors.error !== undefined }
-    Binding { target: root.theme; property: "scale"; value: root.metrics.scale; when: root.theme && root.metrics.scale !== undefined }
-    Binding { target: root.theme; property: "radiusRatio"; value: root.metrics.radiusRatio; when: root.theme && root.metrics.radiusRatio !== undefined }
-    Binding { target: root.theme; property: "animationFast"; value: root.metrics.animationFast; when: root.theme && root.metrics.animationFast !== undefined }
+    // QtObject has no default child property, so each Binding must be owned by
+    // an explicit property rather than declared as an implicit child.
+    property Binding primaryBinding: Binding { target: root.theme; property: "primary"; value: root.colors.primary; when: root.theme && root.colors.primary !== undefined }
+    property Binding primaryTextBinding: Binding { target: root.theme; property: "primaryText"; value: root.colors.primaryText; when: root.theme && root.colors.primaryText !== undefined }
+    property Binding surfaceBinding: Binding { target: root.theme; property: "surface"; value: root.colors.surface; when: root.theme && root.colors.surface !== undefined }
+    property Binding surfaceVariantBinding: Binding { target: root.theme; property: "surfaceVariant"; value: root.colors.surfaceVariant; when: root.theme && root.colors.surfaceVariant !== undefined }
+    property Binding textBinding: Binding { target: root.theme; property: "text"; value: root.colors.text; when: root.theme && root.colors.text !== undefined }
+    property Binding textMutedBinding: Binding { target: root.theme; property: "textMuted"; value: root.colors.textMuted; when: root.theme && root.colors.textMuted !== undefined }
+    property Binding outlineBinding: Binding { target: root.theme; property: "outline"; value: root.colors.outline; when: root.theme && root.colors.outline !== undefined }
+    property Binding errorBinding: Binding { target: root.theme; property: "error"; value: root.colors.error; when: root.theme && root.colors.error !== undefined }
+    property Binding scaleBinding: Binding { target: root.theme; property: "scale"; value: root.metrics.scale; when: root.theme && root.metrics.scale !== undefined }
+    property Binding radiusRatioBinding: Binding { target: root.theme; property: "radiusRatio"; value: root.metrics.radiusRatio; when: root.theme && root.metrics.radiusRatio !== undefined }
+    property Binding animationFastBinding: Binding { target: root.theme; property: "animationFast"; value: root.metrics.animationFast; when: root.theme && root.metrics.animationFast !== undefined }
 }

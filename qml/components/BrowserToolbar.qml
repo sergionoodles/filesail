@@ -40,9 +40,9 @@ ColumnLayout {
             anchors.rightMargin: Theme.spaceL
             spacing: Theme.spaceS
 
-            IconButton { glyph: "‹"; enabled: root.backAction.enabled; tooltip: root.backAction.text; onClicked: root.backAction.trigger() }
-            IconButton { glyph: "›"; enabled: root.forwardAction.enabled; tooltip: root.forwardAction.text; onClicked: root.forwardAction.trigger() }
-            IconButton { glyph: "↑"; enabled: root.upAction.enabled; tooltip: root.upAction.text; onClicked: root.upAction.trigger() }
+            IconButton { iconName: "arrow-left"; enabled: root.backAction.enabled; tooltip: root.backAction.text; onClicked: root.backAction.trigger() }
+            IconButton { iconName: "arrow-right"; enabled: root.forwardAction.enabled; tooltip: root.forwardAction.text; onClicked: root.forwardAction.trigger() }
+            IconButton { iconName: "arrow-up"; enabled: root.upAction.enabled; tooltip: root.upAction.text; onClicked: root.upAction.trigger() }
 
             BreadcrumbBar {
                 id: breadcrumbs
@@ -75,18 +75,18 @@ ColumnLayout {
             anchors.rightMargin: Theme.spaceL
             spacing: Theme.spaceXs
 
-            IconButton { glyph: "+"; label: root.compact ? "" : root.createAction.text; enabled: root.createAction.enabled; onClicked: root.createAction.trigger() }
-            IconButton { glyph: "✎"; enabled: root.renameAction.enabled; tooltip: root.renameAction.text; onClicked: root.renameAction.trigger() }
-            IconButton { glyph: "⧉"; enabled: root.copyAction.enabled; tooltip: root.copyAction.text; onClicked: root.copyAction.trigger() }
-            IconButton { glyph: "✂"; enabled: root.moveAction.enabled; tooltip: root.moveAction.text; onClicked: root.moveAction.trigger() }
-            IconButton { glyph: "⇥"; enabled: root.pasteAction.enabled; tooltip: root.pasteAction.text; onClicked: root.pasteAction.trigger() }
-            IconButton { glyph: "♲"; enabled: root.trashAction.enabled; tooltip: root.trashAction.text; onClicked: root.trashAction.trigger() }
+            IconButton { iconName: "folder-plus"; label: root.compact ? "" : root.createAction.text; enabled: root.createAction.enabled; onClicked: root.createAction.trigger() }
+            IconButton { iconName: "square-pen"; enabled: root.renameAction.enabled; tooltip: root.renameAction.text; onClicked: root.renameAction.trigger() }
+            IconButton { iconName: "copy"; enabled: root.copyAction.enabled; tooltip: root.copyAction.text; onClicked: root.copyAction.trigger() }
+            IconButton { iconName: "scissors"; enabled: root.moveAction.enabled; tooltip: root.moveAction.text; onClicked: root.moveAction.trigger() }
+            IconButton { iconName: "clipboard-paste"; enabled: root.pasteAction.enabled; tooltip: root.pasteAction.text; onClicked: root.pasteAction.trigger() }
+            IconButton { iconName: "trash-2"; enabled: root.trashAction.enabled; tooltip: root.trashAction.text; onClicked: root.trashAction.trigger() }
 
             Item { Layout.fillWidth: true }
 
-            IconButton { glyph: "·☰"; checked: root.listViewAction.checked; tooltip: root.listViewAction.text; onClicked: root.listViewAction.trigger() }
-            IconButton { glyph: "▦"; checked: root.gridViewAction.checked; tooltip: root.gridViewAction.text; onClicked: root.gridViewAction.trigger() }
-            IconButton { glyph: "◌"; checked: root.hiddenFilesAction.checked; tooltip: root.hiddenFilesAction.text; onClicked: root.hiddenFilesAction.trigger() }
+            IconButton { iconName: "list"; checked: root.listViewAction.checked; tooltip: root.listViewAction.text; onClicked: root.listViewAction.trigger() }
+            IconButton { iconName: "grid-2x2"; checked: root.gridViewAction.checked; tooltip: root.gridViewAction.text; onClicked: root.gridViewAction.trigger() }
+            IconButton { iconName: root.hiddenFilesAction.checked ? "eye" : "eye-off"; checked: root.hiddenFilesAction.checked; tooltip: root.hiddenFilesAction.text; onClicked: root.hiddenFilesAction.trigger() }
         }
     }
 }

@@ -5,8 +5,7 @@ import "../core"
 AbstractButton {
     id: root
 
-    // `icon` is reserved by AbstractButton; this is the text-glyph fallback.
-    property string glyph: ""
+    property string iconName: ""
     property string label: ""
     property string tooltip: label
     implicitWidth: label.length > 0 ? contentRow.implicitWidth + Theme.spaceM * 2 : 34 * Theme.scale
@@ -33,10 +32,10 @@ AbstractButton {
         anchors.centerIn: parent
         spacing: Theme.spaceS
 
-        Text {
-            text: root.glyph
-            color: root.checked ? Theme.primary : Theme.textMuted
-            font.pixelSize: 16 * Theme.scale
+        LucideIcon {
+            name: root.iconName
+            iconColor: root.checked ? Theme.primary : Theme.textMuted
+            iconSize: Theme.iconSize
             anchors.verticalCenter: parent.verticalCenter
         }
 

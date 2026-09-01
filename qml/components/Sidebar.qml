@@ -25,19 +25,12 @@ Rectangle {
             Layout.rightMargin: Theme.spaceS
             Layout.bottomMargin: Theme.spaceM
 
-            Rectangle {
-                implicitWidth: 28 * Theme.scale
-                implicitHeight: implicitWidth
-                radius: Theme.radiusS
-                color: Theme.primary
-
-                Text {
-                    anchors.centerIn: parent
-                    text: "◢"
-                    color: Theme.primaryText
-                    font.pixelSize: 15 * Theme.scale
-                    font.bold: true
-                }
+            Image {
+                Layout.preferredWidth: 28 * Theme.scale
+                Layout.preferredHeight: Layout.preferredWidth
+                source: "../../logo.png"
+                fillMode: Image.PreserveAspectFit
+                smooth: true
             }
 
             ColumnLayout {
@@ -96,11 +89,14 @@ Rectangle {
                     anchors.rightMargin: Theme.spaceM
                     spacing: Theme.spaceM
 
-                    FileIcon {
-                        implicitWidth: 17 * Theme.scale
-                        implicitHeight: implicitWidth
-                        iconName: placeDelegate.iconName
-                        selected: root.currentPath === path
+                    LucideIcon {
+                        Layout.preferredWidth: 17 * Theme.scale
+                        Layout.preferredHeight: Layout.preferredWidth
+                        name: placeDelegate.iconName === "user-home" ? "house"
+                            : placeDelegate.iconName === "user-desktop" ? "monitor"
+                            : placeDelegate.iconName === "user-trash" ? "trash-2" : "folder"
+                        iconColor: root.currentPath === path ? Theme.primary : Theme.textMuted
+                        iconSize: Layout.preferredWidth
                     }
                     Text {
                         Layout.fillWidth: true

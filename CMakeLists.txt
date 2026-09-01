@@ -49,12 +49,15 @@ configure_file(
 
 install(TARGETS filesail-backend RUNTIME DESTINATION ${CMAKE_INSTALL_BINDIR})
 install(PROGRAMS ${CMAKE_CURRENT_BINARY_DIR}/filesail DESTINATION ${CMAKE_INSTALL_BINDIR})
-install(FILES shell.qml ${CMAKE_CURRENT_BINARY_DIR}/manifest.json
+install(FILES shell.qml logo.png ${CMAKE_CURRENT_BINARY_DIR}/manifest.json
     DESTINATION ${FILESAIL_INSTALL_DATA_DIR})
 install(DIRECTORY qml integrations DESTINATION ${FILESAIL_INSTALL_DATA_DIR}
-    PATTERN "*.qml" PATTERN "qmldir" PATTERN "*.json")
+    PATTERN "*.qml" PATTERN "qmldir" PATTERN "*.json" PATTERN "*.ttf" PATTERN "LUCIDE-LICENSE")
 install(FILES packaging/dev.filesail.FileSail.desktop
     DESTINATION ${CMAKE_INSTALL_DATADIR}/applications)
+install(FILES logo.png
+    DESTINATION ${CMAKE_INSTALL_DATADIR}/icons/hicolor/1200x1200/apps
+    RENAME filesail.png)
 
 enable_testing()
 add_test(

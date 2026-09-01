@@ -12,6 +12,7 @@
 class QFileSystemWatcher;
 class QSocketNotifier;
 class QTimer;
+class PreviewService;
 
 class BackendServer final : public QObject
 {
@@ -41,6 +42,7 @@ private:
     QTimer *m_locationsDebounce = nullptr;
     QThreadPool m_readPool;
     QThreadPool m_mutationPool;
+    PreviewService *m_previewService = nullptr;
     QHash<QString, qsizetype> m_directoryWatchCounts;
     qsizetype m_activeJobs = 0;
     bool m_inputClosed = false;

@@ -11,13 +11,23 @@ Rectangle {
     // Hosts may override density; otherwise the view adapts to its available width.
     property bool compact: width > 0 && width < 900 * Theme.scale
     property int cornerRadius: 0
+    // A host may replace the built-in provider. Null selects FileSail's own
+    // panel, whose bindings are established before component completion.
     property Component previewComponent: null
     // A URL provider is preferred because Loader.setSource can supply required
     // properties before the preview component completes.
     property url previewSource: ""
     // Preview providers receive the selected path explicitly via Loader.item.
     // Providers should declare `property string selectedPath` (or use this context).
-    property QtObject previewContext: QtObject { property string selectedPath: session.primarySelectionPath }
+    property QtObject previewContext: QtObject {
+        property string selectedPath: session.primarySelectionPath
+        property string primarySelectionPath: session.primarySelectionPath
+        property var selectedPaths: Object.keys(session.selectedPaths)
+        property var selectedEntries: session.selectedEntries
+        property int selectionRevision: session.selectionRevision
+    }
+    property bool previewPaneEnabled: true
+    readonly property bool hasExternalPreview: previewSource.toString().length > 0 || Boolean(previewComponent)
     property string noticeText: ""
     property bool noticeError: false
     property string viewMode: "list"
@@ -37,14 +47,18 @@ Rectangle {
         }
         return false;
     }
-    readonly property bool previewEnabled: (previewComponent !== null || previewSource !== "")
-        && session.primarySelectionPath.length > 0
-        && !selectionIncludesDirectory
+    // Selection routing belongs to PreviewPanel. Keeping the pane instantiated
+    // gives empty and unsupported selections stable geometry and avoids losing
+    // provider state between clicks.
+    readonly property real previewRequiredWidth: (190 + 1 + 360 + 220) * Theme.scale
+    readonly property bool previewEnabled: previewPaneEnabled && width >= previewRequiredWidth
     readonly property bool modalActive: createPrompt.visible || renamePrompt.visible || trashPrompt.visible || largeDirectoryPrompt.visible
 
     color: Theme.surface
     radius: cornerRadius
     clip: true
+
+    Component.onCompleted: Logger.info("view", `ready path=${initialPath}`)
 
     function navigate(path) { session.navigate(path); }
 
@@ -104,6 +118,7 @@ Rectangle {
     property Action trashAction: Action { text: qsTr("Move to Trash"); shortcut: "Delete"; enabled: !root.modalActive && session.selectedCount > 0; onTriggered: root.openTrashPrompt() }
     property Action listViewAction: Action { text: qsTr("Details view"); checked: root.viewMode === "list"; enabled: !root.modalActive; onTriggered: root.viewMode = "list" }
     property Action gridViewAction: Action { text: qsTr("Grid view"); checked: root.viewMode === "grid"; enabled: !root.modalActive; onTriggered: root.viewMode = "grid" }
+    property Action previewAction: Action { text: qsTr("Preview pane"); shortcut: "Ctrl+P"; checked: root.previewPaneEnabled; enabled: !root.modalActive; onTriggered: root.previewPaneEnabled = !root.previewPaneEnabled }
 
     RowLayout {
         anchors.fill: parent
@@ -144,6 +159,7 @@ Rectangle {
                 listViewAction: root.listViewAction
                 gridViewAction: root.gridViewAction
                 hiddenFilesAction: root.hiddenFilesAction
+                previewAction: root.previewAction
                 onNavigate: path => root.navigate(path)
             }
 
@@ -158,16 +174,24 @@ Rectangle {
                     session: session
                     viewMode: root.viewMode
                 }
+                PreviewPanel {
+                    id: builtInPreview
+                    visible: root.previewEnabled && !root.hasExternalPreview
+                    SplitView.preferredWidth: visible ? 300 * Theme.scale : 0
+                    SplitView.minimumWidth: visible ? 220 * Theme.scale : 0
+                    selectedEntries: session.selectedEntries
+                    selectionRevision: session.selectionRevision
+                }
                 Loader {
                     id: previewLoader
-                    visible: root.previewEnabled
+                    visible: root.previewEnabled && root.hasExternalPreview
                     active: visible
-                    sourceComponent: root.previewSource === "" ? root.previewComponent : null
+                    sourceComponent: root.previewSource.toString().length === 0 ? root.previewComponent : null
                     SplitView.preferredWidth: visible ? 300 * Theme.scale : 0
                     SplitView.minimumWidth: visible ? 220 * Theme.scale : 0
                     property string selectedPath: session.primarySelectionPath
                     function loadPreview() {
-                        if (root.previewSource !== "")
+                        if (root.previewSource.toString().length > 0)
                             setSource(root.previewSource, { selectedPath: root.previewContext.selectedPath });
                     }
                     Component.onCompleted: loadPreview()
@@ -177,8 +201,14 @@ Rectangle {
                     }
                     onLoaded: {
                         // The property lives on the preview object, not the Loader.
-                        if (item)
+                        if (item && typeof item.selectedPath !== "undefined")
                             item.selectedPath = Qt.binding(() => root.previewContext.selectedPath);
+                        if (item && typeof item.selectedEntries !== "undefined") {
+                            item.selectedEntries = Qt.binding(() => root.previewContext.selectedEntries);
+                        }
+                        if (item && typeof item.selectionRevision !== "undefined") {
+                            item.selectionRevision = Qt.binding(() => root.previewContext.selectionRevision);
+                        }
                     }
                 }
             }

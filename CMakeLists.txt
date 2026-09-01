@@ -11,7 +11,9 @@ set(CMAKE_CXX_STANDARD_REQUIRED ON)
 set(CMAKE_CXX_EXTENSIONS OFF)
 set(CMAKE_AUTOMOC ON)
 
-find_package(Qt6 6.6 REQUIRED COMPONENTS Core Concurrent)
+find_package(Qt6 6.6 REQUIRED COMPONENTS Core Concurrent DBus)
+find_package(PkgConfig REQUIRED)
+pkg_check_modules(LIBARCHIVE REQUIRED IMPORTED_TARGET libarchive)
 
 configure_file(
     src/backend/filesail_version.h.in
@@ -21,6 +23,8 @@ configure_file(
 
 add_executable(filesail-backend
     src/backend/main.cpp
+    src/backend/logging.cpp
+    src/backend/logging.h
     src/backend/backendserver.cpp
     src/backend/backendserver.h
     src/backend/fileoperations.cpp
@@ -29,9 +33,11 @@ add_executable(filesail-backend
     src/backend/foldercontext.h
     src/backend/savedlocations.cpp
     src/backend/savedlocations.h
+    src/backend/previewservice.cpp
+    src/backend/previewservice.h
 )
 
-target_link_libraries(filesail-backend PRIVATE Qt6::Core Qt6::Concurrent)
+target_link_libraries(filesail-backend PRIVATE Qt6::Core Qt6::Concurrent Qt6::DBus PkgConfig::LIBARCHIVE)
 target_include_directories(filesail-backend PRIVATE ${CMAKE_CURRENT_BINARY_DIR}/generated)
 target_compile_options(filesail-backend PRIVATE
     $<$<CXX_COMPILER_ID:GNU,Clang>:-Wall -Wextra -Wpedantic>

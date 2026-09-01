@@ -106,6 +106,7 @@ QtObject {
             if (unsafeEntryCount > 0)
                 root.unsafeEntriesSkipped(unsafeEntryCount);
             root.subscribe(root.path);
+            Logger.info("directory", `${root.activeLoadKind} ${root.path} (${entryModel.count} entries)`);
             root.loaded(root.path, root.activeLoadKind === "navigation");
         }, (message, result) => {
             if (requestId !== root.activeRequest)
@@ -114,6 +115,7 @@ QtObject {
             root.loading = false;
             if (result?.requiresConfirmation) {
                 root.requestedPath = root.path;
+                Logger.warn("directory", `large directory ${result.path ?? root.path} (>=${Number(result.entryCountAtLeast ?? 0)})`);
                 root.largeDirectoryWarning(result.path ?? root.path,
                                            Number(result.entryCountAtLeast ?? 0));
                 return;
@@ -121,6 +123,7 @@ QtObject {
             root.error = message;
             root.requestedPath = root.path;
             root.unsubscribe();
+            Logger.warn("directory", `load failed: ${message}`);
             root.loadFailed(message);
         });
         activeRequest = requestId;

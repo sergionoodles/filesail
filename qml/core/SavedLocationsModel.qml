@@ -31,6 +31,7 @@ QtObject {
         }, message => {
             loading = false;
             error = message;
+            Logger.warn("locations", `list failed: ${message}`);
             operationFailed(message);
         });
     }

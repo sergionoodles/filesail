@@ -20,9 +20,9 @@ Rectangle {
         RowLayout {
             Layout.fillWidth: true; Layout.bottomMargin: Theme.spaceM
             ButtonGroup { id: sectionGroup }
-            SidebarTabButton { iconName: "map-pinned"; tooltip: qsTr("Places"); checked: root.activeSection === "places"; ButtonGroup.group: sectionGroup; onClicked: root.activeSection = "places" }
-            SidebarTabButton { iconName: "briefcase-business"; tooltip: qsTr("Projects"); checked: root.activeSection === "projects"; ButtonGroup.group: sectionGroup; onClicked: root.activeSection = "projects" }
-            SidebarTabButton { iconName: "bookmark"; tooltip: qsTr("Bookmarks"); checked: root.activeSection === "bookmarks"; ButtonGroup.group: sectionGroup; onClicked: root.activeSection = "bookmarks" }
+            SidebarTabButton { iconName: "folder"; tooltip: qsTr("Places"); checked: root.activeSection === "places"; ButtonGroup.group: sectionGroup; onClicked: root.activeSection = "places" }
+            SidebarTabButton { iconName: "code"; tooltip: qsTr("Projects"); checked: root.activeSection === "projects"; ButtonGroup.group: sectionGroup; onClicked: root.activeSection = "projects" }
+            SidebarTabButton { iconName: "star"; tooltip: qsTr("Bookmarks"); checked: root.activeSection === "bookmarks"; ButtonGroup.group: sectionGroup; onClicked: root.activeSection = "bookmarks" }
         }
         StackLayout {
             Layout.fillWidth: true; Layout.fillHeight: true
@@ -36,6 +36,7 @@ Rectangle {
                         id: placeDelegate
                         required property string label; required property string iconName; required property string path
                         Layout.fillWidth: true; implicitHeight: 34 * Theme.scale; hoverEnabled: true; focusPolicy: Qt.StrongFocus
+                        leftPadding: Theme.spaceM; rightPadding: Theme.spaceM
                         Accessible.name: label; Accessible.role: Accessible.ListItem
                         onClicked: root.navigate(path)
                         background: Rectangle { radius: Theme.radiusS; color: root.currentPath === path ? Theme.selectionFill : parent.hovered ? Theme.controlHover : "transparent" }

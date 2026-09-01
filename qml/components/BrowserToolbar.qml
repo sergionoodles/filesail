@@ -21,6 +21,7 @@ ColumnLayout {
     required property Action listViewAction
     required property Action gridViewAction
     required property Action hiddenFilesAction
+    required property Action previewAction
 
     signal navigate(string path)
 
@@ -90,9 +91,14 @@ ColumnLayout {
 
             Item { Layout.fillWidth: true }
 
-            IconButton { iconName: "list"; checked: root.listViewAction.checked; tooltip: root.listViewAction.text; onClicked: root.listViewAction.trigger() }
-            IconButton { iconName: "grid-2x2"; checked: root.gridViewAction.checked; tooltip: root.gridViewAction.text; onClicked: root.gridViewAction.trigger() }
+            IconButton {
+                iconName: root.listViewAction.checked ? "grid-2x2" : "list"
+                tooltip: root.listViewAction.checked ? root.gridViewAction.text : root.listViewAction.text
+                checkable: false
+                onClicked: root.listViewAction.checked ? root.gridViewAction.trigger() : root.listViewAction.trigger()
+            }
             IconButton { iconName: root.hiddenFilesAction.checked ? "eye" : "eye-off"; checked: root.hiddenFilesAction.checked; tooltip: root.hiddenFilesAction.text; onClicked: root.hiddenFilesAction.trigger() }
+            IconButton { iconName: "image"; checked: root.previewAction.checked; tooltip: root.previewAction.text; onClicked: root.previewAction.trigger() }
         }
     }
 }

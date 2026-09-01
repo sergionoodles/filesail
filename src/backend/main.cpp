@@ -1,5 +1,6 @@
 #include "backendserver.h"
 #include "filesail_version.h"
+#include "logging.h"
 
 #include <QCoreApplication>
 #include <QTextStream>
@@ -17,8 +18,11 @@ int main(int argc, char *argv[])
 
     BackendServer server;
     if (!server.start()) {
-        QTextStream(stderr) << "Failed to connect backend protocol to stdin/stdout\n";
+        filesailLog(LogLevel::Error, "backend",
+                    QStringLiteral("Failed to connect backend protocol to stdin/stdout"));
         return 1;
     }
+    filesailLog(LogLevel::Info, "backend",
+                QStringLiteral("serving %1").arg(QStringLiteral(FILESAIL_VERSION)));
     return application.exec();
 }

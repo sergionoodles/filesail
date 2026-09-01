@@ -19,7 +19,7 @@ while (($#)); do
             shift 2
             ;;
         --path=*) requested_path="${1#--path=}"; shift ;;
-        --help|-h) printf '%s\n' 'Usage: filesail [--path PATH] [PATH]'; exit 0 ;;
+        --help|-h) printf '%s\n' 'Usage: filesail [--path PATH] [PATH]' 'Environment: FILESAIL_LOG=error|warn|info|debug (default: info)'; exit 0 ;;
         -*) printf 'filesail: unknown option: %s\\n' "$1" >&2; exit 2 ;;
         *) requested_path="$1"; shift ;;
     esac
@@ -27,4 +27,12 @@ done
 export FILESAIL_PATH="$requested_path"
 export QS_APP_ID="dev.filesail.FileSail"
 
-exec qs --allow-duplicate -p "$project_dir"
+# Quickshell hides console.info/log at its default warning level. Enable QML
+# info (and debug when requested) so FileSail's Logger reaches the console.
+qs_args=(--allow-duplicate -p "$project_dir")
+case "${FILESAIL_LOG:-info}" in
+    debug) qs_args+=(--log-rules "qml.debug=true;qml.info=true") ;;
+    info) qs_args+=(--log-rules "qml.info=true") ;;
+esac
+
+exec qs "${qs_args[@]}"

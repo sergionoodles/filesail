@@ -20,6 +20,9 @@ QtObject {
     readonly property color controlHover: Qt.alpha(text, 0.08)
     readonly property color divider: Qt.alpha(outline, 0.72)
     property color errorText: "#16161e"
+    // A host may bind this to its appearance setting. Preview providers use it
+    // only to select generated syntax colours; they never load host resources.
+    property string appearance: "dark"
 
     property real scale: 1.0
     property real radiusRatio: 1.0

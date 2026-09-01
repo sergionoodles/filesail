@@ -41,8 +41,9 @@ Item {
                 id: listView
                 Layout.fillWidth: true
                 Layout.fillHeight: true
-                model: root.session.directory.entries
+                model: root.viewMode === "list" ? root.session.directory.entries : null
                 clip: true
+                cacheBuffer: 168 * Theme.scale
                 boundsBehavior: Flickable.StopAtBounds
 
                 TapHandler {
@@ -66,6 +67,7 @@ Item {
                     required property double size
                     required property string modified
                     required property string iconName
+                    required property string mimeType
                     width: listView.width
                     height: 42 * Theme.scale
                     Accessible.name: listDelegate.name
@@ -87,8 +89,13 @@ Item {
                         anchors.leftMargin: Theme.spaceL
                         anchors.rightMargin: Theme.spaceL
                         spacing: Theme.spaceM
-                        FileIcon { Layout.preferredWidth: 24 * Theme.scale; Layout.preferredHeight: 24 * Theme.scale; iconName: listDelegate.iconName; selected: root.session.selectedPaths[listDelegate.path] ?? false }
-                        Text { Layout.fillWidth: true; text: Format.safeText(listDelegate.name); textFormat: Text.PlainText; color: Theme.text; font.pixelSize: Theme.fontBody; elide: Text.ElideMiddle }
+                        FileVisual {
+                            Layout.preferredWidth: 24 * Theme.scale; Layout.preferredHeight: 24 * Theme.scale
+                            entry: ({ name: listDelegate.name, path: listDelegate.path, isDirectory: listDelegate.isDirectory, size: listDelegate.size, modified: listDelegate.modified, iconName: listDelegate.iconName, mimeType: listDelegate.mimeType })
+                            selected: root.session.selectedPaths[listDelegate.path] ?? false
+                            thumbnailSize: 24 * Theme.scale
+                        }
+                        Text { Layout.fillWidth: true; text: Format.safeText(listDelegate.name); textFormat: Text.PlainText; color: Theme.text; font.pixelSize: Theme.fontBody; elide: Text.ElideRight }
                         Text { Layout.preferredWidth: 116 * Theme.scale; text: Format.date(listDelegate.modified); textFormat: Text.PlainText; color: Theme.textMuted; font.pixelSize: Theme.fontSmall; elide: Text.ElideRight }
                         Text { Layout.preferredWidth: 72 * Theme.scale; horizontalAlignment: Text.AlignRight; text: Format.size(listDelegate.size, listDelegate.isDirectory); textFormat: Text.PlainText; color: Theme.textMuted; font.pixelSize: Theme.fontSmall }
                     }
@@ -113,8 +120,9 @@ Item {
             anchors.fill: parent
             anchors.margins: Theme.spaceL
             visible: root.viewMode === "grid"
-            model: root.session.directory.entries
+            model: root.viewMode === "grid" ? root.session.directory.entries : null
             clip: true
+            cacheBuffer: gridView.cellHeight * 2
             cellWidth: 118 * Theme.scale
             cellHeight: 112 * Theme.scale
             boundsBehavior: Flickable.StopAtBounds
@@ -136,7 +144,10 @@ Item {
                 required property string name
                 required property string path
                 required property bool isDirectory
+                required property double size
+                required property string modified
                 required property string iconName
+                required property string mimeType
                 width: gridView.cellWidth - Theme.spaceS
                 height: gridView.cellHeight - Theme.spaceS
                 radius: Theme.radiusM
@@ -150,8 +161,10 @@ Item {
                     anchors.centerIn: parent
                     width: parent.width - Theme.spaceM * 2
                     spacing: Theme.spaceS
-                    FileIcon { width: 46 * Theme.scale; height: 46 * Theme.scale; anchors.horizontalCenter: parent.horizontalCenter; iconName: gridDelegate.iconName; selected: root.session.selectedPaths[gridDelegate.path] ?? false }
-                    Text { width: parent.width; text: Format.safeText(gridDelegate.name); textFormat: Text.PlainText; color: Theme.text; font.pixelSize: Theme.fontBody; horizontalAlignment: Text.AlignHCenter; elide: Text.ElideMiddle; maximumLineCount: 2; wrapMode: Text.Wrap }
+                    FileVisual { width: 46 * Theme.scale; height: 46 * Theme.scale; anchors.horizontalCenter: parent.horizontalCenter
+                        entry: ({ name: gridDelegate.name, path: gridDelegate.path, isDirectory: gridDelegate.isDirectory, iconName: gridDelegate.iconName, mimeType: gridDelegate.mimeType, size: gridDelegate.size, modified: gridDelegate.modified })
+                        selected: root.session.selectedPaths[gridDelegate.path] ?? false }
+                    Text { width: parent.width; text: Format.safeText(gridDelegate.name); textFormat: Text.PlainText; color: Theme.text; font.pixelSize: Theme.fontBody; horizontalAlignment: Text.AlignHCenter; elide: Text.ElideRight; maximumLineCount: 2; wrapMode: Text.Wrap }
                 }
                 MouseArea {
                     id: gridMouse

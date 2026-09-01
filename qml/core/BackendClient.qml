@@ -31,11 +31,13 @@ QtObject {
         const timeoutMs = timeout === undefined ? requestTimeout : timeout;
         const requests = Object.assign({}, pendingRequests);
         requests[id] = {
+            method: method,
             onSuccess: onSuccess,
             onFailure: onFailure,
             deadline: timeoutMs > 0 ? Date.now() + timeoutMs : 0
         };
         pendingRequests = requests;
+        Logger.debug("backend", `→ ${id} ${method}`);
         if (backend.running)
             backend.write(line);
         else {
@@ -54,6 +56,28 @@ QtObject {
         pendingRequests = requests;
     }
 
+    function cancelPreview(id) {
+        // Cancellation is deliberately a separate protocol operation: it can
+        // never be mistaken for a filesystem mutation cancellation.
+        return request("cancelPreview", { requestId: id }, null, null, 0);
+    }
+
+    function requestThumbnails(items, flavor, priority, onSuccess, onFailure) {
+        return request("thumbnailBatch", { items, flavor, priority }, onSuccess, onFailure);
+    }
+
+    function requestTextPreview(path, appearance, onSuccess, onFailure) {
+        return request("textPreview", { path, appearance }, onSuccess, onFailure);
+    }
+
+    function requestArchivePreview(path, onSuccess, onFailure) {
+        return request("archivePreview", { path }, onSuccess, onFailure);
+    }
+
+    function requestPreviewCapabilities(onSuccess, onFailure) {
+        return request("previewCapabilities", {}, onSuccess, onFailure);
+    }
+
     function complete(message) {
         const id = message.id ?? -1;
         const pending = pendingRequests[id];
@@ -62,6 +86,7 @@ QtObject {
             return;
         }
         cancel(id);
+        Logger.debug("backend", `← ${id} ${pending.method} ok=${!!message.ok}`);
         if (message.ok) {
             if (pending.onSuccess)
                 pending.onSuccess(message);
@@ -69,6 +94,24 @@ QtObject {
             pending.onFailure(message.error ?? "Unknown backend error", message);
         }
         response(id, message);
+    }
+
+    function ingestStderr(line) {
+        const text = String(line).trim();
+        if (!text)
+            return;
+        const match = /^\[filesail:[^\]]+\]\[(error|warn|info|debug)\]/.exec(text);
+        const severity = match ? match[1] : "warn";
+        if (severity === "error")
+            console.error(text);
+        else if (severity === "debug")
+            console.log(text);
+        else if (severity === "info")
+            console.info(text);
+        else
+            console.warn(text);
+        if (severity === "error" || severity === "warn")
+            root.lastError = text;
     }
 
     function rejectAll(message) {
@@ -165,6 +208,7 @@ QtObject {
                     message = JSON.parse(line);
                 } catch (error) {
                     root.lastError = "Backend returned invalid JSON";
+                    Logger.error("backend", root.lastError);
                     root.rejectAll(root.lastError);
                     return;
                 }
@@ -176,16 +220,21 @@ QtObject {
         }
 
         stderr: SplitParser {
-            onRead: line => root.lastError = String(line).trim()
+            onRead: line => root.ingestStderr(line)
         }
 
         onStarted: {
             root.lastError = "";
+            Logger.info("backend", `started ${root.backendCommand}`);
             root.flush();
         }
 
         onExited: exitCode => {
             const message = root.lastError || `FileSail backend exited (${exitCode})`;
+            if (exitCode === 0)
+                Logger.info("backend", "exited");
+            else
+                Logger.error("backend", message);
             root.rejectAll(message);
             root.backendStopped(message);
         }
@@ -210,6 +259,10 @@ QtObject {
             if (expired.length > 0)
                 root.pendingRequests = requests;
             for (const request of expired) {
+                if (request.pending.method === "thumbnailBatch" || request.pending.method === "textPreview"
+                        || request.pending.method === "archivePreview")
+                    root.cancelPreview(request.id);
+                Logger.warn("backend", `request ${request.id} ${request.pending.method} timed out`);
                 if (request.pending.onFailure) {
                     try {
                         request.pending.onFailure("Backend request timed out", {

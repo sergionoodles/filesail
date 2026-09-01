@@ -32,7 +32,15 @@ ColumnLayout {
         Text { Layout.fillWidth: true; text: root.emptyHint; color: Theme.textMuted; font.pixelSize: Theme.fontSmall; wrapMode: Text.WordWrap }
         AbstractButton {
             text: qsTr("Add current folder")
-            implicitHeight: 34 * Theme.scale
+            Layout.alignment: Qt.AlignHCenter
+            Layout.leftMargin: Theme.spaceS
+            Layout.rightMargin: Theme.spaceS
+            hoverEnabled: true
+            implicitHeight: Theme.buttonHeight
+            leftPadding: Theme.buttonPaddingHorizontal
+            rightPadding: Theme.buttonPaddingHorizontal
+            topPadding: Theme.buttonPaddingVertical
+            bottomPadding: Theme.buttonPaddingVertical
             focusPolicy: Qt.StrongFocus
             Accessible.name: text
             onClicked: root.addRequested()
@@ -45,7 +53,7 @@ ColumnLayout {
             contentItem: Text {
                 text: parent.text
                 color: Theme.text
-                font.pixelSize: Theme.fontSmall
+                font.pixelSize: Theme.fontBody
                 horizontalAlignment: Text.AlignHCenter
                 verticalAlignment: Text.AlignVCenter
             }
@@ -64,6 +72,8 @@ ColumnLayout {
                 id: location
                 Layout.fillWidth: true
                 implicitHeight: 34 * Theme.scale
+                leftPadding: Theme.spaceM
+                rightPadding: Theme.spaceM
                 enabled: available
                 hoverEnabled: true
                 focusPolicy: Qt.StrongFocus

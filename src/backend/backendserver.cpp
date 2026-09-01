@@ -1,7 +1,9 @@
 #include "backendserver.h"
 
 #include "fileoperations.h"
+#include "logging.h"
 #include "savedlocations.h"
+#include "previewservice.h"
 
 #include <QCoreApplication>
 #include <QDir>
@@ -71,6 +73,7 @@ BackendServer::BackendServer(QObject *parent)
 {
     m_readPool.setMaxThreadCount(2);
     m_mutationPool.setMaxThreadCount(1);
+    m_previewService = new PreviewService(this);
 }
 
 bool BackendServer::start()
@@ -81,12 +84,15 @@ bool BackendServer::start()
 
     m_watcher = new QFileSystemWatcher(this);
     connect(m_watcher, &QFileSystemWatcher::directoryChanged, this, [this](const QString &path) {
+        filesailLog(LogLevel::Debug, "backend", QStringLiteral("directoryChanged %1").arg(path));
         writeResponse({{"event", "directoryChanged"}, {"path", path}});
         if (m_directoryWatchCounts.contains(path)
             && !m_watcher->directories().contains(path)) {
             const bool restored = QFileInfo(path).isDir() && m_watcher->addPath(path);
             if (!restored) {
                 m_directoryWatchCounts.remove(path);
+                filesailLog(LogLevel::Warn, "backend",
+                            QStringLiteral("directoryWatchLost %1").arg(path));
                 writeResponse({{"event", "directoryWatchLost"}, {"path", path}});
             }
         }
@@ -158,6 +164,8 @@ void BackendServer::handleRequest(const QByteArray &line)
     const int id = request.value("id").toInt(-1);
     const QString method = request.value("method").toString();
     const QJsonObject params = request.value("params").toObject();
+    filesailLog(LogLevel::Debug, "backend",
+                QStringLiteral("request id=%1 method=%2").arg(id).arg(method));
 
     if (method == "list") {
         enqueueOperation(id, m_readPool, [params] { return FileOperations::listDirectory(params); });
@@ -184,6 +192,16 @@ void BackendServer::handleRequest(const QByteArray &line)
         enqueueOperation(id, m_readPool, [params] { return FileOperations::openPath(params); });
     } else if (method == "terminal") {
         enqueueOperation(id, m_readPool, [params] { return FileOperations::openTerminal(params); });
+    } else if (method == "previewCapabilities") {
+        QJsonObject result = m_previewService->capabilities(); result.insert("id", id); writeResponse(result);
+    } else if (method == "thumbnailBatch") {
+        QJsonObject result = m_previewService->thumbnails(params); result.insert("id", id); writeResponse(result);
+    } else if (method == "textPreview") {
+        enqueueOperation(id, m_readPool, [this, params] { return m_previewService->text(params); });
+    } else if (method == "archivePreview") {
+        enqueueOperation(id, m_readPool, [this, params] { return m_previewService->archive(params); });
+    } else if (method == "cancelPreview") {
+        writeResponse({{"id", id}, {"ok", true}});
     } else {
         QJsonObject result;
         if (method == "watch")
@@ -199,6 +217,12 @@ void BackendServer::handleRequest(const QByteArray &line)
 
 void BackendServer::writeResponse(const QJsonObject &response)
 {
+    if (response.contains(QStringLiteral("ok")) && !response.value(QStringLiteral("ok")).toBool()) {
+        filesailLog(LogLevel::Warn, "backend",
+                    QStringLiteral("id=%1 error=%2")
+                        .arg(response.value(QStringLiteral("id")).toInt(-1))
+                        .arg(response.value(QStringLiteral("error")).toString()));
+    }
     m_output.write(QJsonDocument(response).toJson(QJsonDocument::Compact));
     m_output.write("\n");
     m_output.flush();
@@ -294,6 +318,8 @@ QJsonObject BackendServer::removeDirectoryWatch(const QJsonObject &params)
 
 void BackendServer::finishInput()
 {
+    filesailLog(LogLevel::Debug, "backend",
+                QStringLiteral("stdin closed, %1 job(s) remaining").arg(m_activeJobs));
     m_inputClosed = true;
     if (m_notifier)
         m_notifier->setEnabled(false);

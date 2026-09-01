@@ -1,7 +1,9 @@
 module FileSail.Core
 singleton Theme 1.0 Theme.qml
 singleton Format 1.0 Format.qml
+singleton Logger 1.0 Logger.qml
 singleton BackendClient 1.0 BackendClient.qml
+singleton PreviewManager 1.0 PreviewManager.qml
 NavigationController 1.0 NavigationController.qml
 DirectoryModel 1.0 DirectoryModel.qml
 BrowserSession 1.0 BrowserSession.qml

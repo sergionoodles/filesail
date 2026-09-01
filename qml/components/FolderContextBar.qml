@@ -12,7 +12,7 @@ Rectangle {
     }
     readonly property bool aiReady: orderedSignals.some(signal => signal.category === "ai")
     Layout.fillWidth: true
-    implicitHeight: 38 * Theme.scale
+    implicitHeight: 32 * Theme.scale
     color: Qt.alpha(Theme.surfaceVariant, 0.25)
     RowLayout {
         anchors.fill: parent

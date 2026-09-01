@@ -9,7 +9,7 @@ AbstractButton {
     property string label: ""
     property string tooltip: label
     implicitWidth: label.length > 0 ? contentRow.implicitWidth + Theme.buttonPaddingHorizontal * 2 : implicitHeight
-    implicitHeight: Math.max(40 * Theme.scale, Theme.buttonHeight)
+    implicitHeight: label.length > 0 ? Math.max(contentRow.implicitHeight + Theme.buttonPaddingVertical * 2, Theme.buttonHeight) : 40 * Theme.scale
     hoverEnabled: true
     checkable: true
     focusPolicy: Qt.StrongFocus

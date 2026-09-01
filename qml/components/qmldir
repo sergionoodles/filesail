@@ -13,4 +13,11 @@ FolderContextBar 1.0 FolderContextBar.qml
 ModalPrompt 1.0 ModalPrompt.qml
 BrowserToolbar 1.0 BrowserToolbar.qml
 FileBrowserPane 1.0 FileBrowserPane.qml
+FileVisual 1.0 FileVisual.qml
+PreviewPanel 1.0 PreviewPanel.qml
+ImageSelectionPreview 1.0 ImageSelectionPreview.qml
+FileMetadataPreview 1.0 FileMetadataPreview.qml
+VisualFilePreview 1.0 VisualFilePreview.qml
+TextFilePreview 1.0 TextFilePreview.qml
+ArchivePreview 1.0 ArchivePreview.qml
 FileSailView 1.0 FileSailView.qml

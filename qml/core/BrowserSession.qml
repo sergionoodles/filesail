@@ -7,6 +7,8 @@ QtObject {
     property string initialPath: String(Quickshell.env("HOME") ?? "/")
     property var selectedPaths: ({})
     property string primarySelectionPath: ""
+    property var selectedEntries: []
+    property int selectionRevision: 0
     property var clipboardPaths: []
     property string clipboardMode: "copy"
     property int clipboardRevision: 0
@@ -30,6 +32,7 @@ QtObject {
     function clearSelection() {
         selectedPaths = ({});
         primarySelectionPath = "";
+        updateSelectedEntries();
     }
 
     function removeFromSelection(paths) {
@@ -39,6 +42,7 @@ QtObject {
         selectedPaths = next;
         primarySelectionPath = next[primarySelectionPath]
             ? primarySelectionPath : Object.keys(next)[0] ?? "";
+        updateSelectedEntries();
     }
 
     function reconcileSelection() {
@@ -53,6 +57,7 @@ QtObject {
         selectedPaths = next;
         primarySelectionPath = next[primarySelectionPath]
             ? primarySelectionPath : Object.keys(next)[0] ?? "";
+        updateSelectedEntries();
     }
 
     function select(path, modifiers) {
@@ -64,6 +69,34 @@ QtObject {
             next[path] = true;
         selectedPaths = next;
         primarySelectionPath = next[path] ? path : Object.keys(next)[0] ?? "";
+        updateSelectedEntries();
+    }
+
+    // Directory order is the only stable order shared by list and grid views.
+    // Keeping complete entries here also avoids preview code re-statting paths.
+    function updateSelectedEntries() {
+        const ordered = [];
+        for (let index = 0; index < directoryModel.count; ++index) {
+            const entry = directoryModel.entries.get(index);
+            if (selectedPaths[entry.path]) {
+                // ListModel.get() returns a live proxy. Preview providers retain
+                // entries beyond this loop, so project them into plain values.
+                ordered.push({
+                    name: entry.name,
+                    path: entry.path,
+                    url: entry.url,
+                    mimeType: entry.mimeType,
+                    size: entry.size,
+                    modified: entry.modified,
+                    isDirectory: entry.isDirectory,
+                    isSymlink: entry.isSymlink,
+                    isReadable: entry.isReadable,
+                    iconName: entry.iconName
+                });
+            }
+        }
+        selectedEntries = ordered;
+        selectionRevision++;
     }
 
     function openEntry(path, isDirectory) {
@@ -124,22 +157,33 @@ QtObject {
             }
             root.noticeRequested(message + suffix, true);
         };
+        const summary = operationPaths.length > 0
+            ? `${operationPaths.length} path(s)` : JSON.stringify(params);
+        Logger.info("operation", `${method} ${summary}`);
+        const succeededLogged = result => {
+            Logger.info("operation", `${method} succeeded`);
+            succeeded(result);
+        };
+        const failedLogged = (message, result) => {
+            Logger.warn("operation", `${method} failed: ${message}`);
+            failed(message, result);
+        };
         if (method === "open")
-            operationId = BackendClient.openPath(params.path, succeeded, failed);
+            operationId = BackendClient.openPath(params.path, succeededLogged, failedLogged);
         else if (method === "terminal")
-            operationId = BackendClient.openTerminal(params.path, succeeded, failed);
+            operationId = BackendClient.openTerminal(params.path, succeededLogged, failedLogged);
         else if (method === "mkdir")
-            operationId = BackendClient.createDirectory(params.parent, params.name, succeeded, failed);
+            operationId = BackendClient.createDirectory(params.parent, params.name, succeededLogged, failedLogged);
         else if (method === "rename")
-            operationId = BackendClient.renamePath(params.path, params.name, succeeded, failed);
+            operationId = BackendClient.renamePath(params.path, params.name, succeededLogged, failedLogged);
         else if (method === "copy")
-            operationId = BackendClient.copyPaths(params.paths, params.targetDirectory, succeeded, failed);
+            operationId = BackendClient.copyPaths(params.paths, params.targetDirectory, succeededLogged, failedLogged);
         else if (method === "move")
-            operationId = BackendClient.movePaths(params.paths, params.targetDirectory, succeeded, failed);
+            operationId = BackendClient.movePaths(params.paths, params.targetDirectory, succeededLogged, failedLogged);
         else if (method === "trash")
-            operationId = BackendClient.trashPaths(params.paths, succeeded, failed);
+            operationId = BackendClient.trashPaths(params.paths, succeededLogged, failedLogged);
         else
-            operationId = BackendClient.performOperation(method, params, succeeded, failed);
+            operationId = BackendClient.performOperation(method, params, succeededLogged, failedLogged);
         if (operationId >= 0) {
             const operations = Object.assign({}, activeOperations);
             operations[operationId] = true;
@@ -187,6 +231,7 @@ QtObject {
             } else {
                 root.reconcileSelection();
             }
+            root.updateSelectedEntries();
         }
         onLoadFailed: message => root.pendingHistoryTarget = -1
         onLargeDirectoryWarning: (path, entryCountAtLeast) => {

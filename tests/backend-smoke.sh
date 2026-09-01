@@ -43,6 +43,23 @@ jq -e '.id == 18 and .ok == false and (.error | type == "string")' <<<"$ambiguou
 invalid_terminal="$(printf '%s\n' '{"id":20,"method":"terminal","params":{"path":""}}' | "$backend" --serve)"
 jq -e '.id == 20 and .ok == false and (.error | type == "string")' <<<"$invalid_terminal" >/dev/null
 
+# Preview providers are additive and reject unsafe paths without affecting the
+# established filesystem protocol.
+preview_capabilities="$(printf '%s\n' '{"id":28,"method":"previewCapabilities","params":{}}' | "$backend" --serve)"
+jq -e '.id == 28 and .ok == true and (.flavors | index("normal"))' <<<"$preview_capabilities" >/dev/null
+preview_relative="$(printf '%s\n' '{"id":29,"method":"textPreview","params":{"path":"relative.txt"}}' | "$backend" --serve)"
+jq -e '.id == 29 and .ok == false and (.error | type == "string")' <<<"$preview_relative" >/dev/null
+
+# Diagnostic logs belong on stderr. Mixing them into stdout would break the
+# newline-delimited JSON protocol.
+protocol_out="$(printf '%s\n' '{"id":31,"method":"previewCapabilities","params":{}}' | FILESAIL_LOG=info "$backend" --serve 2>"$test_dir/backend.log")"
+jq -e '.id == 31 and .ok == true' <<<"$protocol_out" >/dev/null
+grep -q '\[filesail:backend\]\[info\] serving' "$test_dir/backend.log"
+if grep -q '\[filesail:' <<<"$protocol_out"; then
+    printf 'backend logs leaked onto stdout\n' >&2
+    exit 1
+fi
+
 mkdir -p -- "$test_dir/source/child"
 
 # Locations are durable, atomic snapshots. Duplicate canonical adds and unknown

@@ -11,6 +11,7 @@
 
 class QFileSystemWatcher;
 class QSocketNotifier;
+class QTimer;
 
 class BackendServer final : public QObject
 {
@@ -28,12 +29,16 @@ private:
                           std::function<QJsonObject()> operation);
     QJsonObject addDirectoryWatch(const QJsonObject &params);
     QJsonObject removeDirectoryWatch(const QJsonObject &params);
+    void ensureSavedLocationsWatch();
+    void emitSavedLocationsChanged();
     void finishInput();
 
     QFile m_output;
     QByteArray m_requestBuffer;
     QSocketNotifier *m_notifier = nullptr;
     QFileSystemWatcher *m_watcher = nullptr;
+    QFileSystemWatcher *m_locationsWatcher = nullptr;
+    QTimer *m_locationsDebounce = nullptr;
     QThreadPool m_readPool;
     QThreadPool m_mutationPool;
     QHash<QString, qsizetype> m_directoryWatchCounts;

@@ -25,6 +25,10 @@ add_executable(filesail-backend
     src/backend/backendserver.h
     src/backend/fileoperations.cpp
     src/backend/fileoperations.h
+    src/backend/foldercontext.cpp
+    src/backend/foldercontext.h
+    src/backend/savedlocations.cpp
+    src/backend/savedlocations.h
 )
 
 target_link_libraries(filesail-backend PRIVATE Qt6::Core Qt6::Concurrent)

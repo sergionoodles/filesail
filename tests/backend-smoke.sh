@@ -2,6 +2,14 @@
 set -euo pipefail
 
 backend="${1:?backend executable is required}"
+test_dir="$(mktemp -d /tmp/filesail-backend-test.XXXXXX)"
+export XDG_CONFIG_HOME="$test_dir/config"
+cleanup() {
+    if [[ -n "$test_dir" && -d "$test_dir" ]]; then
+        rm -rf -- "$test_dir"
+    fi
+}
+trap cleanup EXIT
 response="$(
     {
         printf '%s' '{"id":7,"method":"li'
@@ -35,15 +43,36 @@ jq -e '.id == 18 and .ok == false and (.error | type == "string")' <<<"$ambiguou
 invalid_terminal="$(printf '%s\n' '{"id":20,"method":"terminal","params":{"path":""}}' | "$backend" --serve)"
 jq -e '.id == 20 and .ok == false and (.error | type == "string")' <<<"$invalid_terminal" >/dev/null
 
-test_dir="$(mktemp -d /tmp/filesail-backend-test.XXXXXX)"
-cleanup() {
-    if [[ -n "$test_dir" && -d "$test_dir" ]]; then
-        rm -rf -- "$test_dir"
-    fi
-}
-trap cleanup EXIT
-
 mkdir -p -- "$test_dir/source/child"
+
+# Locations are durable, atomic snapshots. Duplicate canonical adds and unknown
+# removals are intentionally idempotent.
+locations="$(printf '{"id":24,"method":"locations.list","params":{}}\n{"id":25,"method":"locations.add","params":{"collection":"projects","path":"%s"}}\n{"id":26,"method":"locations.add","params":{"collection":"projects","path":"%s"}}\n{"id":27,"method":"locations.remove","params":{"collection":"projects","id":"11111111-1111-4111-8111-111111111111"}}\n' "$test_dir" "$test_dir" | "$backend" --serve)"
+jq -s -e '
+    length == 4
+    and all(.[]; .ok == true and (.locations.version == 1))
+    and (.[0].locations.projects | length == 0)
+    and (.[1].locations.projects | length == 1)
+    and (.[2].locations.projects | length == 1)
+    and (.[3].locations.projects | length == 1)
+' <<<"$locations" >/dev/null
+
+# Context is opt-in and is derived from safe direct entries regardless of the
+# hidden-file display setting. Symlink markers must not count as evidence.
+mkdir -p -- "$test_dir/.agents" "$test_dir/.github/instructions"
+touch -- "$test_dir/AGENTS.md" "$test_dir/.git" "$test_dir/package.json" "$test_dir/example.cpp"
+ln -s -- AGENTS.md "$test_dir/CLAUDE.md"
+context_listing="$(printf '{"id":22,"method":"list","params":{"path":"%s","showHidden":false,"includeContext":true}}\n' "$test_dir" | "$backend" --serve)"
+jq -e '
+    .id == 22 and .ok == true
+    and ([.context.signals[] | select(.id == "agent-instructions" and .category == "ai") | .evidence[]] | sort == [".agents", "AGENTS.md"])
+    and ([.context.signals[] | select(.id == "git") | .evidence] == [[".git"]])
+    and ([.context.signals[] | select(.id == "node") | .evidence] == [["package.json"]])
+    and ([.context.signals[] | select(.id == "cpp") | .evidence[]] | index("example.cpp"))
+    and ([.context.signals[] | select(.id == "claude")] | length == 0)
+' <<<"$context_listing" >/dev/null
+no_context_listing="$(printf '{"id":23,"method":"list","params":{"path":"%s"}}\n' "$test_dir" | "$backend" --serve)"
+jq -e '.id == 23 and .ok == true and has("context") | not' <<<"$no_context_listing" >/dev/null
 terminal_output="$test_dir/terminal-working-directory"
 terminal_script="$test_dir/test-terminal"
 printf '%s\n' '#!/usr/bin/env bash' 'printf "%s" "$PWD" > "$FILESAIL_TERMINAL_OUTPUT"' > "$terminal_script"

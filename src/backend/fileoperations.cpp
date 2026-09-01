@@ -1,4 +1,5 @@
 #include "fileoperations.h"
+#include "foldercontext.h"
 
 #include <QDateTime>
 #include <QDir>
@@ -647,6 +648,8 @@ QJsonObject listDirectory(const QJsonObject &params)
     const bool allowLargeDirectory = params.value("allowLargeDirectory").toBool(false);
     const QString query = params.value("filter").toString().trimmed();
     QFileInfoList entries;
+    std::vector<FolderContextEntry> contextEntries;
+    const bool includeContext = params.value("includeContext").toBool(false);
     std::error_code enumerationError;
     std::filesystem::directory_iterator iterator(fileSystemPath(path), enumerationError);
     const std::filesystem::directory_iterator end;
@@ -669,6 +672,18 @@ QJsonObject listDirectory(const QJsonObject &params)
         }
         const QFileInfo info(qtPath(iterator->path()));
         const QString name = info.fileName();
+        if (includeContext) {
+            std::error_code statusError;
+            const auto status = iterator->symlink_status(statusError);
+            FolderContextEntry::Type type = FolderContextEntry::Type::Other;
+            if (!statusError) {
+                if (std::filesystem::is_regular_file(status))
+                    type = FolderContextEntry::Type::RegularFile;
+                else if (std::filesystem::is_directory(status))
+                    type = FolderContextEntry::Type::Directory;
+            }
+            contextEntries.push_back({name, type});
+        }
         // Active staging entries are an internal implementation detail and
         // must not appear during concurrent directory refreshes. Matching
         // user-owned names remain visible once they are not active stages.
@@ -725,12 +740,13 @@ QJsonObject listDirectory(const QJsonObject &params)
         });
     }
 
-    return success({
-        {"path", path},
-        {"parentPath", QDir(path).absolutePath() == "/" ? "/" : QFileInfo(path).dir().absolutePath()},
-        {"entries", jsonEntries},
-        {"unsafeEntryCount", static_cast<double>(unsafeEntryCount)},
-    });
+    QJsonObject result{{"path", path},
+                       {"parentPath", QDir(path).absolutePath() == "/" ? "/" : QFileInfo(path).dir().absolutePath()},
+                       {"entries", jsonEntries},
+                       {"unsafeEntryCount", static_cast<double>(unsafeEntryCount)}};
+    if (includeContext)
+        result.insert("context", FolderContextDetector::detect(path, contextEntries));
+    return success(result);
 }
 
 QJsonObject createDirectory(const QJsonObject &params)

@@ -93,6 +93,18 @@ QtObject {
         return request("list", params, onSuccess, onFailure);
     }
 
+    function listLocations(onSuccess, onFailure) {
+        return request("locations.list", {}, onSuccess, onFailure);
+    }
+
+    function addLocation(collection, path, onSuccess, onFailure) {
+        return request("locations.add", { collection, path }, onSuccess, onFailure);
+    }
+
+    function removeLocation(collection, id, onSuccess, onFailure) {
+        return request("locations.remove", { collection, id }, onSuccess, onFailure);
+    }
+
     function watchDirectory(path, onSuccess, onFailure) {
         return request("watch", { path }, onSuccess, onFailure);
     }

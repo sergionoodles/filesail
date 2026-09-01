@@ -6,3 +6,5 @@ NavigationController 1.0 NavigationController.qml
 DirectoryModel 1.0 DirectoryModel.qml
 BrowserSession 1.0 BrowserSession.qml
 singleton PlacesModel 1.0 PlacesModel.qml
+singleton SavedLocationsModel 1.0 SavedLocationsModel.qml
+singleton ContextBadgeCatalog 1.0 ContextBadgeCatalog.qml

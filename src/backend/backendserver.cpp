@@ -1,6 +1,7 @@
 #include "backendserver.h"
 
 #include "fileoperations.h"
+#include "savedlocations.h"
 
 #include <QCoreApplication>
 #include <QDir>
@@ -10,6 +11,7 @@
 #include <QJsonDocument>
 #include <QJsonObject>
 #include <QSocketNotifier>
+#include <QTimer>
 #include <QUrl>
 #include <QtConcurrentRun>
 
@@ -90,6 +92,17 @@ bool BackendServer::start()
         }
     });
 
+    m_locationsWatcher = new QFileSystemWatcher(this);
+    m_locationsDebounce = new QTimer(this);
+    m_locationsDebounce->setSingleShot(true);
+    m_locationsDebounce->setInterval(100);
+    connect(m_locationsDebounce, &QTimer::timeout, this, &BackendServer::emitSavedLocationsChanged);
+    connect(m_locationsWatcher, &QFileSystemWatcher::directoryChanged, this, [this](const QString &) {
+        ensureSavedLocationsWatch();
+        m_locationsDebounce->start();
+    });
+    ensureSavedLocationsWatch();
+
     m_notifier = new QSocketNotifier(STDIN_FILENO, QSocketNotifier::Read, this);
     connect(m_notifier, &QSocketNotifier::activated, this, [this] { readRequests(); });
     return true;
@@ -148,6 +161,15 @@ void BackendServer::handleRequest(const QByteArray &line)
 
     if (method == "list") {
         enqueueOperation(id, m_readPool, [params] { return FileOperations::listDirectory(params); });
+    } else if (method == "locations.list") {
+        ensureSavedLocationsWatch();
+        enqueueOperation(id, m_readPool, [] { return SavedLocations::list(); });
+    } else if (method == "locations.add") {
+        ensureSavedLocationsWatch();
+        enqueueOperation(id, m_mutationPool, [params] { return SavedLocations::add(params); });
+    } else if (method == "locations.remove") {
+        ensureSavedLocationsWatch();
+        enqueueOperation(id, m_mutationPool, [params] { return SavedLocations::remove(params); });
     } else if (method == "mkdir") {
         enqueueOperation(id, m_mutationPool, [params] { return FileOperations::createDirectory(params); });
     } else if (method == "rename") {
@@ -180,6 +202,22 @@ void BackendServer::writeResponse(const QJsonObject &response)
     m_output.write(QJsonDocument(response).toJson(QJsonDocument::Compact));
     m_output.write("\n");
     m_output.flush();
+}
+
+void BackendServer::ensureSavedLocationsWatch()
+{
+    const QString path = SavedLocations::configDirectoryPath();
+    if (!QDir().mkpath(path))
+        return;
+    QFile::setPermissions(path, QFile::ReadOwner | QFile::WriteOwner | QFile::ExeOwner);
+    if (!m_locationsWatcher->directories().contains(path))
+        m_locationsWatcher->addPath(path);
+}
+
+void BackendServer::emitSavedLocationsChanged()
+{
+    ensureSavedLocationsWatch();
+    writeResponse({{"event", "savedLocationsChanged"}});
 }
 
 void BackendServer::enqueueOperation(int id, QThreadPool &pool,

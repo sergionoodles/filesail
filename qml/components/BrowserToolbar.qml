@@ -66,6 +66,10 @@ ColumnLayout {
 
     Rectangle { Layout.fillWidth: true; implicitHeight: 1; color: Qt.alpha(Theme.outline, 0.5) }
 
+    FolderContextBar { Layout.fillWidth: true; folderContext: root.session.directory.folderContext }
+
+    Rectangle { Layout.fillWidth: true; implicitHeight: 1; color: Qt.alpha(Theme.outline, 0.5) }
+
     Rectangle {
         Layout.fillWidth: true
         implicitHeight: 48 * Theme.scale

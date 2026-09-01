@@ -21,6 +21,7 @@ QtObject {
     property int pendingWatchRequest: -1
     property int revision: 0
     property string acceptedLargeDirectoryPath: ""
+    property var folderContext: ({ version: 1, signals: [] })
     readonly property alias entries: entryModel
     readonly property int count: entryModel.count
 
@@ -83,7 +84,8 @@ QtObject {
             filter,
             sortBy,
             descending,
-            allowLargeDirectory: allowLarge
+            allowLargeDirectory: allowLarge,
+            includeContext: true
         }, result => {
             if (requestId !== root.activeRequest)
                 return;
@@ -98,6 +100,7 @@ QtObject {
             root.requestedPath = result.path;
             root.canonicalPath = result.path;
             root.parentPath = result.parentPath;
+            root.folderContext = result.context ?? ({ version: 1, signals: [] });
             root.revision++;
             const unsafeEntryCount = Number(result.unsafeEntryCount ?? 0);
             if (unsafeEntryCount > 0)

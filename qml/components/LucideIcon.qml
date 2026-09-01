@@ -28,6 +28,12 @@ Text {
         "trash-2": 57742,
         "clipboard-paste": 58344,
         "grid-2x2": 58623
+        ,"bookmark": 57444
+        ,"briefcase-business": 58841
+        ,"map-pinned": 58689
+        ,"bot": 57786
+        ,"git-branch": 57573
+        ,"code-2": 58466
     })
 
     text: String.fromCharCode(codepoints[name] ?? 57559)

@@ -25,8 +25,21 @@ Rectangle {
     property var trashTargets: []
     property string createParent: ""
     readonly property int selectedCount: session.selectedCount
+    readonly property bool selectionIncludesDirectory: {
+        // A preview provider is never available for folders. Inspect the current
+        // directory entries rather than relying on the primary selection so a
+        // mixed selection also collapses the otherwise empty preview pane.
+        const selected = session.selectedPaths;
+        for (let index = 0; index < session.directory.count; index++) {
+            const entry = session.directory.entries.get(index);
+            if (selected[entry.path] && entry.isDirectory)
+                return true;
+        }
+        return false;
+    }
     readonly property bool previewEnabled: (previewComponent !== null || previewSource !== "")
         && session.primarySelectionPath.length > 0
+        && !selectionIncludesDirectory
     readonly property bool modalActive: createPrompt.visible || renamePrompt.visible || trashPrompt.visible || largeDirectoryPrompt.visible
 
     color: Theme.surface
@@ -100,7 +113,11 @@ Rectangle {
             Layout.preferredWidth: root.compact ? 174 * Theme.scale : 190 * Theme.scale
             Layout.fillHeight: true
             currentPath: session.directory.path
+            projectsModel: SavedLocationsModel.projects
+            bookmarksModel: SavedLocationsModel.bookmarks
             onNavigate: path => root.navigate(path)
+            onAddCurrentDirectoryRequested: collection => SavedLocationsModel.addCurrentDirectory(collection, session.directory.path, () => root.showNotice(qsTr("Folder added"), false), message => root.showNotice(message, true))
+            onRemoveLocationRequested: (collection, id) => SavedLocationsModel.remove(collection, id, () => root.showNotice(qsTr("Folder removed"), false), message => root.showNotice(message, true))
         }
         Rectangle { Layout.preferredWidth: 1; Layout.fillHeight: true; color: Qt.alpha(Theme.outline, 0.55) }
 

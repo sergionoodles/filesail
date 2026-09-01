@@ -1,8 +1,8 @@
 #!/usr/bin/env bash
 set -euo pipefail
 
-filesail_data_dir="@CMAKE_INSTALL_FULL_DATADIR@/filesail"
-filesail_backend_default="@CMAKE_INSTALL_FULL_BINDIR@/filesail-backend"
+filesail_data_dir=@FILESAIL_INSTALL_DATADIR_SHELL@/filesail
+filesail_backend_default=@FILESAIL_INSTALL_BINDIR_SHELL@/filesail-backend
 
 if [[ ! -x "${FILESAIL_BACKEND:-$filesail_backend_default}" ]]; then
     printf 'FileSail backend not found. Expected: %s\n' "${FILESAIL_BACKEND:-$filesail_backend_default}" >&2

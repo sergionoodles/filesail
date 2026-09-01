@@ -18,10 +18,13 @@
 #include <filesystem>
 #include <system_error>
 #include <utility>
+#include <vector>
 
 #include <fcntl.h>
 #include <linux/fs.h>
 #include <sys/syscall.h>
+#include <sys/stat.h>
+#include <sys/xattr.h>
 #include <unistd.h>
 
 namespace {
@@ -52,6 +55,29 @@ private:
     QString m_path;
 };
 
+class ScopedFileDescriptor
+{
+public:
+    explicit ScopedFileDescriptor(int descriptor = -1)
+        : m_descriptor(descriptor)
+    {
+    }
+
+    ~ScopedFileDescriptor()
+    {
+        if (m_descriptor >= 0)
+            ::close(m_descriptor);
+    }
+
+    ScopedFileDescriptor(const ScopedFileDescriptor &) = delete;
+    ScopedFileDescriptor &operator=(const ScopedFileDescriptor &) = delete;
+
+    int get() const { return m_descriptor; }
+
+private:
+    int m_descriptor;
+};
+
 bool isActiveStage(const QString &path)
 {
     const QMutexLocker locker(&activeStagesMutex);
@@ -73,6 +99,11 @@ QJsonObject success(const QJsonObject &values = {})
     return result;
 }
 
+bool isRoundTrippableLocalPath(const QString &path)
+{
+    return QFile::decodeName(QFile::encodeName(path)) == path;
+}
+
 QString validateLocalPath(const QJsonValue &value, const QString &label, QString *error)
 {
     if (!value.isString() || value.toString().trimmed().isEmpty()) {
@@ -81,12 +112,28 @@ QString validateLocalPath(const QJsonValue &value, const QString &label, QString
     }
 
     const QString raw = value.toString();
-    const QString path = raw.startsWith("file:") ? QUrl(raw).toLocalFile() : raw;
+    QString path = raw;
+    if (raw.startsWith("file:")) {
+        const QUrl url(raw, QUrl::StrictMode);
+        if (!url.isValid() || !url.isLocalFile()
+            || (!url.host().isEmpty() && url.host() != "localhost")
+            || !url.userInfo().isEmpty() || !url.query().isEmpty()
+            || !url.fragment().isEmpty()) {
+            *error = QStringLiteral("%1 must be an absolute local path").arg(label);
+            return {};
+        }
+        path = url.toLocalFile();
+    }
     if (path.isEmpty() || path.contains(QChar::Null) || !QDir::isAbsolutePath(path)) {
         *error = QStringLiteral("%1 must be an absolute local path").arg(label);
         return {};
     }
-    return QDir::cleanPath(path);
+    path = QDir::cleanPath(path);
+    if (!isRoundTrippableLocalPath(path)) {
+        *error = QStringLiteral("%1 cannot be represented safely in the current locale").arg(label);
+        return {};
+    }
+    return path;
 }
 
 QString requiredPath(const QJsonObject &params, const QString &key, QString *error)
@@ -116,11 +163,29 @@ QString qtPath(const std::filesystem::path &path)
     return QFile::decodeName(path.c_str());
 }
 
+bool isRoundTrippableFileSystemPath(const std::filesystem::path &path)
+{
+    return fileSystemPath(qtPath(path)) == path;
+}
+
 bool entryExists(const QString &path)
 {
     std::error_code error;
     const auto status = std::filesystem::symlink_status(fileSystemPath(path), error);
     return !error && status.type() != std::filesystem::file_type::not_found;
+}
+
+bool sameFile(const struct stat &left, const struct stat &right)
+{
+    return left.st_dev == right.st_dev && left.st_ino == right.st_ino;
+}
+
+bool lstatPath(const std::filesystem::path &path, struct stat *status, QString *error)
+{
+    if (::lstat(path.c_str(), status) == 0)
+        return true;
+    *error = QString::fromLocal8Bit(std::strerror(errno));
+    return false;
 }
 
 bool setCopiedMetadata(const std::filesystem::path &source,
@@ -152,6 +217,47 @@ bool setCopiedMetadata(const std::filesystem::path &source,
     return true;
 }
 
+bool copyPosixAclAttribute(int sourceDescriptor, const std::filesystem::path &destination,
+                           const char *attribute, QString *error)
+{
+    const ssize_t length = ::fgetxattr(sourceDescriptor, attribute, nullptr, 0);
+    if (length < 0 && errno != ENODATA && errno != ENOTSUP && errno != EOPNOTSUPP) {
+        *error = QStringLiteral("Could not read source ACL: %1")
+                     .arg(QString::fromLocal8Bit(std::strerror(errno)));
+        return false;
+    }
+    if (length < 0) {
+        if (::removexattr(destination.c_str(), attribute) == 0 || errno == ENODATA
+            || errno == ENOTSUP || errno == EOPNOTSUPP)
+            return true;
+        *error = QStringLiteral("Could not clear inherited destination ACL: %1")
+                     .arg(QString::fromLocal8Bit(std::strerror(errno)));
+        return false;
+    }
+
+    std::vector<char> value(static_cast<size_t>(length));
+    if (length > 0 && ::fgetxattr(sourceDescriptor, attribute, value.data(), value.size()) != length) {
+        *error = QStringLiteral("Could not read source ACL: %1")
+                     .arg(QString::fromLocal8Bit(std::strerror(errno)));
+        return false;
+    }
+    if (::setxattr(destination.c_str(), attribute, value.data(), value.size(), 0) != 0) {
+        *error = QStringLiteral("Could not preserve ACL: %1")
+                     .arg(QString::fromLocal8Bit(std::strerror(errno)));
+        return false;
+    }
+    return true;
+}
+
+bool copyPosixAcls(int sourceDescriptor, const std::filesystem::path &destination,
+                   bool directory, QString *error)
+{
+    if (!copyPosixAclAttribute(sourceDescriptor, destination, "system.posix_acl_access", error))
+        return false;
+    return !directory || copyPosixAclAttribute(sourceDescriptor, destination,
+                                                "system.posix_acl_default", error);
+}
+
 bool removeOne(const QString &path, QString *error);
 
 // Copy contract: preserve regular files, directories and symlinks. Permissions
@@ -166,14 +272,21 @@ bool copyEntry(const std::filesystem::path &source,
     if (created)
         *created = false;
     std::error_code ec;
-    const auto status = std::filesystem::symlink_status(source, ec);
-    if (ec) {
-        *error = QString::fromStdString(ec.message());
+    struct stat initialStatus {};
+    if (!lstatPath(source, &initialStatus, error))
         return false;
-    }
+    const std::filesystem::file_status status(
+        std::filesystem::file_type::unknown,
+        static_cast<std::filesystem::perms>(initialStatus.st_mode & 07777));
 
-    if (std::filesystem::is_symlink(status)) {
+    if (S_ISLNK(initialStatus.st_mode)) {
         const auto target = std::filesystem::read_symlink(source, ec);
+        struct stat after {};
+        if (!ec && (!lstatPath(source, &after, error) || !sameFile(initialStatus, after))) {
+            if (error->isEmpty())
+                *error = "Symbolic link changed while copying";
+            return false;
+        }
         if (!ec)
             std::filesystem::create_symlink(target, destination, ec);
         if (ec) {
@@ -186,16 +299,40 @@ bool copyEntry(const std::filesystem::path &source,
         return true;
     }
 
-    if (std::filesystem::is_regular_file(status)) {
-        QFile sourceFile(qtPath(source));
-        if (!sourceFile.open(QIODevice::ReadOnly)) {
+    if (S_ISREG(initialStatus.st_mode)) {
+        const ScopedFileDescriptor sourceDescriptor(
+            ::open(source.c_str(), O_RDONLY | O_CLOEXEC | O_NOFOLLOW));
+        if (sourceDescriptor.get() < 0) {
+            *error = QStringLiteral("Could not open source file: %1")
+                         .arg(QString::fromLocal8Bit(std::strerror(errno)));
+            return false;
+        }
+        struct stat opened {};
+        if (::fstat(sourceDescriptor.get(), &opened) != 0 || !S_ISREG(opened.st_mode)
+            || !sameFile(initialStatus, opened)) {
+            *error = "Source file changed while copying";
+            return false;
+        }
+
+        QFile sourceFile;
+        if (!sourceFile.open(sourceDescriptor.get(), QIODevice::ReadOnly,
+                             QFileDevice::DontCloseHandle)) {
             *error = QStringLiteral("Could not open source file: %1")
                          .arg(sourceFile.errorString());
             return false;
         }
 
-        QFile destinationFile(qtPath(destination));
-        if (!destinationFile.open(QIODevice::WriteOnly | QIODevice::NewOnly)) {
+        const ScopedFileDescriptor destinationDescriptor(::open(
+            destination.c_str(), O_WRONLY | O_CREAT | O_EXCL | O_CLOEXEC | O_NOFOLLOW,
+            S_IRUSR | S_IWUSR));
+        if (destinationDescriptor.get() < 0) {
+            *error = QStringLiteral("Could not create destination file: %1")
+                         .arg(QString::fromLocal8Bit(std::strerror(errno)));
+            return false;
+        }
+        QFile destinationFile;
+        if (!destinationFile.open(destinationDescriptor.get(), QIODevice::WriteOnly,
+                                  QFileDevice::DontCloseHandle)) {
             *error = QStringLiteral("Could not create destination file: %1")
                          .arg(destinationFile.errorString());
             return false;
@@ -232,18 +369,36 @@ bool copyEntry(const std::filesystem::path &source,
             return false;
         }
         destinationFile.close();
-        return setCopiedMetadata(source, destination, status, error);
+        return setCopiedMetadata(source, destination, status, error)
+            && copyPosixAcls(sourceDescriptor.get(), destination, false, error);
     }
 
-    if (std::filesystem::is_directory(status)) {
-        if (!std::filesystem::create_directory(destination, ec)) {
-            *error = QString::fromStdString(ec ? ec.message() : "Could not create directory");
+    if (S_ISDIR(initialStatus.st_mode)) {
+        const ScopedFileDescriptor sourceDescriptor(
+            ::open(source.c_str(), O_RDONLY | O_DIRECTORY | O_CLOEXEC | O_NOFOLLOW));
+        if (sourceDescriptor.get() < 0) {
+            *error = QStringLiteral("Could not open source directory: %1")
+                         .arg(QString::fromLocal8Bit(std::strerror(errno)));
+            return false;
+        }
+        struct stat opened {};
+        if (::fstat(sourceDescriptor.get(), &opened) != 0 || !S_ISDIR(opened.st_mode)
+            || !sameFile(initialStatus, opened)) {
+            *error = "Source directory changed while copying";
+            return false;
+        }
+        if (::mkdir(destination.c_str(), S_IRWXU) != 0) {
+            *error = QStringLiteral("Could not create directory: %1")
+                         .arg(QString::fromLocal8Bit(std::strerror(errno)));
             return false;
         }
         if (created)
             *created = true;
 
-        std::filesystem::directory_iterator iterator(source, ec);
+        const QByteArray openedSourceName = QByteArray("/proc/self/fd/")
+            + QByteArray::number(sourceDescriptor.get());
+        const std::filesystem::path openedSource(openedSourceName.constData());
+        std::filesystem::directory_iterator iterator(openedSource, ec);
         const std::filesystem::directory_iterator end;
         while (!ec && iterator != end) {
             const auto childDestination = destination / iterator->path().filename();
@@ -256,7 +411,8 @@ bool copyEntry(const std::filesystem::path &source,
                          .arg(QString::fromStdString(ec.message()));
             return false;
         }
-        return setCopiedMetadata(source, destination, status, error);
+        return setCopiedMetadata(source, destination, status, error)
+            && copyPosixAcls(sourceDescriptor.get(), destination, true, error);
     }
 
     *error = QStringLiteral("Unsupported filesystem entry: %1").arg(qtPath(source));
@@ -371,11 +527,38 @@ bool moveOne(const QString &source, const QString &destination, QString *error,
     if (result != RenameResult::CrossDevice)
         return false;
 
-    // Cross-device moves cannot be renamed. Copy first and remove only after success.
-    if (!copyOne(source, destination, error))
+    // Move the source to a private sibling first. This pins the root entry so
+    // a concurrent replacement of the original pathname can never be removed
+    // after a cross-device copy succeeds.
+    const QFileInfo sourceInfo(source);
+    const QString stagedSource = sourceInfo.dir().filePath(
+        QStringLiteral(".filesail-move-%1")
+            .arg(QUuid::createUuid().toString(QUuid::WithoutBraces)));
+    const ActiveStage activeStage(stagedSource);
+    if (renameNoReplace(source, stagedSource, error) != RenameResult::Renamed)
         return false;
+
+    struct stat stagedStatus {};
+    if (!lstatPath(fileSystemPath(stagedSource), &stagedStatus, error))
+        return false;
+
+    if (!copyOne(stagedSource, destination, error)) {
+        QString rollbackError;
+        if (renameNoReplace(stagedSource, source, &rollbackError) != RenameResult::Renamed) {
+            *error += QStringLiteral("; source remains staged at %1: %2")
+                          .arg(stagedSource, rollbackError);
+        }
+        return false;
+    }
     *destinationCommitted = true;
-    if (!removeOne(source, error)) {
+    struct stat currentStagedStatus {};
+    if (!lstatPath(fileSystemPath(stagedSource), &currentStagedStatus, error)
+        || !sameFile(stagedStatus, currentStagedStatus)) {
+        *error = QStringLiteral("Copied to %1, but the staged source changed and was kept at %2")
+                     .arg(destination, stagedSource);
+        return false;
+    }
+    if (!removeOne(stagedSource, error)) {
         *error = QStringLiteral("Copied to %1, but the source could not be fully removed; the destination was kept. %2")
                      .arg(destination, *error);
         return false;
@@ -460,12 +643,29 @@ QJsonObject listDirectory(const QJsonObject &params)
         return failure(QStringLiteral("Directory does not exist: %1").arg(path));
 
     const bool showHidden = params.value("showHidden").toBool(false);
+    const bool allowLargeDirectory = params.value("allowLargeDirectory").toBool(false);
     const QString query = params.value("filter").toString().trimmed();
     QFileInfoList entries;
     std::error_code enumerationError;
     std::filesystem::directory_iterator iterator(fileSystemPath(path), enumerationError);
     const std::filesystem::directory_iterator end;
+    constexpr qsizetype largeDirectoryWarningThreshold = 5000;
+    qsizetype entryCount = 0;
+    qsizetype unsafeEntryCount = 0;
     while (!enumerationError && iterator != end) {
+        ++entryCount;
+        if (!allowLargeDirectory && entryCount > largeDirectoryWarningThreshold) {
+            return failure(QStringLiteral("Directory contains more than %1 entries; confirmation is required before loading it")
+                               .arg(largeDirectoryWarningThreshold),
+                           {{"requiresConfirmation", true},
+                            {"entryCountAtLeast", static_cast<double>(entryCount)},
+                            {"path", path}});
+        }
+        if (!isRoundTrippableFileSystemPath(iterator->path())) {
+            ++unsafeEntryCount;
+            iterator.increment(enumerationError);
+            continue;
+        }
         const QFileInfo info(qtPath(iterator->path()));
         const QString name = info.fileName();
         // Active staging entries are an internal implementation detail and
@@ -528,6 +728,7 @@ QJsonObject listDirectory(const QJsonObject &params)
         {"path", path},
         {"parentPath", QDir(path).absolutePath() == "/" ? "/" : QFileInfo(path).dir().absolutePath()},
         {"entries", jsonEntries},
+        {"unsafeEntryCount", static_cast<double>(unsafeEntryCount)},
     });
 }
 

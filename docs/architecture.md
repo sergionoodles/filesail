@@ -38,10 +38,10 @@ compatible seam for later progress and cancellation events.
 
 Copies are staged on the destination filesystem and committed with atomic
 no-replace semantics. Copy and cross-device move preserve regular files,
-directories, symbolic links, permission bits, and modification times. Special
-filesystem entries are rejected; ownership, ACLs, extended attributes,
-hard-link relationships, sparse layout, and symlink timestamps are not part of
-the current copy contract. If a cross-device move commits its destination but
+directories, symbolic links, permission bits, modification times, and POSIX
+ACLs. Special filesystem entries are rejected; ownership, non-ACL extended
+attributes, hard-link relationships, sparse layout, and symlink timestamps are
+not part of the current copy contract. If a cross-device move commits its destination but
 cannot remove the source, the error response includes a structured `partial`
 entry so the UI can report the committed destination and failed source cleanup
 without treating the move as complete.

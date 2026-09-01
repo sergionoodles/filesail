@@ -18,10 +18,23 @@ QtObject {
             : String(Quickshell.env("HOME") ?? "") + "/.config/noctalia";
     }
 
+    function boundedNumber(value, fallback, minimum, maximum) {
+        const number = Number(value);
+        return Number.isFinite(number) ? Math.max(minimum, Math.min(maximum, number)) : fallback;
+    }
+
+    function validColor(value) {
+        return typeof value === "string"
+            && /^#(?:[0-9a-fA-F]{3}|[0-9a-fA-F]{4}|[0-9a-fA-F]{6}|[0-9a-fA-F]{8})$/.test(value);
+    }
+
     function loadColors() {
         try {
-            const data = JSON.parse(colorsFile.text());
-            colors = {
+            const text = colorsFile.text();
+            if (text.length > 256 * 1024)
+                return;
+            const data = JSON.parse(text);
+            const next = {
                 primary: data.mPrimary,
                 primaryText: data.mOnPrimary,
                 surface: data.mSurface,
@@ -31,6 +44,8 @@ QtObject {
                 outline: data.mOutline,
                 error: data.mError
             };
+            if (Object.values(next).every(validColor))
+                colors = next;
         } catch (error) {
             // A config write can be observed mid-write; retain the last valid theme.
         }
@@ -38,12 +53,15 @@ QtObject {
 
     function loadMetrics() {
         try {
-            const general = JSON.parse(settingsFile.text()).general ?? {};
+            const text = settingsFile.text();
+            if (text.length > 256 * 1024)
+                return;
+            const general = JSON.parse(text).general ?? {};
             const disabled = Boolean(general.animationDisabled);
-            const speed = Math.max(0.1, Number(general.animationSpeed ?? 1));
+            const speed = boundedNumber(general.animationSpeed, 1, 0.1, 10);
             metrics = {
-                scale: Number(general.scaleRatio ?? 1),
-                radiusRatio: Number(general.radiusRatio ?? 1),
+                scale: boundedNumber(general.scaleRatio, 1, 0.5, 3),
+                radiusRatio: boundedNumber(general.radiusRatio, 1, 0.25, 4),
                 animationFast: disabled ? 0 : Math.round(150 / speed)
             };
         } catch (error) {

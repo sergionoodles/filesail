@@ -76,9 +76,9 @@ Item {
                         anchors.rightMargin: Theme.spaceL
                         spacing: Theme.spaceM
                         FileIcon { Layout.preferredWidth: 24 * Theme.scale; Layout.preferredHeight: 24 * Theme.scale; iconName: listDelegate.iconName; selected: root.session.selectedPaths[listDelegate.path] ?? false }
-                        Text { Layout.fillWidth: true; text: listDelegate.name; color: Theme.text; font.pixelSize: Theme.fontBody; elide: Text.ElideMiddle }
-                        Text { Layout.preferredWidth: 116 * Theme.scale; text: Format.date(listDelegate.modified); color: Theme.textMuted; font.pixelSize: Theme.fontSmall; elide: Text.ElideRight }
-                        Text { Layout.preferredWidth: 72 * Theme.scale; horizontalAlignment: Text.AlignRight; text: Format.size(listDelegate.size, listDelegate.isDirectory); color: Theme.textMuted; font.pixelSize: Theme.fontSmall }
+                        Text { Layout.fillWidth: true; text: Format.safeText(listDelegate.name); textFormat: Text.PlainText; color: Theme.text; font.pixelSize: Theme.fontBody; elide: Text.ElideMiddle }
+                        Text { Layout.preferredWidth: 116 * Theme.scale; text: Format.date(listDelegate.modified); textFormat: Text.PlainText; color: Theme.textMuted; font.pixelSize: Theme.fontSmall; elide: Text.ElideRight }
+                        Text { Layout.preferredWidth: 72 * Theme.scale; horizontalAlignment: Text.AlignRight; text: Format.size(listDelegate.size, listDelegate.isDirectory); textFormat: Text.PlainText; color: Theme.textMuted; font.pixelSize: Theme.fontSmall }
                     }
                     MouseArea {
                         id: rowMouse
@@ -127,7 +127,7 @@ Item {
                     width: parent.width - Theme.spaceM * 2
                     spacing: Theme.spaceS
                     FileIcon { width: 46 * Theme.scale; height: 46 * Theme.scale; anchors.horizontalCenter: parent.horizontalCenter; iconName: gridDelegate.iconName; selected: root.session.selectedPaths[gridDelegate.path] ?? false }
-                    Text { width: parent.width; text: gridDelegate.name; color: Theme.text; font.pixelSize: Theme.fontBody; horizontalAlignment: Text.AlignHCenter; elide: Text.ElideMiddle; maximumLineCount: 2; wrapMode: Text.Wrap }
+                    Text { width: parent.width; text: Format.safeText(gridDelegate.name); textFormat: Text.PlainText; color: Theme.text; font.pixelSize: Theme.fontBody; horizontalAlignment: Text.AlignHCenter; elide: Text.ElideMiddle; maximumLineCount: 2; wrapMode: Text.Wrap }
                 }
                 MouseArea {
                     id: gridMouse
@@ -155,7 +155,7 @@ Item {
             spacing: Theme.spaceM
             visible: root.session.directory.error.length > 0
             Text { anchors.horizontalCenter: parent.horizontalCenter; text: "!"; color: Theme.error; font.pixelSize: 30 * Theme.scale; font.bold: true }
-            Text { width: Math.min(root.width - 60, 480); text: root.session.directory.error; color: Theme.textMuted; font.pixelSize: Theme.fontBody; horizontalAlignment: Text.AlignHCenter; wrapMode: Text.Wrap }
+            Text { width: Math.min(root.width - 60, 480); text: Format.safeText(root.session.directory.error); textFormat: Text.PlainText; color: Theme.textMuted; font.pixelSize: Theme.fontBody; horizontalAlignment: Text.AlignHCenter; wrapMode: Text.Wrap }
             IconButton { anchors.horizontalCenter: parent.horizontalCenter; label: "Retry"; onClicked: root.session.directory.refresh("refresh") }
         }
         Rectangle {

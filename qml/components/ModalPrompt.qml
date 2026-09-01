@@ -66,7 +66,8 @@ Item {
 
             Text {
                 Layout.fillWidth: true
-                text: root.title
+                text: Format.safeText(root.title)
+                textFormat: Text.PlainText
                 color: Theme.text
                 font.pixelSize: Theme.fontTitle
                 font.weight: Font.DemiBold
@@ -74,7 +75,8 @@ Item {
             Text {
                 Layout.fillWidth: true
                 visible: root.message.length > 0
-                text: root.message
+                text: Format.safeText(root.message)
+                textFormat: Text.PlainText
                 color: Theme.textMuted
                 font.pixelSize: Theme.fontBody
                 wrapMode: Text.Wrap
@@ -113,6 +115,7 @@ Item {
                     }
                     contentItem: Text {
                         text: acceptButton.text
+                        textFormat: Text.PlainText
                         color: root.destructive ? Theme.errorText : Theme.primaryText
                         font.pixelSize: Theme.fontBody
                         font.weight: Font.DemiBold

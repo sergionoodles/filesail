@@ -20,11 +20,14 @@ QtObject {
     property string pendingWatchPath: ""
     property int pendingWatchRequest: -1
     property int revision: 0
+    property string acceptedLargeDirectoryPath: ""
     readonly property alias entries: entryModel
     readonly property int count: entryModel.count
 
     signal loaded(string path, bool navigation)
     signal loadFailed(string message)
+    signal largeDirectoryWarning(string path, int entryCountAtLeast)
+    signal unsafeEntriesSkipped(int count)
 
     function subscribe(path) {
         if (!path || watchedPath === path || pendingWatchPath === path)
@@ -64,8 +67,10 @@ QtObject {
             BackendClient.unwatchDirectory(pending);
     }
 
-    function refresh(loadKind) {
+    function refresh(loadKind, allowLargeDirectory) {
         const kind = requestedPath !== path ? "navigation" : loadKind ?? "refresh";
+        const allowLarge = allowLargeDirectory === true
+            || requestedPath === acceptedLargeDirectoryPath;
         if (activeRequest >= 0)
             BackendClient.cancel(activeRequest);
         loading = true;
@@ -77,7 +82,8 @@ QtObject {
             showHidden,
             filter,
             sortBy,
-            descending
+            descending,
+            allowLargeDirectory: allowLarge
         }, result => {
             if (requestId !== root.activeRequest)
                 return;
@@ -93,6 +99,9 @@ QtObject {
             root.canonicalPath = result.path;
             root.parentPath = result.parentPath;
             root.revision++;
+            const unsafeEntryCount = Number(result.unsafeEntryCount ?? 0);
+            if (unsafeEntryCount > 0)
+                root.unsafeEntriesSkipped(unsafeEntryCount);
             root.subscribe(root.path);
             root.loaded(root.path, root.activeLoadKind === "navigation");
         }, (message, result) => {
@@ -100,12 +109,26 @@ QtObject {
                 return;
             root.activeRequest = -1;
             root.loading = false;
+            if (result?.requiresConfirmation) {
+                root.requestedPath = root.path;
+                root.largeDirectoryWarning(result.path ?? root.path,
+                                           Number(result.entryCountAtLeast ?? 0));
+                return;
+            }
             root.error = message;
             root.requestedPath = root.path;
             root.unsubscribe();
             root.loadFailed(message);
         });
         activeRequest = requestId;
+    }
+
+    function loadLargeDirectory(path) {
+        if (!path)
+            return;
+        acceptedLargeDirectoryPath = path;
+        requestedPath = path;
+        refresh("navigation", true);
     }
 
     function setPath(nextPath) {

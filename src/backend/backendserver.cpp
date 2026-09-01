@@ -37,8 +37,11 @@ QString watchPath(const QJsonObject &params, bool mustExist, QString *error)
     const QString raw = value.toString();
     QString path = raw;
     if (raw.startsWith("file:")) {
-        const QUrl url(raw);
-        if (!url.isValid() || !url.isLocalFile()) {
+        const QUrl url(raw, QUrl::StrictMode);
+        if (!url.isValid() || !url.isLocalFile()
+            || (!url.host().isEmpty() && url.host() != "localhost")
+            || !url.userInfo().isEmpty() || !url.query().isEmpty()
+            || !url.fragment().isEmpty()) {
             *error = "path must be an absolute local path";
             return {};
         }

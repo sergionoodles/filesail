@@ -41,7 +41,8 @@ AbstractButton {
 
         Text {
             visible: root.label.length > 0
-            text: root.label
+            text: Format.safeText(root.label)
+            textFormat: Text.PlainText
             color: Theme.text
             font.pixelSize: Theme.fontBody
             font.weight: Font.Medium

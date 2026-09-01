@@ -115,7 +115,8 @@ Item {
                         Text {
                             id: crumbText
                             anchors.centerIn: parent
-                            text: modelData.label
+                            text: Format.safeText(modelData.label)
+                            textFormat: Text.PlainText
                             color: index === root.crumbs.length - 1 ? Theme.text : Theme.textMuted
                             font.pixelSize: Theme.fontBody
                             font.weight: index === root.crumbs.length - 1 ? Font.DemiBold : Font.Normal
@@ -205,7 +206,8 @@ Item {
                         Text {
                             Layout.fillWidth: true
                             Layout.alignment: Qt.AlignVCenter
-                            text: modelData.path
+                            text: Format.safeText(modelData.path)
+                            textFormat: Text.PlainText
                             color: Theme.text
                             font.pixelSize: Theme.fontBody
                             elide: Text.ElideMiddle

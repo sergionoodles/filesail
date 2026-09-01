@@ -17,9 +17,14 @@ QtObject {
     readonly property alias navigation: navigationController
 
     signal noticeRequested(string message, bool error)
+    signal largeDirectoryWarningRequested(string path, int entryCountAtLeast)
 
     function navigate(path) {
         navigationController.navigate(path);
+    }
+
+    function loadLargeDirectory(path) {
+        directoryModel.loadLargeDirectory(path);
     }
 
     function clearSelection() {
@@ -181,6 +186,12 @@ QtObject {
             }
         }
         onLoadFailed: message => root.pendingHistoryTarget = -1
+        onLargeDirectoryWarning: (path, entryCountAtLeast) => {
+            root.pendingHistoryTarget = -1;
+            root.largeDirectoryWarningRequested(path, entryCountAtLeast);
+        }
+        onUnsafeEntriesSkipped: count => root.noticeRequested(
+            `${count} item(s) were hidden because their names are unsafe in the current locale`, true)
     }
 
     Component.onDestruction: {

@@ -12,6 +12,6 @@ Rectangle {
         width: parent.width - Theme.spaceXl * 2
         spacing: Theme.spaceS
         Text { text: qsTr("Preview"); color: Theme.text; font.pixelSize: Theme.fontTitle }
-        Text { Layout.fillWidth: true; text: selectedPath; color: Theme.textMuted; wrapMode: Text.WrapAnywhere }
+        Text { Layout.fillWidth: true; text: Format.safeText(selectedPath); textFormat: Text.PlainText; color: Theme.textMuted; wrapMode: Text.WrapAnywhere }
     }
 }

@@ -27,7 +27,7 @@ Rectangle {
     readonly property int selectedCount: session.selectedCount
     readonly property bool previewEnabled: (previewComponent !== null || previewSource !== "")
         && session.primarySelectionPath.length > 0
-    readonly property bool modalActive: createPrompt.visible || renamePrompt.visible || trashPrompt.visible
+    readonly property bool modalActive: createPrompt.visible || renamePrompt.visible || trashPrompt.visible || largeDirectoryPrompt.visible
 
     color: Theme.surface
     radius: cornerRadius
@@ -64,6 +64,8 @@ Rectangle {
         id: session
         initialPath: root.initialPath
         onNoticeRequested: (message, error) => root.showNotice(message, error)
+        onLargeDirectoryWarningRequested: (path, entryCountAtLeast) =>
+            largeDirectoryPrompt.open("", { path: path, entryCountAtLeast: entryCountAtLeast }, toolbar)
     }
 
     property Action editLocationAction: Action { shortcut: "Ctrl+L"; enabled: !root.modalActive; onTriggered: toolbar.beginPathEditing() }
@@ -195,7 +197,8 @@ Rectangle {
         Text {
             id: noticeLabel
             anchors.centerIn: parent
-            text: root.noticeText
+            text: Format.safeText(root.noticeText)
+            textFormat: Text.PlainText
             color: Theme.primaryText
             font.pixelSize: Theme.fontBody
             font.weight: Font.DemiBold
@@ -231,5 +234,15 @@ Rectangle {
         destructive: true
         inputVisible: false
         onAccepted: session.runOperation("trash", { paths: payload.paths }, true, qsTr("Moved to Trash"))
+    }
+    ModalPrompt {
+        id: largeDirectoryPrompt
+        anchors.fill: parent
+        title: qsTr("Large folder")
+        message: qsTr("This folder contains at least %1 items. Loading it may temporarily make FileSail less responsive.")
+            .arg(payload.entryCountAtLeast)
+        acceptLabel: qsTr("Load folder")
+        inputVisible: false
+        onAccepted: session.loadLargeDirectory(payload.path)
     }
 }

@@ -100,7 +100,8 @@ Rectangle {
                     }
                     Text {
                         Layout.fillWidth: true
-                        text: label
+                        text: Format.safeText(label)
+                        textFormat: Text.PlainText
                         color: Theme.text
                         font.pixelSize: Theme.fontBody
                         elide: Text.ElideRight

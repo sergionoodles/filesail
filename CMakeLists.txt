@@ -36,6 +36,16 @@ target_compile_options(filesail-backend PRIVATE
 include(GNUInstallDirs)
 set(FILESAIL_INSTALL_DATA_DIR "${CMAKE_INSTALL_DATADIR}/filesail")
 
+# `packaging/filesail.in` is a shell script. Quote configured paths as shell
+# literals instead of inserting trusted-build configuration as executable text.
+function(filesail_shell_quote value output)
+    string(REPLACE "'" "'\"'\"'" quoted "${value}")
+    set(${output} "'${quoted}'" PARENT_SCOPE)
+endfunction()
+
+filesail_shell_quote("${CMAKE_INSTALL_FULL_DATADIR}" FILESAIL_INSTALL_DATADIR_SHELL)
+filesail_shell_quote("${CMAKE_INSTALL_FULL_BINDIR}" FILESAIL_INSTALL_BINDIR_SHELL)
+
 configure_file(
     packaging/filesail.in
     ${CMAKE_CURRENT_BINARY_DIR}/filesail
@@ -52,6 +62,7 @@ install(PROGRAMS ${CMAKE_CURRENT_BINARY_DIR}/filesail DESTINATION ${CMAKE_INSTAL
 install(FILES shell.qml logo.png ${CMAKE_CURRENT_BINARY_DIR}/manifest.json
     DESTINATION ${FILESAIL_INSTALL_DATA_DIR})
 install(DIRECTORY qml integrations DESTINATION ${FILESAIL_INSTALL_DATA_DIR}
+    FILES_MATCHING
     PATTERN "*.qml" PATTERN "qmldir" PATTERN "*.json" PATTERN "*.ttf" PATTERN "LUCIDE-LICENSE")
 install(FILES packaging/dev.filesail.FileSail.desktop
     DESTINATION ${CMAKE_INSTALL_DATADIR}/applications)

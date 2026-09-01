@@ -29,12 +29,13 @@ Item {
         border.color: Style.capsuleBorderColor
         border.width: Style.capsuleBorderWidth
 
-        Text {
+        Image {
             anchors.centerIn: parent
-            text: "◢"
-            color: mouseArea.containsMouse ? Color.mOnHover : Color.mOnSurface
-            font.pixelSize: Math.max(13, root.capsuleHeight * 0.48)
-            font.bold: true
+            width: root.capsuleHeight * 0.58
+            height: width
+            source: "../../logo.png"
+            fillMode: Image.PreserveAspectFit
+            mipmap: true
         }
     }
 

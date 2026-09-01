@@ -40,6 +40,9 @@ optional second pane is reserved for previews.
   models, processes, and file views as explicit object properties.
 - Avoid QML property names beginning with `on`; QML may interpret them as signal
   handlers.
+- Use FileSail's shared `Theme` radius tokens for every UI surface and control.
+  FileSail's convention is square corners (`0` radius); do not introduce
+  rounded buttons, fields, dialogs, toolbars, or cards.
 
 ## Verification
 

@@ -32,12 +32,17 @@ QtObject {
     readonly property int spaceM: Math.round(9 * scale)
     readonly property int spaceL: Math.round(13 * scale)
     readonly property int spaceXl: Math.round(18 * scale)
-    readonly property int radiusS: Math.round(8 * radiusRatio)
-    readonly property int radiusM: Math.round(12 * radiusRatio)
-    readonly property int radiusL: Math.round(16 * radiusRatio)
+    // FileSail uses square corners throughout. Keep the named tokens so host
+    // adapters and components share one stable styling contract.
+    readonly property int radiusS: 0
+    readonly property int radiusM: 0
+    readonly property int radiusL: 0
     readonly property int fontSmall: Math.round(Math.max(11, systemFont.pixelSize * 0.9) * scale)
     readonly property int fontBody: Math.round(Math.max(12, systemFont.pixelSize) * scale)
     readonly property int fontTitle: Math.round(Math.max(18, systemFont.pixelSize * 1.45) * scale)
+    readonly property int buttonPaddingVertical: Math.round(10 * scale)
+    readonly property int buttonPaddingHorizontal: Math.round(16 * scale)
+    readonly property int buttonHeight: fontBody + buttonPaddingVertical * 2
     readonly property int iconSize: Math.round(Math.max(20, fontBody * 1.55))
     property int animationFast: 150
 }

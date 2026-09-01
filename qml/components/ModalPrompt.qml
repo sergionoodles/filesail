@@ -94,13 +94,38 @@ Item {
                 Layout.alignment: Qt.AlignRight
                 spacing: Theme.spaceS
                 Button {
+                    id: cancelButton
                     text: "Cancel"
+                    implicitHeight: Theme.buttonHeight
+                    leftPadding: Theme.buttonPaddingHorizontal
+                    rightPadding: Theme.buttonPaddingHorizontal
+                    topPadding: Theme.buttonPaddingVertical
+                    bottomPadding: Theme.buttonPaddingVertical
                     Accessible.name: qsTr("Cancel")
                     onClicked: { root.close(); root.rejected(); }
+                    background: Rectangle {
+                        radius: Theme.radiusS
+                        color: cancelButton.down ? Theme.controlHover : "transparent"
+                        border.width: 1
+                        border.color: Theme.outline
+                    }
+                    contentItem: Text {
+                        text: cancelButton.text
+                        textFormat: Text.PlainText
+                        color: Theme.text
+                        font.pixelSize: Theme.fontBody
+                        horizontalAlignment: Text.AlignHCenter
+                        verticalAlignment: Text.AlignVCenter
+                    }
                 }
                 Button {
                     id: acceptButton
                     text: root.acceptLabel
+                    implicitHeight: Theme.buttonHeight
+                    leftPadding: Theme.buttonPaddingHorizontal
+                    rightPadding: Theme.buttonPaddingHorizontal
+                    topPadding: Theme.buttonPaddingVertical
+                    bottomPadding: Theme.buttonPaddingVertical
                     enabled: !root.inputVisible || root.value.trim().length > 0
                     Accessible.name: root.acceptLabel
                     onClicked: {

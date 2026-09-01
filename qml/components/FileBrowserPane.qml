@@ -45,6 +45,18 @@ Item {
                 clip: true
                 boundsBehavior: Flickable.StopAtBounds
 
+                TapHandler {
+                    acceptedButtons: Qt.LeftButton
+                    gesturePolicy: TapHandler.DragThreshold
+                    onTapped: eventPoint => {
+                        const index = listView.indexAt(
+                            eventPoint.position.x + listView.contentX,
+                            eventPoint.position.y + listView.contentY);
+                        if (index === -1)
+                            root.session.clearSelection();
+                    }
+                }
+
                 delegate: Rectangle {
                     id: listDelegate
                     required property int index
@@ -106,6 +118,18 @@ Item {
             cellWidth: 118 * Theme.scale
             cellHeight: 112 * Theme.scale
             boundsBehavior: Flickable.StopAtBounds
+
+            TapHandler {
+                acceptedButtons: Qt.LeftButton
+                gesturePolicy: TapHandler.DragThreshold
+                onTapped: eventPoint => {
+                    const index = gridView.indexAt(
+                        eventPoint.position.x + gridView.contentX,
+                        eventPoint.position.y + gridView.contentY);
+                    if (index === -1)
+                        root.session.clearSelection();
+                }
+            }
             delegate: Rectangle {
                 id: gridDelegate
                 required property int index

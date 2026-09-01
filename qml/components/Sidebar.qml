@@ -6,6 +6,7 @@ import "../core"
 Rectangle {
     id: root
     property string currentPath: ""
+    property string homePath: PlacesModel.homePath
     property string activeSection: "places"
     property var placesModel: PlacesModel.model
     property var projectsModel
@@ -23,6 +24,7 @@ Rectangle {
             SidebarTabButton { iconName: "folder"; tooltip: qsTr("Places"); checked: root.activeSection === "places"; ButtonGroup.group: sectionGroup; onClicked: root.activeSection = "places" }
             SidebarTabButton { iconName: "code"; tooltip: qsTr("Projects"); checked: root.activeSection === "projects"; ButtonGroup.group: sectionGroup; onClicked: root.activeSection = "projects" }
             SidebarTabButton { iconName: "star"; tooltip: qsTr("Bookmarks"); checked: root.activeSection === "bookmarks"; ButtonGroup.group: sectionGroup; onClicked: root.activeSection = "bookmarks" }
+            SidebarTabButton { iconName: "house"; tooltip: qsTr("Home"); checkable: false; onClicked: root.navigate(root.homePath) }
         }
         StackLayout {
             Layout.fillWidth: true; Layout.fillHeight: true

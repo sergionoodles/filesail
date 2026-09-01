@@ -11,6 +11,7 @@ QtObject {
     // volume entries. Hosts can inject a ListModel with the same roles into
     // Sidebar without teaching the view where a location lives.
     readonly property ListModel model: ListModel {}
+    readonly property string homePath: writablePath(StandardPaths.HomeLocation)
 
     function localPath(location) {
         const value = String(location);
@@ -37,7 +38,7 @@ QtObject {
     function reload() {
         model.clear();
 
-        appendPlace(qsTr("Home"), "user-home", writablePath(StandardPaths.HomeLocation), "place");
+        appendPlace(qsTr("Home"), "user-home", homePath, "place");
         appendPlace(qsTr("Desktop"), "user-desktop", writablePath(StandardPaths.DesktopLocation), "place");
         appendPlace(qsTr("Documents"), "folder-documents", writablePath(StandardPaths.DocumentsLocation), "place");
         appendPlace(qsTr("Downloads"), "folder-download", writablePath(StandardPaths.DownloadLocation), "place");

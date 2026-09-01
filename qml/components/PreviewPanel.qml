@@ -17,7 +17,50 @@ Rectangle {
     Loader {
         id: providerLoader
         anchors.fill: parent
-        sourceComponent: root.allImages ? imagePreview : root.visual ? visualPreview : root.text ? textPreview : root.archive ? archivePreview : metadataPreview
+        sourceComponent: root.selectedEntries.length === 0 ? emptyPreview
+            : root.allImages ? imagePreview : root.visual ? visualPreview : root.text ? textPreview : root.archive ? archivePreview : metadataPreview
+    }
+    Component {
+        id: emptyPreview
+        Item {
+            Column {
+                anchors.centerIn: parent
+                width: Math.min(parent.width - Theme.spaceXl * 2, 250 * Theme.scale)
+                spacing: Theme.spaceM
+
+                Rectangle {
+                    anchors.horizontalCenter: parent.horizontalCenter
+                    width: 64 * Theme.scale
+                    height: width
+                    color: Qt.alpha(Theme.primary, 0.10)
+                    border.width: 1
+                    border.color: Qt.alpha(Theme.primary, 0.38)
+
+                    LucideIcon {
+                        anchors.centerIn: parent
+                        name: "image"
+                        iconSize: 28 * Theme.scale
+                        iconColor: Theme.primary
+                    }
+                }
+                Text {
+                    width: parent.width
+                    text: qsTr("Nothing to preview")
+                    color: Theme.text
+                    font.pixelSize: Theme.fontTitle
+                    font.weight: Font.DemiBold
+                    horizontalAlignment: Text.AlignHCenter
+                }
+                Text {
+                    width: parent.width
+                    text: qsTr("Select a file to see its preview here.")
+                    color: Theme.textMuted
+                    font.pixelSize: Theme.fontBody
+                    horizontalAlignment: Text.AlignHCenter
+                    wrapMode: Text.Wrap
+                }
+            }
+        }
     }
     Component { id: metadataPreview; FileMetadataPreview { entries: root.selectedEntries } }
     Component { id: imagePreview; ImageSelectionPreview { entries: root.selectedEntries; selectionRevision: root.selectionRevision } }

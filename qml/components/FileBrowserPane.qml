@@ -24,7 +24,7 @@ Item {
             Rectangle {
                 Layout.fillWidth: true
                 implicitHeight: 30 * Theme.scale
-                color: Qt.alpha(Theme.surfaceVariant, 0.42)
+                color: Qt.alpha(Theme.surfaceVariant, 0.25)
 
                 RowLayout {
                     anchors.fill: parent

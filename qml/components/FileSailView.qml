@@ -26,7 +26,7 @@ Rectangle {
         property var selectedEntries: session.selectedEntries
         property int selectionRevision: session.selectionRevision
     }
-    property bool previewPaneEnabled: true
+    property bool previewPaneEnabled: false
     readonly property bool hasExternalPreview: previewSource.toString().length > 0 || Boolean(previewComponent)
     property string noticeText: ""
     property bool noticeError: false
@@ -216,7 +216,7 @@ Rectangle {
             Rectangle {
                 Layout.fillWidth: true
                 implicitHeight: 30 * Theme.scale
-                color: Qt.alpha(Theme.surfaceVariant, 0.42)
+                color: Theme.surface
                 RowLayout {
                     anchors.fill: parent
                     anchors.leftMargin: Theme.spaceL

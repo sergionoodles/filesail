@@ -83,6 +83,11 @@ Rectangle {
     property Action createAction: Action { text: qsTr("New folder"); shortcut: "Ctrl+Shift+N"; enabled: !root.modalActive; onTriggered: root.openCreatePrompt() }
     property Action renameAction: Action { text: qsTr("Rename"); shortcut: "F2"; enabled: !root.modalActive && session.selectedCount === 1; onTriggered: root.openRenamePrompt() }
     property Action refreshAction: Action { text: qsTr("Refresh"); shortcut: "F5"; enabled: !root.modalActive; onTriggered: session.directory.refresh("refresh") }
+    property Action openTerminalAction: Action {
+        text: qsTr("Open Terminal Here"); shortcut: "F4"; enabled: !root.modalActive
+        onTriggered: session.runOperation("terminal", { path: session.directory.path }, false,
+                                         qsTr("Terminal opened"), false, false)
+    }
     property Action trashAction: Action { text: qsTr("Move to Trash"); shortcut: "Delete"; enabled: !root.modalActive && session.selectedCount > 0; onTriggered: root.openTrashPrompt() }
     property Action listViewAction: Action { text: qsTr("Details view"); checked: root.viewMode === "list"; enabled: !root.modalActive; onTriggered: root.viewMode = "list" }
     property Action gridViewAction: Action { text: qsTr("Grid view"); checked: root.viewMode === "grid"; enabled: !root.modalActive; onTriggered: root.viewMode = "grid" }
@@ -112,6 +117,7 @@ Rectangle {
                 backAction: root.backAction
                 forwardAction: root.forwardAction
                 upAction: root.upAction
+                openTerminalAction: root.openTerminalAction
                 createAction: root.createAction
                 renameAction: root.renameAction
                 copyAction: root.copyAction

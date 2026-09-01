@@ -11,6 +11,7 @@ ColumnLayout {
     required property Action backAction
     required property Action forwardAction
     required property Action upAction
+    required property Action openTerminalAction
     required property Action createAction
     required property Action renameAction
     required property Action copyAction
@@ -43,6 +44,7 @@ ColumnLayout {
             IconButton { iconName: "arrow-left"; enabled: root.backAction.enabled; tooltip: root.backAction.text; onClicked: root.backAction.trigger() }
             IconButton { iconName: "arrow-right"; enabled: root.forwardAction.enabled; tooltip: root.forwardAction.text; onClicked: root.forwardAction.trigger() }
             IconButton { iconName: "arrow-up"; enabled: root.upAction.enabled; tooltip: root.upAction.text; onClicked: root.upAction.trigger() }
+            IconButton { iconName: "square-terminal"; enabled: root.openTerminalAction.enabled; tooltip: root.openTerminalAction.text; onClicked: root.openTerminalAction.trigger() }
 
             BreadcrumbBar {
                 id: breadcrumbs

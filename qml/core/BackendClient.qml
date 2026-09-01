@@ -109,6 +109,10 @@ QtObject {
         return request("open", { path }, onSuccess, onFailure);
     }
 
+    function openTerminal(path, onSuccess, onFailure) {
+        return request("terminal", { path }, onSuccess, onFailure);
+    }
+
     function createDirectory(parent, name, onSuccess, onFailure) {
         return request("mkdir", { parent, name }, onSuccess, onFailure, 0);
     }

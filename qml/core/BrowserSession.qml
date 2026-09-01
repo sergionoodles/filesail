@@ -73,7 +73,8 @@ QtObject {
             runOperation("open", { path }, false, "Opened with the default application");
     }
 
-    function runOperation(method, params, refreshAfter, successMessage, clearClipboardOnSuccess) {
+    function runOperation(method, params, refreshAfter, successMessage, clearClipboardOnSuccess,
+                          clearSelectionOnSuccess) {
         const originPath = directoryModel.path;
         const selectionSnapshot = Object.keys(selectedPaths);
         const operationPaths = Array.isArray(params.paths)
@@ -99,7 +100,7 @@ QtObject {
             }
             if (refreshAfter && directoryModel.path === originPath)
                 directoryModel.refresh("refresh");
-            if (directoryModel.path === originPath)
+            if ((clearSelectionOnSuccess ?? true) && directoryModel.path === originPath)
                 root.removeFromSelection(selectionSnapshot);
             root.noticeRequested(successMessage, false);
         };
@@ -125,6 +126,8 @@ QtObject {
         };
         if (method === "open")
             operationId = BackendClient.openPath(params.path, succeeded, failed);
+        else if (method === "terminal")
+            operationId = BackendClient.openTerminal(params.path, succeeded, failed);
         else if (method === "mkdir")
             operationId = BackendClient.createDirectory(params.parent, params.name, succeeded, failed);
         else if (method === "rename")

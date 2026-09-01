@@ -160,6 +160,8 @@ void BackendServer::handleRequest(const QByteArray &line)
         enqueueOperation(id, m_mutationPool, [params] { return FileOperations::movePaths(params); });
     } else if (method == "open") {
         enqueueOperation(id, m_readPool, [params] { return FileOperations::openPath(params); });
+    } else if (method == "terminal") {
+        enqueueOperation(id, m_readPool, [params] { return FileOperations::openTerminal(params); });
     } else {
         QJsonObject result;
         if (method == "watch")

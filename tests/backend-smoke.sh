@@ -32,6 +32,9 @@ jq -e '.id == 12 and .ok == false and (.error | type == "string")' <<<"$ambiguou
 ambiguous_watch_url="$(printf '%s\n' '{"id":18,"method":"watch","params":{"path":"file:///tmp?ignored"}}' | "$backend" --serve)"
 jq -e '.id == 18 and .ok == false and (.error | type == "string")' <<<"$ambiguous_watch_url" >/dev/null
 
+invalid_terminal="$(printf '%s\n' '{"id":20,"method":"terminal","params":{"path":""}}' | "$backend" --serve)"
+jq -e '.id == 20 and .ok == false and (.error | type == "string")' <<<"$invalid_terminal" >/dev/null
+
 test_dir="$(mktemp -d /tmp/filesail-backend-test.XXXXXX)"
 cleanup() {
     if [[ -n "$test_dir" && -d "$test_dir" ]]; then
@@ -41,6 +44,18 @@ cleanup() {
 trap cleanup EXIT
 
 mkdir -p -- "$test_dir/source/child"
+terminal_output="$test_dir/terminal-working-directory"
+terminal_script="$test_dir/test-terminal"
+printf '%s\n' '#!/usr/bin/env bash' 'printf "%s" "$PWD" > "$FILESAIL_TERMINAL_OUTPUT"' > "$terminal_script"
+chmod +x -- "$terminal_script"
+terminal_response="$(env TERMINAL="$terminal_script" FILESAIL_TERMINAL_OUTPUT="$terminal_output" "$backend" --serve <<<"{\"id\":21,\"method\":\"terminal\",\"params\":{\"path\":\"$test_dir\"}}")"
+jq -e '.id == 21 and .ok == true' <<<"$terminal_response" >/dev/null
+for _ in {1..20}; do
+    [[ -f "$terminal_output" ]] && break
+    sleep 0.1
+done
+[[ $(<"$terminal_output") == "$test_dir" ]]
+
 descendant_request="$(printf '{"id":10,"method":"copy","params":{"paths":["%s/source"],"targetDirectory":"%s/source/child"}}\n' "$test_dir" "$test_dir")"
 descendant="$(printf '%s\n' "$descendant_request" | "$backend" --serve)"
 jq -e '.id == 10 and .ok == false and (.error | type == "string")' <<<"$descendant" >/dev/null

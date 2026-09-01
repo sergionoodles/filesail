@@ -24,6 +24,7 @@ Text {
         "scissors": 57678,
         "search": 57681,
         "square-pen": 57714,
+        "square-terminal": 57866,
         "trash-2": 57742,
         "clipboard-paste": 58344,
         "grid-2x2": 58623

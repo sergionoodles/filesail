@@ -9,6 +9,7 @@
 #include <QMutex>
 #include <QProcess>
 #include <QSet>
+#include <QStandardPaths>
 #include <QUuid>
 #include <QUrl>
 
@@ -823,6 +824,49 @@ QJsonObject openPath(const QJsonObject &params)
     opener.setStandardErrorFile(QProcess::nullDevice());
     if (!opener.startDetached())
         return failure("Could not start xdg-open");
+    return success();
+}
+
+QJsonObject openTerminal(const QJsonObject &params)
+{
+    QString error;
+    const QString path = requiredPath(params, "path", &error);
+    if (!error.isEmpty())
+        return failure(error);
+    if (!QFileInfo(path).isDir())
+        return failure(QStringLiteral("Directory does not exist: %1").arg(path));
+
+    QStringList command = QProcess::splitCommand(qEnvironmentVariable("TERMINAL"));
+    if (command.isEmpty()) {
+        const QStringList candidates = {
+            QStringLiteral("xdg-terminal-exec"), QStringLiteral("x-terminal-emulator"),
+            QStringLiteral("kitty"), QStringLiteral("foot"), QStringLiteral("alacritty"),
+            QStringLiteral("wezterm"), QStringLiteral("ghostty"), QStringLiteral("konsole"),
+            QStringLiteral("gnome-terminal"), QStringLiteral("xfce4-terminal")
+        };
+        for (const QString &candidate : candidates) {
+            if (!QStandardPaths::findExecutable(candidate).isEmpty()) {
+                command = {candidate};
+                break;
+            }
+        }
+    }
+    if (command.isEmpty())
+        return failure("No terminal emulator found. Set the TERMINAL environment variable.");
+
+    const QString program = command.takeFirst();
+    if (QStandardPaths::findExecutable(program).isEmpty())
+        return failure(QStringLiteral("Terminal executable was not found: %1").arg(program));
+
+    QProcess terminal;
+    terminal.setProgram(program);
+    terminal.setArguments(command);
+    terminal.setWorkingDirectory(path);
+    terminal.setStandardInputFile(QProcess::nullDevice());
+    terminal.setStandardOutputFile(QProcess::nullDevice());
+    terminal.setStandardErrorFile(QProcess::nullDevice());
+    if (!terminal.startDetached())
+        return failure("Could not start terminal emulator");
     return success();
 }
 

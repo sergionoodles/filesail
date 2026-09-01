@@ -1,6 +1,8 @@
 module FileSail.Components
 FileIcon 1.0 FileIcon.qml
 IconButton 1.0 IconButton.qml
+ThemedTextField 1.0 ThemedTextField.qml
+TestPreview 1.0 TestPreview.qml
 BreadcrumbBar 1.0 BreadcrumbBar.qml
 Sidebar 1.0 Sidebar.qml
 ModalPrompt 1.0 ModalPrompt.qml

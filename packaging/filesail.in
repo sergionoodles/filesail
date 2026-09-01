@@ -1,0 +1,16 @@
+#!/usr/bin/env bash
+set -euo pipefail
+
+filesail_data_dir="@CMAKE_INSTALL_FULL_DATADIR@/filesail"
+filesail_backend_default="@CMAKE_INSTALL_FULL_BINDIR@/filesail-backend"
+
+if [[ ! -x "${FILESAIL_BACKEND:-$filesail_backend_default}" ]]; then
+    printf 'FileSail backend not found. Expected: %s\n' "${FILESAIL_BACKEND:-$filesail_backend_default}" >&2
+    exit 1
+fi
+
+export FILESAIL_BACKEND="${FILESAIL_BACKEND:-$filesail_backend_default}"
+export FILESAIL_PATH="${1:-${FILESAIL_PATH:-$HOME}}"
+export QS_APP_ID="dev.filesail.FileSail"
+
+exec qs --allow-duplicate -p "$filesail_data_dir"

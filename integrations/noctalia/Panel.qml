@@ -1,5 +1,4 @@
 import QtQuick
-import qs.Commons
 import "../../qml/components" as FileSail
 import "../../qml/core" as FileSailCore
 
@@ -9,32 +8,20 @@ Item {
     property var pluginApi: null
     readonly property var geometryPlaceholder: fileSailView
     property bool allowAttach: true
-    property real contentPreferredWidth: 1040 * Style.uiScaleRatio
-    property real contentPreferredHeight: 760 * Style.uiScaleRatio
-    property color panelBackgroundColor: Color.mSurface
+    property real contentPreferredWidth: 1040 * FileSailCore.Theme.scale
+    property real contentPreferredHeight: 760 * FileSailCore.Theme.scale
+    property color panelBackgroundColor: FileSailCore.Theme.surface
 
     anchors.fill: parent
 
-    Component.onCompleted: FileSailCore.Theme.apply({
-        primary: Color.mPrimary,
-        primaryText: Color.mOnPrimary,
-        secondary: Color.mSecondary,
-        surface: Color.mSurface,
-        surfaceVariant: Color.mSurfaceVariant,
-        text: Color.mOnSurface,
-        textMuted: Color.mOnSurfaceVariant,
-        outline: Color.mOutline,
-        hover: Color.mHover,
-        error: Color.mError,
-        scale: Style.uiScaleRatio,
-        radiusRatio: Settings.data.general.radiusRatio,
-        animationFast: Style.animationFast,
-        animationNormal: Style.animationNormal
-    })
+    NoctaliaThemeProvider {
+        theme: FileSailCore.Theme
+    }
 
     FileSail.FileSailView {
         id: fileSailView
         anchors.fill: parent
-        panelMode: true
+        compact: true
+        cornerRadius: FileSailCore.Theme.radiusL
     }
 }

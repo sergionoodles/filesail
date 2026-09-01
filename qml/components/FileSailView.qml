@@ -8,8 +8,16 @@ Rectangle {
     id: root
 
     property string initialPath: String(Quickshell.env("HOME") ?? "/")
-    property bool panelMode: false
+    // Hosts may override density; otherwise the view adapts to its available width.
+    property bool compact: width > 0 && width < 900 * Theme.scale
+    property int cornerRadius: 0
     property Component previewComponent: null
+    // A URL provider is preferred because Loader.setSource can supply required
+    // properties before the preview component completes.
+    property url previewSource: ""
+    // Preview providers receive the selected path explicitly via Loader.item.
+    // Providers should declare `property string selectedPath` (or use this context).
+    property QtObject previewContext: QtObject { property string selectedPath: session.primarySelectionPath }
     property string noticeText: ""
     property bool noticeError: false
     property string viewMode: "list"
@@ -17,11 +25,12 @@ Rectangle {
     property var trashTargets: []
     property string createParent: ""
     readonly property int selectedCount: session.selectedCount
-    readonly property bool previewEnabled: previewComponent !== null
+    readonly property bool previewEnabled: (previewComponent !== null || previewSource !== "")
         && session.primarySelectionPath.length > 0
+    readonly property bool modalActive: createPrompt.visible || renamePrompt.visible || trashPrompt.visible
 
     color: Theme.surface
-    radius: panelMode ? Theme.radiusL : 0
+    radius: cornerRadius
     clip: true
 
     function navigate(path) { session.navigate(path); }
@@ -34,21 +43,21 @@ Rectangle {
 
     function openCreatePrompt() {
         createParent = session.directory.path;
-        createPrompt.open("");
+        createPrompt.open("", { parent: createParent }, toolbar);
     }
 
     function openRenamePrompt() {
         if (session.selectedCount !== 1)
             return;
         renameTarget = session.primarySelectionPath;
-        renamePrompt.open(renameTarget.split('/').pop());
+        renamePrompt.open(renameTarget.split('/').pop(), { path: renameTarget }, toolbar);
     }
 
     function openTrashPrompt() {
         if (session.selectedCount === 0)
             return;
         trashTargets = Object.keys(session.selectedPaths);
-        trashPrompt.open();
+        trashPrompt.open("", { paths: trashTargets.slice() }, toolbar);
     }
 
     BrowserSession {
@@ -57,31 +66,31 @@ Rectangle {
         onNoticeRequested: (message, error) => root.showNotice(message, error)
     }
 
-    property Action editLocationAction: Action { shortcut: "Ctrl+L"; onTriggered: toolbar.beginPathEditing() }
-    property Action backAction: Action { text: "Back"; shortcut: "Alt+Left"; enabled: session.navigation.canGoBack; onTriggered: session.navigation.back() }
-    property Action forwardAction: Action { text: "Forward"; shortcut: "Alt+Right"; enabled: session.navigation.canGoForward; onTriggered: session.navigation.forward() }
-    property Action upAction: Action { text: "Parent folder"; shortcut: "Alt+Up"; enabled: session.directory.path !== "/"; onTriggered: session.navigation.up() }
+    property Action editLocationAction: Action { shortcut: "Ctrl+L"; enabled: !root.modalActive; onTriggered: toolbar.beginPathEditing() }
+    property Action backAction: Action { text: qsTr("Back"); shortcut: "Alt+Left"; enabled: !root.modalActive && session.navigation.canGoBack; onTriggered: session.navigation.back() }
+    property Action forwardAction: Action { text: qsTr("Forward"); shortcut: "Alt+Right"; enabled: !root.modalActive && session.navigation.canGoForward; onTriggered: session.navigation.forward() }
+    property Action upAction: Action { text: qsTr("Parent folder"); shortcut: "Alt+Up"; enabled: !root.modalActive && session.directory.path !== "/"; onTriggered: session.navigation.up() }
     property Action hiddenFilesAction: Action {
-        text: "Show hidden files"; shortcut: "Ctrl+H"
+        text: qsTr("Show hidden files"); shortcut: "Ctrl+H"; enabled: !root.modalActive
         checked: session.directory.showHidden
         onTriggered: session.directory.showHidden = !session.directory.showHidden
     }
-    property Action copyAction: Action { text: "Copy"; shortcut: "Ctrl+C"; enabled: session.selectedCount > 0; onTriggered: session.copySelection("copy") }
-    property Action moveAction: Action { text: "Move"; shortcut: "Ctrl+X"; enabled: session.selectedCount > 0; onTriggered: session.copySelection("move") }
-    property Action pasteAction: Action { text: "Paste"; shortcut: "Ctrl+V"; enabled: session.clipboardPaths.length > 0; onTriggered: session.paste() }
-    property Action createAction: Action { text: "New folder"; shortcut: "Ctrl+Shift+N"; onTriggered: root.openCreatePrompt() }
-    property Action renameAction: Action { text: "Rename"; shortcut: "F2"; enabled: session.selectedCount === 1; onTriggered: root.openRenamePrompt() }
-    property Action refreshAction: Action { text: "Refresh"; shortcut: "F5"; onTriggered: session.directory.refresh("refresh") }
-    property Action trashAction: Action { text: "Move to Trash"; shortcut: "Delete"; enabled: session.selectedCount > 0; onTriggered: root.openTrashPrompt() }
-    property Action listViewAction: Action { text: "Details view"; checked: root.viewMode === "list"; onTriggered: root.viewMode = "list" }
-    property Action gridViewAction: Action { text: "Grid view"; checked: root.viewMode === "grid"; onTriggered: root.viewMode = "grid" }
+    property Action copyAction: Action { text: qsTr("Copy"); shortcut: "Ctrl+C"; enabled: !root.modalActive && session.selectedCount > 0; onTriggered: session.copySelection("copy") }
+    property Action moveAction: Action { text: qsTr("Move"); shortcut: "Ctrl+X"; enabled: !root.modalActive && session.selectedCount > 0; onTriggered: session.copySelection("move") }
+    property Action pasteAction: Action { text: qsTr("Paste"); shortcut: "Ctrl+V"; enabled: !root.modalActive && session.clipboardPaths.length > 0; onTriggered: session.paste() }
+    property Action createAction: Action { text: qsTr("New folder"); shortcut: "Ctrl+Shift+N"; enabled: !root.modalActive; onTriggered: root.openCreatePrompt() }
+    property Action renameAction: Action { text: qsTr("Rename"); shortcut: "F2"; enabled: !root.modalActive && session.selectedCount === 1; onTriggered: root.openRenamePrompt() }
+    property Action refreshAction: Action { text: qsTr("Refresh"); shortcut: "F5"; enabled: !root.modalActive; onTriggered: session.directory.refresh("refresh") }
+    property Action trashAction: Action { text: qsTr("Move to Trash"); shortcut: "Delete"; enabled: !root.modalActive && session.selectedCount > 0; onTriggered: root.openTrashPrompt() }
+    property Action listViewAction: Action { text: qsTr("Details view"); checked: root.viewMode === "list"; enabled: !root.modalActive; onTriggered: root.viewMode = "list" }
+    property Action gridViewAction: Action { text: qsTr("Grid view"); checked: root.viewMode === "grid"; enabled: !root.modalActive; onTriggered: root.viewMode = "grid" }
 
     RowLayout {
         anchors.fill: parent
         spacing: 0
 
         Sidebar {
-            Layout.preferredWidth: root.panelMode ? 174 * Theme.scale : 190 * Theme.scale
+            Layout.preferredWidth: root.compact ? 174 * Theme.scale : 190 * Theme.scale
             Layout.fillHeight: true
             currentPath: session.directory.path
             onNavigate: path => root.navigate(path)
@@ -97,7 +106,7 @@ Rectangle {
                 id: toolbar
                 Layout.fillWidth: true
                 session: session
-                panelMode: root.panelMode
+                compact: root.compact
                 backAction: root.backAction
                 forwardAction: root.forwardAction
                 upAction: root.upAction
@@ -128,10 +137,24 @@ Rectangle {
                     id: previewLoader
                     visible: root.previewEnabled
                     active: visible
-                    sourceComponent: root.previewComponent
+                    sourceComponent: root.previewSource === "" ? root.previewComponent : null
                     SplitView.preferredWidth: visible ? 300 * Theme.scale : 0
                     SplitView.minimumWidth: visible ? 220 * Theme.scale : 0
                     property string selectedPath: session.primarySelectionPath
+                    function loadPreview() {
+                        if (root.previewSource !== "")
+                            setSource(root.previewSource, { selectedPath: root.previewContext.selectedPath });
+                    }
+                    Component.onCompleted: loadPreview()
+                    Connections {
+                        target: root
+                        function onPreviewSourceChanged() { previewLoader.loadPreview(); }
+                    }
+                    onLoaded: {
+                        // The property lives on the preview object, not the Loader.
+                        if (item)
+                            item.selectedPath = Qt.binding(() => root.previewContext.selectedPath);
+                    }
                 }
             }
 
@@ -184,29 +207,29 @@ Rectangle {
     ModalPrompt {
         id: createPrompt
         anchors.fill: parent
-        title: "New folder"
-        message: `Create a folder in ${root.createParent}`
-        placeholder: "Folder name"
-        acceptLabel: "Create"
-        onAccepted: value => session.runOperation("mkdir", { parent: root.createParent, name: value }, true, "Folder created")
+        title: qsTr("New folder")
+        message: qsTr("Create a folder in %1").arg(root.createParent)
+        placeholder: qsTr("Folder name")
+        acceptLabel: qsTr("Create")
+        onAccepted: value => session.runOperation("mkdir", { parent: payload.parent, name: value }, true, qsTr("Folder created"))
     }
     ModalPrompt {
         id: renamePrompt
         anchors.fill: parent
-        title: "Rename"
+        title: qsTr("Rename")
         message: root.renameTarget
-        placeholder: "New name"
-        acceptLabel: "Rename"
-        onAccepted: value => session.runOperation("rename", { path: root.renameTarget, name: value }, true, "Item renamed")
+        placeholder: qsTr("New name")
+        acceptLabel: qsTr("Rename")
+        onAccepted: value => session.runOperation("rename", { path: payload.path, name: value }, true, qsTr("Item renamed"))
     }
     ModalPrompt {
         id: trashPrompt
         anchors.fill: parent
-        title: root.trashTargets.length === 1 ? "Move item to Trash?" : `Move ${root.trashTargets.length} items to Trash?`
-        message: "Items remain recoverable from the desktop Trash. Permanent deletion is intentionally unavailable here."
-        acceptLabel: "Move to Trash"
+        title: root.trashTargets.length === 1 ? qsTr("Move item to Trash?") : qsTr("Move %1 items to Trash?").arg(root.trashTargets.length)
+        message: qsTr("Items remain recoverable from the desktop Trash. Permanent deletion is intentionally unavailable here.")
+        acceptLabel: qsTr("Move to Trash")
         destructive: true
         inputVisible: false
-        onAccepted: session.runOperation("trash", { paths: root.trashTargets }, true, "Moved to Trash")
+        onAccepted: session.runOperation("trash", { paths: payload.paths }, true, qsTr("Moved to Trash"))
     }
 }

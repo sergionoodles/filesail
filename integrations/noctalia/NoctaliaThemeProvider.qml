@@ -1,0 +1,102 @@
+import QtQuick
+import Quickshell
+import Quickshell.Io
+
+// Owns Noctalia's on-disk theme source. Keeping this separate from Theme lets
+// the shared view run without Noctalia and lets a future host supply its own
+// provider (or a per-view Theme instance).
+QtObject {
+    id: root
+
+    property var theme: null
+    property var colors: ({})
+    property var metrics: ({})
+    readonly property string configDir: {
+        const configured = String(Quickshell.env("NOCTALIA_CONFIG_DIR") ?? "");
+        return configured.length > 0
+            ? configured.replace(/\/$/, "")
+            : String(Quickshell.env("HOME") ?? "") + "/.config/noctalia";
+    }
+
+    function loadColors() {
+        try {
+            const data = JSON.parse(colorsFile.text());
+            colors = {
+                primary: data.mPrimary,
+                primaryText: data.mOnPrimary,
+                surface: data.mSurface,
+                surfaceVariant: data.mSurfaceVariant,
+                text: data.mOnSurface,
+                textMuted: data.mOnSurfaceVariant,
+                outline: data.mOutline,
+                error: data.mError
+            };
+        } catch (error) {
+            // A config write can be observed mid-write; retain the last valid theme.
+        }
+    }
+
+    function loadMetrics() {
+        try {
+            const general = JSON.parse(settingsFile.text()).general ?? {};
+            const disabled = Boolean(general.animationDisabled);
+            const speed = Math.max(0.1, Number(general.animationSpeed ?? 1));
+            metrics = {
+                scale: Number(general.scaleRatio ?? 1),
+                radiusRatio: Number(general.radiusRatio ?? 1),
+                animationFast: disabled ? 0 : Math.round(150 / speed)
+            };
+        } catch (error) {
+            // Preserve the host-neutral defaults until a valid settings file exists.
+        }
+    }
+
+    function scheduleReload() {
+        reloadTimer.restart();
+    }
+
+    property Timer reloadTimer: Timer {
+        interval: 200
+        onTriggered: {
+            root.colorsFile.reload();
+            root.settingsFile.reload();
+        }
+    }
+
+    property FileView colorsFile: FileView {
+        path: root.configDir + "/colors.json"
+        preload: true
+        watchChanges: true
+        printErrors: false
+        onLoaded: root.loadColors()
+        onFileChanged: root.scheduleReload()
+    }
+
+    property FileView settingsFile: FileView {
+        path: root.configDir + "/settings.json"
+        preload: true
+        watchChanges: true
+        printErrors: false
+        onLoaded: root.loadMetrics()
+        onFileChanged: root.scheduleReload()
+    }
+
+    property FileView directoryWatcher: FileView {
+        path: root.configDir
+        watchChanges: true
+        printErrors: false
+        onFileChanged: root.scheduleReload()
+    }
+
+    Binding { target: root.theme; property: "primary"; value: root.colors.primary; when: root.theme && root.colors.primary !== undefined }
+    Binding { target: root.theme; property: "primaryText"; value: root.colors.primaryText; when: root.theme && root.colors.primaryText !== undefined }
+    Binding { target: root.theme; property: "surface"; value: root.colors.surface; when: root.theme && root.colors.surface !== undefined }
+    Binding { target: root.theme; property: "surfaceVariant"; value: root.colors.surfaceVariant; when: root.theme && root.colors.surfaceVariant !== undefined }
+    Binding { target: root.theme; property: "text"; value: root.colors.text; when: root.theme && root.colors.text !== undefined }
+    Binding { target: root.theme; property: "textMuted"; value: root.colors.textMuted; when: root.theme && root.colors.textMuted !== undefined }
+    Binding { target: root.theme; property: "outline"; value: root.colors.outline; when: root.theme && root.colors.outline !== undefined }
+    Binding { target: root.theme; property: "error"; value: root.colors.error; when: root.theme && root.colors.error !== undefined }
+    Binding { target: root.theme; property: "scale"; value: root.metrics.scale; when: root.theme && root.metrics.scale !== undefined }
+    Binding { target: root.theme; property: "radiusRatio"; value: root.metrics.radiusRatio; when: root.theme && root.metrics.radiusRatio !== undefined }
+    Binding { target: root.theme; property: "animationFast"; value: root.metrics.animationFast; when: root.theme && root.metrics.animationFast !== undefined }
+}

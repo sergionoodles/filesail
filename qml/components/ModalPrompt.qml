@@ -13,30 +13,39 @@ Item {
     property string acceptLabel: "Continue"
     property bool destructive: false
     property bool inputVisible: true
+    property var payload: ({})
+    property Item returnFocus: null
     signal accepted(string value)
     signal rejected
 
     visible: false
     z: 1000
 
-    function open(initialValue) {
+    function open(initialValue, payloadSnapshot, focusToRestore) {
         value = initialValue ?? "";
+        payload = Object.assign({}, payloadSnapshot ?? {});
+        returnFocus = focusToRestore ?? null;
         visible = true;
         if (inputVisible)
             promptInput.forceActiveFocus();
+        else
+            acceptButton.forceActiveFocus();
     }
 
     function close() {
         visible = false;
+        if (returnFocus)
+            returnFocus.forceActiveFocus();
     }
 
     Rectangle {
         anchors.fill: parent
         color: Qt.alpha("#000000", 0.54)
-        MouseArea { anchors.fill: parent; onClicked: { root.close(); root.rejected(); } }
+        MouseArea { anchors.fill: parent } // Deliberately consumes background clicks.
     }
 
     Rectangle {
+        id: dialogSurface
         width: Math.min(parent.width - Theme.spaceXl * 2, 420 * Theme.scale)
         implicitHeight: promptLayout.implicitHeight + Theme.spaceXl * 2
         anchors.centerIn: parent
@@ -44,6 +53,8 @@ Item {
         color: Theme.surfaceVariant
         border.width: 1
         border.color: Qt.alpha(Theme.outline, 0.9)
+        focus: root.visible
+        Keys.onEscapePressed: { root.close(); root.rejected(); event.accepted = true; }
 
         ColumnLayout {
             id: promptLayout
@@ -68,24 +79,12 @@ Item {
                 font.pixelSize: Theme.fontBody
                 wrapMode: Text.Wrap
             }
-            TextField {
+            ThemedTextField {
                 id: promptInput
                 Layout.fillWidth: true
                 visible: root.inputVisible
                 text: root.value
                 placeholderText: root.placeholder
-                color: Theme.text
-                placeholderTextColor: Theme.textMuted
-                selectByMouse: true
-                leftPadding: Theme.spaceM
-                rightPadding: Theme.spaceM
-                background: Rectangle {
-                    implicitHeight: 38 * Theme.scale
-                    radius: Theme.radiusS
-                    color: Theme.surface
-                    border.width: 1
-                    border.color: promptInput.activeFocus ? Theme.primary : Theme.outline
-                }
                 onTextChanged: root.value = text
                 onAccepted: acceptButton.clicked()
             }
@@ -94,12 +93,14 @@ Item {
                 spacing: Theme.spaceS
                 Button {
                     text: "Cancel"
+                    Accessible.name: qsTr("Cancel")
                     onClicked: { root.close(); root.rejected(); }
                 }
                 Button {
                     id: acceptButton
                     text: root.acceptLabel
                     enabled: !root.inputVisible || root.value.trim().length > 0
+                    Accessible.name: root.acceptLabel
                     onClicked: {
                         const acceptedValue = root.value;
                         root.close();
@@ -112,7 +113,7 @@ Item {
                     }
                     contentItem: Text {
                         text: acceptButton.text
-                        color: Theme.primaryText
+                        color: root.destructive ? Theme.errorText : Theme.primaryText
                         font.pixelSize: Theme.fontBody
                         font.weight: Font.DemiBold
                         horizontalAlignment: Text.AlignHCenter

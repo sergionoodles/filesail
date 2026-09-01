@@ -11,9 +11,9 @@ window and does not import Noctalia, Niri, or Hyprland APIs. A reserved
 `SplitView` loader is the future preview pane; previews can be added without
 turning the application into a tabbed interface.
 
-`qml/core/Theme.qml` is the stable token contract. Standalone mode watches
-Noctalia's generated `colors.json` when present. Shell adapters may map their
-live tokens into the same contract.
+`qml/core/Theme.qml` is the stable token contract. Theme providers and shell
+adapters may map live host tokens into that contract without making shared UI
+depend on a particular host.
 
 ## Backend protocol
 
@@ -55,6 +55,17 @@ without treating the move as complete.
   supplies panel content and a bar trigger.
 - A future Omarchy host should map Omarchy tokens and panel lifecycle into the
   same shared UI. No compositor code belongs in the file model or operations.
+
+## Installation
+
+The repository supports a standalone installation: `cmake --install build`
+installs `filesail-backend` and the `filesail` launcher in the configured bindir,
+and installs `shell.qml`, the QML tree, desktop entry, and the Noctalia adapter
+under `share/filesail`. The root-level `shell.qml` remains the sole standalone
+host; `hosts/standalone` is reserved until there is a second standalone host
+implementation. The installed manifest is configured from `PROJECT_VERSION`.
+Noctalia development remains supported by `scripts/install-noctalia.sh`, which
+intentionally symlinks the checkout.
 
 ## Deliberate MVP boundaries
 

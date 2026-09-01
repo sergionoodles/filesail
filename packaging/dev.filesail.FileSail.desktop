@@ -2,7 +2,7 @@
 Type=Application
 Name=FileSail
 Comment=Navigate local files
-Exec=filesail %U
+Exec=filesail %f
 Icon=system-file-manager
 Terminal=false
 Categories=System;FileTools;FileManager;

@@ -92,16 +92,11 @@ Item {
         }
     }
 
-    TextField {
+    ThemedTextField {
         id: addressInput
         anchors.fill: parent
         visible: root.editing
         text: root.path
-        color: Theme.text
-        font.pixelSize: Theme.fontBody
-        selectByMouse: true
-        leftPadding: Theme.spaceM
-        rightPadding: Theme.spaceM
         background: Item {}
 
         onAccepted: {

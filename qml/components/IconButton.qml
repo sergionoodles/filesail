@@ -1,25 +1,32 @@
 import QtQuick
+import QtQuick.Controls
 import "../core"
 
-Rectangle {
+AbstractButton {
     id: root
 
-    property string icon: ""
+    // `icon` is reserved by AbstractButton; this is the text-glyph fallback.
+    property string glyph: ""
     property string label: ""
-    property bool checked: false
     property string tooltip: label
-    signal clicked
-
     implicitWidth: label.length > 0 ? contentRow.implicitWidth + Theme.spaceM * 2 : 34 * Theme.scale
     implicitHeight: 34 * Theme.scale
-    radius: Theme.radiusS
-    color: checked ? Qt.alpha(Theme.primary, 0.18)
-                   : mouseArea.containsMouse && enabled ? Qt.alpha(Theme.text, 0.08) : "transparent"
-    border.width: checked ? 1 : 0
-    border.color: Qt.alpha(Theme.primary, 0.42)
+    hoverEnabled: true
+    checkable: true
+    focusPolicy: Qt.StrongFocus
+    Accessible.name: label.length > 0 ? label : tooltip
+    Accessible.role: Accessible.Button
     opacity: enabled ? 1 : 0.35
 
-    Behavior on color { ColorAnimation { duration: Theme.animationFast } }
+    background: Rectangle {
+        radius: Theme.radiusS
+        color: root.checked ? Theme.selectionFill
+             : root.down ? Qt.alpha(Theme.primary, 0.26)
+             : root.hovered ? Theme.controlHover : "transparent"
+        border.width: root.checked || root.visualFocus ? 1 : 0
+        border.color: root.checked ? Qt.alpha(Theme.primary, 0.42) : Theme.primary
+        Behavior on color { ColorAnimation { duration: Theme.animationFast } }
+    }
 
     Row {
         id: contentRow
@@ -27,7 +34,7 @@ Rectangle {
         spacing: Theme.spaceS
 
         Text {
-            text: root.icon
+            text: root.glyph
             color: root.checked ? Theme.primary : Theme.textMuted
             font.pixelSize: 16 * Theme.scale
             anchors.verticalCenter: parent.verticalCenter
@@ -43,11 +50,7 @@ Rectangle {
         }
     }
 
-    MouseArea {
-        id: mouseArea
-        anchors.fill: parent
-        hoverEnabled: true
-        cursorShape: root.enabled ? Qt.PointingHandCursor : Qt.ArrowCursor
-        onClicked: if (root.enabled) root.clicked()
-    }
+    ToolTip.visible: hovered && tooltip.length > 0
+    ToolTip.text: tooltip
+    ToolTip.delay: 450
 }

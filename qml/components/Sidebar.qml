@@ -1,24 +1,16 @@
 import QtQuick
+import QtQuick.Controls
 import QtQuick.Layouts
-import Quickshell
 import "../core"
 
 Rectangle {
     id: root
 
     property string currentPath: ""
+    // Inject a ListModel using PlacesModel's label, iconName, path, and kind roles
+    // to add favourites or volumes without changing this component.
+    property var placesModel: PlacesModel.model
     signal navigate(string path)
-
-    readonly property string homePath: String(Quickshell.env("HOME") ?? "/")
-    readonly property var places: [
-        { name: "Home", icon: "⌂", path: homePath },
-        { name: "Desktop", icon: "▣", path: homePath + "/Desktop" },
-        { name: "Documents", icon: "▤", path: homePath + "/Documents" },
-        { name: "Downloads", icon: "↓", path: homePath + "/Downloads" },
-        { name: "Pictures", icon: "◫", path: homePath + "/Pictures" },
-        { name: "Music", icon: "♪", path: homePath + "/Music" },
-        { name: "Videos", icon: "▶", path: homePath + "/Videos" }
-    ]
 
     color: Qt.alpha(Theme.surfaceVariant, 0.58)
 
@@ -51,14 +43,14 @@ Rectangle {
             ColumnLayout {
                 spacing: -2
                 Text {
-                    text: "FILESAIL"
+                    text: qsTr("FILESAIL")
                     color: Theme.text
                     font.pixelSize: Theme.fontBody
                     font.weight: Font.Bold
                     font.letterSpacing: 1.4
                 }
                 Text {
-                    text: "LOCAL NAVIGATOR"
+                    text: qsTr("LOCAL NAVIGATOR")
                     color: Theme.textMuted
                     font.pixelSize: Theme.fontSmall - 2
                     font.letterSpacing: 0.8
@@ -69,7 +61,7 @@ Rectangle {
         Text {
             Layout.leftMargin: Theme.spaceS
             Layout.bottomMargin: Theme.spaceXs
-            text: "PLACES"
+            text: qsTr("PLACES")
             color: Theme.textMuted
             font.pixelSize: Theme.fontSmall - 1
             font.weight: Font.DemiBold
@@ -77,15 +69,26 @@ Rectangle {
         }
 
         Repeater {
-            model: root.places
+            model: root.placesModel
 
-            delegate: Rectangle {
-                required property var modelData
+            delegate: AbstractButton {
+                id: placeDelegate
+                required property string label
+                required property string iconName
+                required property string path
                 Layout.fillWidth: true
                 implicitHeight: 34 * Theme.scale
-                radius: Theme.radiusS
-                color: root.currentPath === modelData.path ? Qt.alpha(Theme.primary, 0.16)
-                      : placeMouse.containsMouse ? Qt.alpha(Theme.text, 0.07) : "transparent"
+                hoverEnabled: true
+                focusPolicy: Qt.StrongFocus
+                Accessible.name: label
+                Accessible.role: Accessible.ListItem
+                onClicked: root.navigate(path)
+
+                background: Rectangle {
+                    radius: Theme.radiusS
+                    color: root.currentPath === path ? Theme.selectionFill
+                          : parent.hovered ? Theme.controlHover : "transparent"
+                }
 
                 RowLayout {
                     anchors.fill: parent
@@ -93,54 +96,23 @@ Rectangle {
                     anchors.rightMargin: Theme.spaceM
                     spacing: Theme.spaceM
 
-                    Text {
-                        text: modelData.icon
-                        color: root.currentPath === modelData.path ? Theme.primary : Theme.textMuted
-                        font.pixelSize: 15 * Theme.scale
+                    FileIcon {
+                        implicitWidth: 17 * Theme.scale
+                        implicitHeight: implicitWidth
+                        iconName: placeDelegate.iconName
+                        selected: root.currentPath === path
                     }
                     Text {
                         Layout.fillWidth: true
-                        text: modelData.name
+                        text: label
                         color: Theme.text
                         font.pixelSize: Theme.fontBody
                         elide: Text.ElideRight
                     }
                 }
-
-                MouseArea {
-                    id: placeMouse
-                    anchors.fill: parent
-                    hoverEnabled: true
-                    cursorShape: Qt.PointingHandCursor
-                    onClicked: root.navigate(modelData.path)
-                }
             }
         }
 
         Item { Layout.fillHeight: true }
-
-        Rectangle {
-            Layout.fillWidth: true
-            implicitHeight: 34 * Theme.scale
-            radius: Theme.radiusS
-            color: trashMouse.containsMouse ? Qt.alpha(Theme.text, 0.07) : "transparent"
-
-            RowLayout {
-                anchors.fill: parent
-                anchors.leftMargin: Theme.spaceM
-                anchors.rightMargin: Theme.spaceM
-                spacing: Theme.spaceM
-                Text { text: "♲"; color: Theme.textMuted; font.pixelSize: 16 * Theme.scale }
-                Text { Layout.fillWidth: true; text: "Trash"; color: Theme.text; font.pixelSize: Theme.fontBody }
-            }
-
-            MouseArea {
-                id: trashMouse
-                anchors.fill: parent
-                hoverEnabled: true
-                cursorShape: Qt.PointingHandCursor
-                onClicked: root.navigate(root.homePath + "/.local/share/Trash/files")
-            }
-        }
     }
 }

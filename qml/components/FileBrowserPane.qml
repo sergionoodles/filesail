@@ -10,24 +10,6 @@ Item {
     required property var session
     property string viewMode: "list"
 
-    function formatSize(bytes, isDirectory) {
-        if (isDirectory)
-            return "—";
-        const units = ["B", "KB", "MB", "GB", "TB"];
-        let value = Number(bytes);
-        let unit = 0;
-        while (value >= 1024 && unit < units.length - 1) {
-            value /= 1024;
-            unit++;
-        }
-        return (unit === 0 ? value.toFixed(0) : value.toFixed(value < 10 ? 1 : 0)) + " " + units[unit];
-    }
-
-    function formatDate(isoDate) {
-        const date = new Date(isoDate);
-        return isNaN(date.getTime()) ? "—" : date.toLocaleString(Qt.locale(), "dd MMM yyyy  HH:mm");
-    }
-
     Rectangle {
         anchors.fill: parent
         color: Theme.surface
@@ -74,6 +56,8 @@ Item {
                     required property string iconName
                     width: listView.width
                     height: 42 * Theme.scale
+                    Accessible.name: listDelegate.name
+                    Accessible.role: Accessible.ListItem
                     color: root.session.selectedPaths[path] ? Qt.alpha(Theme.primary, 0.16)
                          : rowMouse.containsMouse ? Qt.alpha(Theme.text, 0.055) : "transparent"
 
@@ -93,8 +77,8 @@ Item {
                         spacing: Theme.spaceM
                         FileIcon { Layout.preferredWidth: 24 * Theme.scale; Layout.preferredHeight: 24 * Theme.scale; iconName: listDelegate.iconName; selected: root.session.selectedPaths[listDelegate.path] ?? false }
                         Text { Layout.fillWidth: true; text: listDelegate.name; color: Theme.text; font.pixelSize: Theme.fontBody; elide: Text.ElideMiddle }
-                        Text { Layout.preferredWidth: 116 * Theme.scale; text: root.formatDate(listDelegate.modified); color: Theme.textMuted; font.pixelSize: Theme.fontSmall; elide: Text.ElideRight }
-                        Text { Layout.preferredWidth: 72 * Theme.scale; horizontalAlignment: Text.AlignRight; text: root.formatSize(listDelegate.size, listDelegate.isDirectory); color: Theme.textMuted; font.pixelSize: Theme.fontSmall }
+                        Text { Layout.preferredWidth: 116 * Theme.scale; text: Format.date(listDelegate.modified); color: Theme.textMuted; font.pixelSize: Theme.fontSmall; elide: Text.ElideRight }
+                        Text { Layout.preferredWidth: 72 * Theme.scale; horizontalAlignment: Text.AlignRight; text: Format.size(listDelegate.size, listDelegate.isDirectory); color: Theme.textMuted; font.pixelSize: Theme.fontSmall }
                     }
                     MouseArea {
                         id: rowMouse
@@ -103,6 +87,10 @@ Item {
                         acceptedButtons: Qt.LeftButton | Qt.RightButton
                         onClicked: mouse => root.session.select(listDelegate.path, mouse.modifiers)
                         onDoubleClicked: root.session.openEntry(listDelegate.path, listDelegate.isDirectory)
+                        activeFocusOnTab: true
+                        Keys.onReturnPressed: root.session.openEntry(listDelegate.path, listDelegate.isDirectory)
+                        Keys.onEnterPressed: root.session.openEntry(listDelegate.path, listDelegate.isDirectory)
+                        Keys.onSpacePressed: root.session.select(listDelegate.path, Qt.NoModifier)
                     }
                 }
             }
@@ -128,6 +116,8 @@ Item {
                 width: gridView.cellWidth - Theme.spaceS
                 height: gridView.cellHeight - Theme.spaceS
                 radius: Theme.radiusM
+                Accessible.name: gridDelegate.name
+                Accessible.role: Accessible.ListItem
                 color: root.session.selectedPaths[path] ? Qt.alpha(Theme.primary, 0.16)
                      : gridMouse.containsMouse ? Qt.alpha(Theme.text, 0.06) : "transparent"
                 border.width: root.session.selectedPaths[path] ? 1 : 0
@@ -145,6 +135,10 @@ Item {
                     hoverEnabled: true
                     onClicked: mouse => root.session.select(gridDelegate.path, mouse.modifiers)
                     onDoubleClicked: root.session.openEntry(gridDelegate.path, gridDelegate.isDirectory)
+                    activeFocusOnTab: true
+                    Keys.onReturnPressed: root.session.openEntry(gridDelegate.path, gridDelegate.isDirectory)
+                    Keys.onEnterPressed: root.session.openEntry(gridDelegate.path, gridDelegate.isDirectory)
+                    Keys.onSpacePressed: root.session.select(gridDelegate.path, Qt.NoModifier)
                 }
             }
         }

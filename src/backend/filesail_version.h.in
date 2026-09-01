@@ -1,0 +1,3 @@
+#pragma once
+
+#define FILESAIL_VERSION "@PROJECT_VERSION@"

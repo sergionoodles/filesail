@@ -24,6 +24,16 @@ cmake --build build
 ctest --test-dir build --output-on-failure
 ```
 
+## Install the standalone host
+
+```sh
+cmake --install build
+```
+
+This installs the `filesail` launcher, backend, desktop entry, QML tree, and
+Noctalia adapter using CMake's configured install prefix. The checkout remains
+usable for Noctalia plugin development through `scripts/install-noctalia.sh`.
+
 ## Run as a tiled window
 
 ```sh

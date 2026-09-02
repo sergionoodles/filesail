@@ -12,6 +12,15 @@
 /_deps/
 /*.cmake.user
 
+# Arch makepkg working directories and package archives
+/pkg/
+/src/filesail/
+/src/filesail-build/
+/*.pkg.tar.*
+/integrations/noctalia/pkg/
+/integrations/noctalia/src/
+/integrations/noctalia/*.pkg.tar.*
+
 # Generated Qt/CMake artifacts and the local backend executable
 /.qt/
 /*_autogen/

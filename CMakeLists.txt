@@ -80,6 +80,9 @@ install(FILES packaging/dev.filesail.FileSail.desktop
 install(FILES logo.png
     DESTINATION ${CMAKE_INSTALL_DATADIR}/icons/hicolor/1200x1200/apps
     RENAME filesail.png)
+install(FILES logo.png
+    DESTINATION ${CMAKE_INSTALL_DATADIR}/pixmaps
+    RENAME filesail.png)
 
 enable_testing()
 add_test(

@@ -46,22 +46,61 @@ ColumnLayout {
             IconButton { iconName: "arrow-left"; enabled: root.backAction.enabled; tooltip: root.backAction.text; onClicked: root.backAction.trigger() }
             IconButton { iconName: "arrow-right"; enabled: root.forwardAction.enabled; tooltip: root.forwardAction.text; onClicked: root.forwardAction.trigger() }
             IconButton { iconName: "arrow-up"; enabled: root.upAction.enabled; tooltip: root.upAction.text; onClicked: root.upAction.trigger() }
-            IconButton { iconName: "square-terminal"; enabled: root.openTerminalAction.enabled; tooltip: root.openTerminalAction.text; onClicked: root.openTerminalAction.trigger() }
 
-            BreadcrumbBar {
-                id: breadcrumbs
+            RowLayout {
                 Layout.fillWidth: true
-                path: root.session.directory.path
-                onNavigate: path => root.navigate(path)
+                spacing: Theme.spaceM
+
+                BreadcrumbBar {
+                    id: breadcrumbs
+                    Layout.fillWidth: true
+                    path: root.session.directory.path
+                    onNavigate: path => root.navigate(path)
+                }
+
+                ThemedTextField {
+                    id: searchInput
+                    Layout.preferredWidth: root.compact ? 140 * Theme.scale : 190 * Theme.scale
+                    implicitHeight: 36 * Theme.scale
+                    leadingIconName: "search"
+                    placeholderText: "Filter this folder"
+                    text: root.session.directory.filter
+                    onTextChanged: root.session.directory.filter = text
+                }
             }
 
-            ThemedTextField {
-                id: searchInput
-                Layout.preferredWidth: root.compact ? 140 * Theme.scale : 190 * Theme.scale
-                implicitHeight: 36 * Theme.scale
-                placeholderText: "Filter this folder"
-                text: root.session.directory.filter
-                onTextChanged: root.session.directory.filter = text
+            Rectangle {
+                Layout.preferredWidth: 1
+                Layout.fillHeight: true
+                Layout.topMargin: Theme.spaceS
+                Layout.bottomMargin: Theme.spaceS
+                color: Theme.divider
+            }
+
+            RowLayout {
+                spacing: Theme.spaceXs
+
+                IconButton {
+                    iconName: root.listViewAction.checked ? "layout-grid" : "layout-list"
+                    iconSize: root.actionIconSize
+                    tooltip: root.listViewAction.checked ? root.gridViewAction.text : root.listViewAction.text
+                    checkable: false
+                    onClicked: root.listViewAction.checked ? root.gridViewAction.trigger() : root.listViewAction.trigger()
+                }
+                IconButton {
+                    iconName: "square-terminal"
+                    enabled: root.openTerminalAction.enabled
+                    tooltip: root.openTerminalAction.text
+                    onClicked: root.openTerminalAction.trigger()
+                }
+                IconButton {
+                    id: overflowButton
+                    iconName: "ellipsis-vertical"
+                    iconSize: root.actionIconSize
+                    tooltip: qsTr("More options")
+                    checkable: false
+                    onClicked: overflowMenu.popup(overflowButton, 0, overflowButton.height)
+                }
             }
         }
     }
@@ -84,17 +123,26 @@ ColumnLayout {
             IconButton { iconName: "clipboard-paste"; iconSize: root.actionIconSize; enabled: root.pasteAction.enabled; tooltip: root.pasteAction.text; onClicked: root.pasteAction.trigger() }
             IconButton { iconName: "trash-2"; iconSize: root.actionIconSize; enabled: root.trashAction.enabled; tooltip: root.trashAction.text; onClicked: root.trashAction.trigger() }
 
-            Item { Layout.fillWidth: true }
-
-            IconButton {
-                iconName: root.listViewAction.checked ? "grid-2x2" : "list"
-                iconSize: root.actionIconSize
-                tooltip: root.listViewAction.checked ? root.gridViewAction.text : root.listViewAction.text
-                checkable: false
-                onClicked: root.listViewAction.checked ? root.gridViewAction.trigger() : root.listViewAction.trigger()
-            }
-            IconButton { iconName: root.hiddenFilesAction.checked ? "eye" : "eye-off"; iconSize: root.actionIconSize; checked: root.hiddenFilesAction.checked; tooltip: root.hiddenFilesAction.text; onClicked: root.hiddenFilesAction.trigger() }
             IconButton { iconName: "image"; iconSize: root.actionIconSize; checked: root.previewAction.checked; tooltip: root.previewAction.text; onClicked: root.previewAction.trigger() }
+        }
+    }
+
+    Menu {
+        id: overflowMenu
+        width: 220 * Theme.scale
+
+        background: Rectangle {
+            color: Theme.surfaceVariant
+            border.width: 1
+            border.color: Theme.divider
+        }
+
+        MenuItem {
+            text: root.hiddenFilesAction.text
+            checkable: true
+            checked: root.hiddenFilesAction.checked
+            enabled: root.hiddenFilesAction.enabled
+            onTriggered: root.hiddenFilesAction.trigger()
         }
     }
 

@@ -2,8 +2,13 @@ import QtQuick
 import Quickshell
 import "qml/components" as FileSail
 import "qml/core" as FileSailCore
+import "integrations/noctalia" as Noctalia
 
 ShellRoot {
+    Noctalia.NoctaliaConfigThemeProvider {
+        theme: FileSailCore.Theme
+    }
+
     FloatingWindow {
         id: window
 

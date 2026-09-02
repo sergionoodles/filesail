@@ -13,6 +13,7 @@ The current MVP scaffold includes:
 - multi-selection, create folder, rename, copy, move, and Trash-by-default;
 - XDG default-application opening;
 - a reserved preview pane instead of tabs;
+- persistent display preferences in `~/.config/filesail/config.json`;
 - a normal tiled window and a native Noctalia plugin panel using the same UI.
 
 ## Build the backend

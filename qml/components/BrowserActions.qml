@@ -1,13 +1,14 @@
 import QtQuick
 import QtQuick.Controls
+import "../core"
 
 QtObject {
     id: root
 
     required property var session
     required property bool modalActive
-    property string viewMode: "list"
-    property bool previewPaneEnabled: false
+    property string viewMode: Settings.viewMode
+    property bool previewPaneEnabled: Settings.previewPaneEnabled
 
     signal editLocationRequested()
     signal newWindowRequested(string path)
@@ -21,8 +22,8 @@ QtObject {
     property Action upAction: Action { text: qsTr("Parent folder"); shortcut: "Alt+Up"; enabled: !root.modalActive && root.session.directory.path !== "/"; onTriggered: root.session.navigation.up() }
     property Action hiddenFilesAction: Action {
         text: qsTr("Show hidden files"); shortcut: "Ctrl+H"; enabled: !root.modalActive
-        checked: root.session.directory.showHidden
-        onTriggered: root.session.directory.showHidden = !root.session.directory.showHidden
+        checked: Settings.showHidden
+        onTriggered: Settings.setShowHidden(!Settings.showHidden)
     }
     property Action copyAction: Action { text: qsTr("Copy"); shortcut: "Ctrl+C"; enabled: !root.modalActive && root.session.selectedCount > 0; onTriggered: root.session.copySelection("copy") }
     property Action moveAction: Action { text: qsTr("Move"); shortcut: "Ctrl+X"; enabled: !root.modalActive && root.session.selectedCount > 0; onTriggered: root.session.copySelection("move") }
@@ -36,7 +37,7 @@ QtObject {
         onTriggered: root.newWindowRequested(root.session.directory.path)
     }
     property Action trashAction: Action { text: qsTr("Move to Trash"); shortcut: "Delete"; enabled: !root.modalActive && root.session.selectedCount > 0; onTriggered: root.trashRequested() }
-    property Action listViewAction: Action { text: qsTr("Details view"); shortcut: "Ctrl+1"; checked: root.viewMode === "list"; enabled: !root.modalActive; onTriggered: root.viewMode = "list" }
-    property Action gridViewAction: Action { text: qsTr("Grid view"); shortcut: "Ctrl+2"; checked: root.viewMode === "grid"; enabled: !root.modalActive; onTriggered: root.viewMode = "grid" }
-    property Action previewAction: Action { text: qsTr("Preview pane"); shortcut: "Ctrl+P"; checked: root.previewPaneEnabled; enabled: !root.modalActive; onTriggered: root.previewPaneEnabled = !root.previewPaneEnabled }
+    property Action listViewAction: Action { text: qsTr("Details view"); shortcut: "Ctrl+1"; checked: root.viewMode === "list"; enabled: !root.modalActive; onTriggered: Settings.setViewMode("list") }
+    property Action gridViewAction: Action { text: qsTr("Grid view"); shortcut: "Ctrl+2"; checked: root.viewMode === "grid"; enabled: !root.modalActive; onTriggered: Settings.setViewMode("grid") }
+    property Action previewAction: Action { text: qsTr("Preview pane"); shortcut: "Ctrl+P"; checked: root.previewPaneEnabled; enabled: !root.modalActive; onTriggered: Settings.setPreviewPaneEnabled(!Settings.previewPaneEnabled) }
 }

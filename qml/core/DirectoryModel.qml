@@ -8,7 +8,7 @@ QtObject {
     property string requestedPath: path
     property string canonicalPath: path
     property string parentPath: "/"
-    property bool showHidden: false
+    property bool showHidden: Settings.showHidden
     property string filter: ""
     property string sortBy: "name"
     property bool descending: false

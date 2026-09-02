@@ -26,14 +26,8 @@ Rectangle {
         property var selectedEntries: session.selectedEntries
         property int selectionRevision: session.selectionRevision
     }
-    property bool previewPaneEnabled: false
-    readonly property bool hasExternalPreview: previewSource.toString().length > 0 || Boolean(previewComponent)
-    property string noticeText: ""
-    property bool noticeError: false
-    property string viewMode: "list"
-    property string renameTarget: ""
-    property var trashTargets: []
-    property string createParent: ""
+    property alias previewPaneEnabled: actions.previewPaneEnabled
+    property alias viewMode: actions.viewMode
     readonly property int selectedCount: session.selectedCount
     readonly property bool selectionIncludesDirectory: {
         // A preview provider is never available for folders. Inspect the current
@@ -52,7 +46,7 @@ Rectangle {
     // provider state between clicks.
     readonly property real previewRequiredWidth: (190 + 1 + 360 + 220) * Theme.scale
     readonly property bool previewEnabled: previewPaneEnabled && width >= previewRequiredWidth
-    readonly property bool modalActive: createPrompt.visible || renamePrompt.visible || trashPrompt.visible || largeDirectoryPrompt.visible
+    readonly property bool modalActive: dialogs.active
 
     color: Theme.surface
     radius: cornerRadius
@@ -63,28 +57,7 @@ Rectangle {
     function navigate(path) { session.navigate(path); }
 
     function showNotice(message, isError) {
-        noticeText = message;
-        noticeError = isError;
-        noticeTimer.restart();
-    }
-
-    function openCreatePrompt() {
-        createParent = session.directory.path;
-        createPrompt.open("", { parent: createParent }, toolbar);
-    }
-
-    function openRenamePrompt() {
-        if (session.selectedCount !== 1)
-            return;
-        renameTarget = session.primarySelectionPath;
-        renamePrompt.open(renameTarget.split('/').pop(), { path: renameTarget }, toolbar);
-    }
-
-    function openTrashPrompt() {
-        if (session.selectedCount === 0)
-            return;
-        trashTargets = Object.keys(session.selectedPaths);
-        trashPrompt.open("", { paths: trashTargets.slice() }, toolbar);
+        noticeBanner.show(message, isError);
     }
 
     BrowserSession {
@@ -92,33 +65,26 @@ Rectangle {
         initialPath: root.initialPath
         onNoticeRequested: (message, error) => root.showNotice(message, error)
         onLargeDirectoryWarningRequested: (path, entryCountAtLeast) =>
-            largeDirectoryPrompt.open("", { path: path, entryCountAtLeast: entryCountAtLeast }, toolbar)
+            dialogs.openLargeDirectory(path, entryCountAtLeast, toolbar)
     }
 
-    property Action editLocationAction: Action { shortcut: "Ctrl+L"; enabled: !root.modalActive; onTriggered: toolbar.beginPathEditing() }
-    property Action backAction: Action { text: qsTr("Back"); shortcut: "Alt+Left"; enabled: !root.modalActive && session.navigation.canGoBack; onTriggered: session.navigation.back() }
-    property Action forwardAction: Action { text: qsTr("Forward"); shortcut: "Alt+Right"; enabled: !root.modalActive && session.navigation.canGoForward; onTriggered: session.navigation.forward() }
-    property Action upAction: Action { text: qsTr("Parent folder"); shortcut: "Alt+Up"; enabled: !root.modalActive && session.directory.path !== "/"; onTriggered: session.navigation.up() }
-    property Action hiddenFilesAction: Action {
-        text: qsTr("Show hidden files"); shortcut: "Ctrl+H"; enabled: !root.modalActive
-        checked: session.directory.showHidden
-        onTriggered: session.directory.showHidden = !session.directory.showHidden
+    BrowserActions {
+        id: actions
+        session: session
+        modalActive: root.modalActive
+        onEditLocationRequested: toolbar.beginPathEditing()
+        onCreateRequested: dialogs.openCreate(session.directory.path, toolbar)
+        onRenameRequested: {
+            if (session.selectedCount !== 1)
+                return;
+            dialogs.openRename(session.primarySelectionPath, toolbar);
+        }
+        onTrashRequested: {
+            if (session.selectedCount === 0)
+                return;
+            dialogs.openTrash(Object.keys(session.selectedPaths), toolbar);
+        }
     }
-    property Action copyAction: Action { text: qsTr("Copy"); shortcut: "Ctrl+C"; enabled: !root.modalActive && session.selectedCount > 0; onTriggered: session.copySelection("copy") }
-    property Action moveAction: Action { text: qsTr("Move"); shortcut: "Ctrl+X"; enabled: !root.modalActive && session.selectedCount > 0; onTriggered: session.copySelection("move") }
-    property Action pasteAction: Action { text: qsTr("Paste"); shortcut: "Ctrl+V"; enabled: !root.modalActive && session.clipboardPaths.length > 0; onTriggered: session.paste() }
-    property Action createAction: Action { text: qsTr("New folder"); shortcut: "Ctrl+Shift+N"; enabled: !root.modalActive; onTriggered: root.openCreatePrompt() }
-    property Action renameAction: Action { text: qsTr("Rename"); shortcut: "F2"; enabled: !root.modalActive && session.selectedCount === 1; onTriggered: root.openRenamePrompt() }
-    property Action refreshAction: Action { text: qsTr("Refresh"); shortcut: "F5"; enabled: !root.modalActive; onTriggered: session.directory.refresh("refresh") }
-    property Action openTerminalAction: Action {
-        text: qsTr("Open Terminal Here"); shortcut: "F4"; enabled: !root.modalActive
-        onTriggered: session.runOperation("terminal", { path: session.directory.path }, false,
-                                         qsTr("Terminal opened"), false, false)
-    }
-    property Action trashAction: Action { text: qsTr("Move to Trash"); shortcut: "Delete"; enabled: !root.modalActive && session.selectedCount > 0; onTriggered: root.openTrashPrompt() }
-    property Action listViewAction: Action { text: qsTr("Details view"); checked: root.viewMode === "list"; enabled: !root.modalActive; onTriggered: root.viewMode = "list" }
-    property Action gridViewAction: Action { text: qsTr("Grid view"); checked: root.viewMode === "grid"; enabled: !root.modalActive; onTriggered: root.viewMode = "grid" }
-    property Action previewAction: Action { text: qsTr("Preview pane"); shortcut: "Ctrl+P"; checked: root.previewPaneEnabled; enabled: !root.modalActive; onTriggered: root.previewPaneEnabled = !root.previewPaneEnabled }
 
     RowLayout {
         anchors.fill: parent
@@ -146,20 +112,20 @@ Rectangle {
                 Layout.fillWidth: true
                 session: session
                 compact: root.compact
-                backAction: root.backAction
-                forwardAction: root.forwardAction
-                upAction: root.upAction
-                openTerminalAction: root.openTerminalAction
-                createAction: root.createAction
-                renameAction: root.renameAction
-                copyAction: root.copyAction
-                moveAction: root.moveAction
-                pasteAction: root.pasteAction
-                trashAction: root.trashAction
-                listViewAction: root.listViewAction
-                gridViewAction: root.gridViewAction
-                hiddenFilesAction: root.hiddenFilesAction
-                previewAction: root.previewAction
+                backAction: actions.backAction
+                forwardAction: actions.forwardAction
+                upAction: actions.upAction
+                openTerminalAction: actions.openTerminalAction
+                createAction: actions.createAction
+                renameAction: actions.renameAction
+                copyAction: actions.copyAction
+                moveAction: actions.moveAction
+                pasteAction: actions.pasteAction
+                trashAction: actions.trashAction
+                listViewAction: actions.listViewAction
+                gridViewAction: actions.gridViewAction
+                hiddenFilesAction: actions.hiddenFilesAction
+                previewAction: actions.previewAction
                 onNavigate: path => root.navigate(path)
             }
 
@@ -174,128 +140,30 @@ Rectangle {
                     session: session
                     viewMode: root.viewMode
                 }
-                PreviewPanel {
-                    id: builtInPreview
-                    visible: root.previewEnabled && !root.hasExternalPreview
-                    SplitView.preferredWidth: visible ? 300 * Theme.scale : 0
-                    SplitView.minimumWidth: visible ? 220 * Theme.scale : 0
-                    selectedEntries: session.selectedEntries
-                    selectionRevision: session.selectionRevision
-                }
-                Loader {
-                    id: previewLoader
-                    visible: root.previewEnabled && root.hasExternalPreview
-                    active: visible
-                    sourceComponent: root.previewSource.toString().length === 0 ? root.previewComponent : null
-                    SplitView.preferredWidth: visible ? 300 * Theme.scale : 0
-                    SplitView.minimumWidth: visible ? 220 * Theme.scale : 0
-                    property string selectedPath: session.primarySelectionPath
-                    function loadPreview() {
-                        if (root.previewSource.toString().length > 0)
-                            setSource(root.previewSource, { selectedPath: root.previewContext.selectedPath });
-                    }
-                    Component.onCompleted: loadPreview()
-                    Connections {
-                        target: root
-                        function onPreviewSourceChanged() { previewLoader.loadPreview(); }
-                    }
-                    onLoaded: {
-                        // The property lives on the preview object, not the Loader.
-                        if (item && typeof item.selectedPath !== "undefined")
-                            item.selectedPath = Qt.binding(() => root.previewContext.selectedPath);
-                        if (item && typeof item.selectedEntries !== "undefined") {
-                            item.selectedEntries = Qt.binding(() => root.previewContext.selectedEntries);
-                        }
-                        if (item && typeof item.selectionRevision !== "undefined") {
-                            item.selectionRevision = Qt.binding(() => root.previewContext.selectionRevision);
-                        }
-                    }
+                PreviewPane {
+                    previewEnabled: root.previewEnabled
+                    previewSource: root.previewSource
+                    previewComponent: root.previewComponent
+                    previewContext: root.previewContext
                 }
             }
 
-            Rectangle {
+            BrowserStatusBar {
                 Layout.fillWidth: true
-                implicitHeight: 30 * Theme.scale
-                color: Theme.surface
-                RowLayout {
-                    anchors.fill: parent
-                    anchors.leftMargin: Theme.spaceL
-                    anchors.rightMargin: Theme.spaceL
-                    Text {
-                        Layout.fillWidth: true
-                        text: session.selectedCount > 0 ? `${session.selectedCount} selected` : `${session.directory.count} items`
-                        color: Theme.textMuted
-                        font.pixelSize: Theme.fontSmall
-                    }
-                    Text {
-                        text: session.clipboardPaths.length > 0 ? `${session.clipboardMode === "move" ? "Move" : "Copy"} buffer: ${session.clipboardPaths.length}` : ""
-                        color: Theme.primary
-                        font.pixelSize: Theme.fontSmall
-                    }
-                }
+                itemCount: session.directory.count
+                selectedCount: session.selectedCount
+                clipboardCount: session.clipboardPaths.length
+                clipboardMode: session.clipboardMode
             }
         }
     }
 
-    Rectangle {
-        anchors.top: parent.top
-        anchors.horizontalCenter: parent.horizontalCenter
-        anchors.topMargin: Theme.spaceM
-        width: Math.min(parent.width - Theme.spaceXl * 2, noticeLabel.implicitWidth + Theme.spaceXl * 2)
-        height: 34 * Theme.scale
-        radius: Theme.radiusS
-        color: root.noticeError ? Theme.error : Theme.primary
-        visible: noticeTimer.running
-        z: 900
-        Text {
-            id: noticeLabel
-            anchors.centerIn: parent
-            text: Format.safeText(root.noticeText)
-            textFormat: Text.PlainText
-            color: Theme.primaryText
-            font.pixelSize: Theme.fontBody
-            font.weight: Font.DemiBold
-            elide: Text.ElideRight
-        }
+    NoticeBanner {
+        id: noticeBanner
     }
-    Timer { id: noticeTimer; interval: 2800 }
 
-    ModalPrompt {
-        id: createPrompt
-        anchors.fill: parent
-        title: qsTr("New folder")
-        message: qsTr("Create a folder in %1").arg(root.createParent)
-        placeholder: qsTr("Folder name")
-        acceptLabel: qsTr("Create")
-        onAccepted: value => session.runOperation("mkdir", { parent: payload.parent, name: value }, true, qsTr("Folder created"))
-    }
-    ModalPrompt {
-        id: renamePrompt
-        anchors.fill: parent
-        title: qsTr("Rename")
-        message: root.renameTarget
-        placeholder: qsTr("New name")
-        acceptLabel: qsTr("Rename")
-        onAccepted: value => session.runOperation("rename", { path: payload.path, name: value }, true, qsTr("Item renamed"))
-    }
-    ModalPrompt {
-        id: trashPrompt
-        anchors.fill: parent
-        title: root.trashTargets.length === 1 ? qsTr("Move item to Trash?") : qsTr("Move %1 items to Trash?").arg(root.trashTargets.length)
-        message: qsTr("Items remain recoverable from the desktop Trash. Permanent deletion is intentionally unavailable here.")
-        acceptLabel: qsTr("Move to Trash")
-        destructive: true
-        inputVisible: false
-        onAccepted: session.runOperation("trash", { paths: payload.paths }, true, qsTr("Moved to Trash"))
-    }
-    ModalPrompt {
-        id: largeDirectoryPrompt
-        anchors.fill: parent
-        title: qsTr("Large folder")
-        message: qsTr("This folder contains at least %1 items. Loading it may temporarily make FileSail less responsive.")
-            .arg(payload.entryCountAtLeast)
-        acceptLabel: qsTr("Load folder")
-        inputVisible: false
-        onAccepted: session.loadLargeDirectory(payload.path)
+    BrowserDialogs {
+        id: dialogs
+        session: session
     }
 }

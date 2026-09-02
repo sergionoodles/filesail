@@ -1,0 +1,41 @@
+import QtQuick
+import QtQuick.Controls
+
+QtObject {
+    id: root
+
+    required property var session
+    required property bool modalActive
+    property string viewMode: "list"
+    property bool previewPaneEnabled: false
+
+    signal editLocationRequested()
+    signal createRequested()
+    signal renameRequested()
+    signal trashRequested()
+
+    property Action editLocationAction: Action { shortcut: "Ctrl+L"; enabled: !root.modalActive; onTriggered: root.editLocationRequested() }
+    property Action backAction: Action { text: qsTr("Back"); shortcut: "Alt+Left"; enabled: !root.modalActive && root.session.navigation.canGoBack; onTriggered: root.session.navigation.back() }
+    property Action forwardAction: Action { text: qsTr("Forward"); shortcut: "Alt+Right"; enabled: !root.modalActive && root.session.navigation.canGoForward; onTriggered: root.session.navigation.forward() }
+    property Action upAction: Action { text: qsTr("Parent folder"); shortcut: "Alt+Up"; enabled: !root.modalActive && root.session.directory.path !== "/"; onTriggered: root.session.navigation.up() }
+    property Action hiddenFilesAction: Action {
+        text: qsTr("Show hidden files"); shortcut: "Ctrl+H"; enabled: !root.modalActive
+        checked: root.session.directory.showHidden
+        onTriggered: root.session.directory.showHidden = !root.session.directory.showHidden
+    }
+    property Action copyAction: Action { text: qsTr("Copy"); shortcut: "Ctrl+C"; enabled: !root.modalActive && root.session.selectedCount > 0; onTriggered: root.session.copySelection("copy") }
+    property Action moveAction: Action { text: qsTr("Move"); shortcut: "Ctrl+X"; enabled: !root.modalActive && root.session.selectedCount > 0; onTriggered: root.session.copySelection("move") }
+    property Action pasteAction: Action { text: qsTr("Paste"); shortcut: "Ctrl+V"; enabled: !root.modalActive && root.session.clipboardPaths.length > 0; onTriggered: root.session.paste() }
+    property Action createAction: Action { text: qsTr("New folder"); shortcut: "Ctrl+Shift+N"; enabled: !root.modalActive; onTriggered: root.createRequested() }
+    property Action renameAction: Action { text: qsTr("Rename"); shortcut: "F2"; enabled: !root.modalActive && root.session.selectedCount === 1; onTriggered: root.renameRequested() }
+    property Action refreshAction: Action { text: qsTr("Refresh"); shortcut: "F5"; enabled: !root.modalActive; onTriggered: root.session.directory.refresh("refresh") }
+    property Action openTerminalAction: Action {
+        text: qsTr("Open Terminal Here"); shortcut: "F4"; enabled: !root.modalActive
+        onTriggered: root.session.runOperation("terminal", { path: root.session.directory.path }, false,
+                                         qsTr("Terminal opened"), false, false)
+    }
+    property Action trashAction: Action { text: qsTr("Move to Trash"); shortcut: "Delete"; enabled: !root.modalActive && root.session.selectedCount > 0; onTriggered: root.trashRequested() }
+    property Action listViewAction: Action { text: qsTr("Details view"); checked: root.viewMode === "list"; enabled: !root.modalActive; onTriggered: root.viewMode = "list" }
+    property Action gridViewAction: Action { text: qsTr("Grid view"); checked: root.viewMode === "grid"; enabled: !root.modalActive; onTriggered: root.viewMode = "grid" }
+    property Action previewAction: Action { text: qsTr("Preview pane"); shortcut: "Ctrl+P"; checked: root.previewPaneEnabled; enabled: !root.modalActive; onTriggered: root.previewPaneEnabled = !root.previewPaneEnabled }
+}

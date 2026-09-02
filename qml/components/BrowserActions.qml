@@ -32,7 +32,7 @@ QtObject {
     property Action renameAction: Action { text: qsTr("Rename"); shortcut: "Alt+R"; enabled: !root.modalActive && root.session.selectedCount === 1; onTriggered: root.renameRequested() }
     property Action refreshAction: Action { text: qsTr("Refresh"); shortcut: "Ctrl+R"; enabled: !root.modalActive; onTriggered: root.session.directory.refresh("refresh") }
     property Action openNewWindowAction: Action {
-        text: qsTr("Open New Window Here"); enabled: !root.modalActive
+        text: qsTr("Open New Window Here"); shortcut: "Ctrl+N"; enabled: !root.modalActive
         onTriggered: root.newWindowRequested(root.session.directory.path)
     }
     property Action trashAction: Action { text: qsTr("Move to Trash"); shortcut: "Delete"; enabled: !root.modalActive && root.session.selectedCount > 0; onTriggered: root.trashRequested() }

@@ -36,6 +36,26 @@ This installs the `filesail` launcher, backend, desktop entry, QML tree, and
 Noctalia adapter using CMake's configured install prefix. The checkout remains
 usable for Noctalia plugin development through `scripts/install-noctalia.sh`.
 
+## Build an AppImage
+
+The AppImage bundles FileSail, its backend, and the Quickshell runtime used by
+the standalone host. Install Qt development packages, libarchive, CMake, and
+Quickshell first; the packaging script downloads its linuxdeploy tools on the
+first run.
+
+```sh
+./scripts/build-appimage.sh
+./dist/FileSail-0.1.0-x86_64.AppImage
+```
+
+Use `FILESAIL_QS_PATH` when the Quickshell executable is not named `qs` or
+`quickshell`. `FILESAIL_BUILD_DIR`, `FILESAIL_APPDIR`, and
+`FILESAIL_OUTPUT_DIR` can be used to relocate intermediate and output files.
+
+Tagged pushes (`v*`) and manual runs build the same AppImage in GitHub Actions
+and upload it as an artifact. Tagged pushes also attach it to the GitHub
+release.
+
 ## Run as a tiled window
 
 ```sh

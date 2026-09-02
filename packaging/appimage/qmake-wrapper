@@ -1,0 +1,23 @@
+#!/usr/bin/env bash
+set -euo pipefail
+
+real_qmake="${FILESAIL_REAL_QMAKE:?FILESAIL_REAL_QMAKE is required}"
+plugin_dir="${FILESAIL_QT_PLUGIN_SOURCE:?FILESAIL_QT_PLUGIN_SOURCE is required}"
+
+if [[ "${1:-}" == "-query" ]]; then
+    if [[ $# -eq 1 ]]; then
+        while IFS= read -r line; do
+            case "$line" in
+                QT_INSTALL_PLUGINS:*) printf 'QT_INSTALL_PLUGINS:%s\n' "$plugin_dir" ;;
+                *) printf '%s\n' "$line" ;;
+            esac
+        done < <("$real_qmake" -query)
+    elif [[ "${2:-}" == QT_INSTALL_PLUGINS ]]; then
+        printf 'QT_INSTALL_PLUGINS:%s\n' "$plugin_dir"
+    else
+        "$real_qmake" "$@"
+    fi
+    exit 0
+fi
+
+exec "$real_qmake" "$@"

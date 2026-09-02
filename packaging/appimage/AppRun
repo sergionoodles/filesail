@@ -1,0 +1,6 @@
+#!/usr/bin/env bash
+set -euo pipefail
+
+appdir="${APPDIR:-$(cd -- "$(dirname -- "${BASH_SOURCE[0]}")" && pwd)}"
+export APPDIR="$appdir"
+exec "$appdir/usr/bin/filesail" "$@"

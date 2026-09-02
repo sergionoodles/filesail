@@ -11,7 +11,9 @@ permissions:
 
 jobs:
   build:
-    runs-on: ubuntu-24.04
+    # Quickshell's Ubuntu packages require Qt 6.6+, which is provided by
+    # Ubuntu 26.04. The runner is currently public preview.
+    runs-on: ubuntu-26.04
 
     steps:
       - name: Check out source
@@ -33,7 +35,7 @@ jobs:
             software-properties-common
           sudo add-apt-repository --yes ppa:avengemedia/danklinux
           sudo apt-get update
-          sudo apt-get install --yes quickshell
+          sudo apt-get install --yes quickshell-git
 
       - name: Determine package version
         id: version

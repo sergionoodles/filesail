@@ -1,6 +1,6 @@
 cmake_minimum_required(VERSION 3.24)
 
-set(FILESAIL_VERSION "0.1.0" CACHE STRING "FileSail project version")
+set(FILESAIL_VERSION "2026.9.1" CACHE STRING "FileSail project version")
 project(FileSail VERSION ${FILESAIL_VERSION} LANGUAGES CXX)
 
 if(NOT CMAKE_SYSTEM_NAME STREQUAL "Linux")

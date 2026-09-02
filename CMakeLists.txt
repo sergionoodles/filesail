@@ -94,6 +94,6 @@ add_test(
     NAME manifest-version-consistency
     COMMAND ${CMAKE_COMMAND}
         -DPROJECT_VERSION=${PROJECT_VERSION}
-        -DMANIFEST=${CMAKE_CURRENT_SOURCE_DIR}/manifest.json
+        -DMANIFEST=${CMAKE_CURRENT_BINARY_DIR}/manifest.json
         -P ${CMAKE_CURRENT_SOURCE_DIR}/tests/check-manifest-version.cmake
 )

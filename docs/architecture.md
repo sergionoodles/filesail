@@ -48,11 +48,18 @@ without treating the move as complete.
 
 ## Hosts
 
-- `shell.qml` is the standalone host and creates a normal `FloatingWindow`. Niri and
-  Hyprland see it as an ordinary xdg-toplevel and can tile it normally.
+- `shell.qml` is the standalone host. Its `WindowRegistry` creates independent
+  normal `FloatingWindow` xdg-toplevels, so Niri and Hyprland can tile each
+  browser normally while all windows share one QML engine and backend.
 - `integrations/noctalia` is a thin Noctalia 4.7.7 adapter. Noctalia owns the
   layer surface, focus, attachment, blur, animation, and IPC; FileSail only
   supplies panel content and a bar trigger.
+
+The standalone launcher uses Quickshell's per-user IPC endpoint (`filesail.v1`
+target, protocol version `1`) to route `open(path)` requests to the existing
+host. A short per-user startup lock and bounded readiness probe arbitrate the
+first-launch race. `--new-instance` is retained as a temporary diagnostic
+escape hatch.
 - A future Omarchy host should map Omarchy tokens and panel lifecycle into the
   same shared UI. No compositor code belongs in the file model or operations.
 

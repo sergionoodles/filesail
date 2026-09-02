@@ -21,6 +21,7 @@ QtObject {
     property string watchedPath: ""
     property string pendingWatchPath: ""
     property int pendingWatchRequest: -1
+    property bool watchLeaseActive: false
     property int revision: 0
     property string acceptedLargeDirectoryPath: ""
     property var folderContext: ({ version: 1, signals: [] })
@@ -69,7 +70,11 @@ QtObject {
             if (requestId !== root.pendingWatchRequest) return;
             root.pendingWatchRequest = -1;
             root.pendingWatchPath = "";
-            if (root.path === nextPath) root.watchedPath = nextPath;
+            if (root.path === nextPath) {
+                root.watchedPath = nextPath;
+                root.watchLeaseActive = true;
+                Logger.debug("directory", `watch acquire ${nextPath}`);
+            }
             else BackendClient.unwatchDirectory(nextPath);
         }, message => {
             if (requestId !== root.pendingWatchRequest) return;
@@ -83,6 +88,9 @@ QtObject {
         const subscribed = watchedPath;
         const pending = pendingWatchPath;
         watchedPath = "";
+        if (watchLeaseActive && subscribed.length > 0)
+            Logger.debug("directory", `watch release ${subscribed}`);
+        watchLeaseActive = false;
         pendingWatchPath = "";
         if (pendingWatchRequest >= 0) { BackendClient.cancel(pendingWatchRequest); pendingWatchRequest = -1; }
         if (BackendClient.available && subscribed.length > 0) BackendClient.unwatchDirectory(subscribed);
@@ -189,7 +197,8 @@ QtObject {
     property Connections backendConnections: Connections {
         target: BackendClient
         function onBackendStopped(message) {
-            watcherDelay.stop(); root.watchedPath = ""; root.pendingWatchPath = ""; root.pendingWatchRequest = -1;
+            watcherDelay.stop(); root.watchedPath = ""; root.watchLeaseActive = false;
+            root.pendingWatchPath = ""; root.pendingWatchRequest = -1;
         }
         function onEventReceived(event, message) {
             if (event === "directoryWatchLost" && message.path === root.watchedPath) { root.watchedPath = ""; return; }

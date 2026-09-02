@@ -6,6 +6,7 @@
 #include <QJsonObject>
 #include <QObject>
 #include <QThreadPool>
+#include <QSet>
 
 #include "cancellation.h"
 
@@ -30,7 +31,9 @@ private:
     void writeResponse(const QJsonObject &response);
     void enqueueOperation(int id, QThreadPool &pool,
                           std::function<QJsonObject(const CancellationToken &)> operation,
-                          bool cancellable = true);
+                          bool cancellable = true, bool preview = false);
+    void ensurePreviewService();
+    void schedulePreviewServiceIdle();
     QJsonObject addDirectoryWatch(const QJsonObject &params);
     QJsonObject removeDirectoryWatch(const QJsonObject &params);
     void ensureSavedLocationsWatch();
@@ -46,6 +49,8 @@ private:
     QThreadPool m_readPool;
     QThreadPool m_mutationPool;
     PreviewService *m_previewService = nullptr;
+    QTimer *m_previewIdleTimer = nullptr;
+    QSet<int> m_previewJobs;
     QHash<QString, qsizetype> m_directoryWatchCounts;
     QHash<int, CancellationToken> m_cancellationTokens;
     qsizetype m_activeJobs = 0;

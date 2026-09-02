@@ -1,31 +1,43 @@
 import QtQuick
 import Quickshell
+import Quickshell.Io
 import "qml/components" as FileSail
 import "qml/core" as FileSailCore
 import "integrations/noctalia" as Noctalia
 
 ShellRoot {
+    id: root
+
     Noctalia.NoctaliaConfigThemeProvider {
         theme: FileSailCore.Theme
     }
 
-    FloatingWindow {
-        id: window
+    property FileSailCore.WindowRegistry windowRegistry: FileSailCore.WindowRegistry {
+        owner: root
+        windowComponent: standaloneWindow
+    }
 
-        visible: true
-        title: "FileSail"
-        implicitWidth: 1120
-        implicitHeight: 760
-        minimumSize: Qt.size(720, 480)
-        color: FileSailCore.Theme.surface
-        onVisibleChanged: if (!visible) Qt.quit()
+    Component { id: standaloneWindow; FileSail.StandaloneWindow {} }
 
-        FileSail.FileSailView {
-            anchors.fill: parent
-            initialPath: {
-                const requested = String(Quickshell.env("FILESAIL_PATH") ?? "");
-                return requested.length > 0 ? requested : String(Quickshell.env("HOME") ?? "/");
-            }
+    IpcHandler {
+        // The version is part of the endpoint name as well as the call
+        // envelope. This lets a launcher distinguish an incompatible owner;
+        // qs ipc reports an unknown target instead of silently accepting it.
+        target: "filesail.v1"
+
+        function ping(version: string) {
+            return windowRegistry.acceptsVersion(version) ? "filesail/1" : "version-mismatch";
+        }
+
+        function open(path: string, version: string) {
+            return windowRegistry.open(path, version) ? "accepted" : "rejected";
         }
     }
+
+    Component.onCompleted: {
+        const initial = String(Quickshell.env("FILESAIL_PATH") ?? "");
+        if (!windowRegistry.open(initial, String(windowRegistry.protocolVersion)))
+            Qt.quit();
+    }
+
 }

@@ -11,6 +11,7 @@ fi
 
 export FILESAIL_BACKEND="${FILESAIL_BACKEND:-$filesail_backend_default}"
 requested_path="${FILESAIL_PATH:-$HOME}"
+force_new_instance=false
 while (($#)); do
     case "$1" in
         --path)
@@ -24,8 +25,13 @@ while (($#)); do
             ;;
         --help|-h)
             printf '%s\n' 'Usage: filesail [--path PATH] [PATH]' \
+                'Options: --new-instance (temporary duplicate-host escape hatch)' \
                 'Environment: FILESAIL_LOG=error|warn|info|debug (default: info)'
             exit 0
+            ;;
+        --new-instance|--allow-duplicate)
+            force_new_instance=true
+            shift
             ;;
         -*)
             printf 'filesail: unknown option: %s\\n' "$1" >&2
@@ -37,13 +43,72 @@ while (($#)); do
             ;;
     esac
 done
+if [[ -z "$requested_path" ]]; then
+    requested_path="$HOME"
+fi
+if [[ ${#requested_path} -gt 4096 || "$requested_path" != /* || "$requested_path" == *://* || "$requested_path" == file:* ]]; then
+    printf '%s\n' 'filesail: PATH must be an absolute local directory path' >&2
+    exit 2
+fi
 export FILESAIL_PATH="$requested_path"
 export QS_APP_ID="dev.filesail.FileSail"
 
-qs_args=(--allow-duplicate -p "$filesail_data_dir")
+if [[ "$force_new_instance" == true ]]; then
+    qs_args=(--allow-duplicate -p "$filesail_data_dir")
+    case "${FILESAIL_LOG:-info}" in
+        debug) qs_args+=(--log-rules "qml.debug=true;qml.info=true") ;;
+        info) qs_args+=(--log-rules "qml.info=true") ;;
+    esac
+    exec qs "${qs_args[@]}"
+fi
+
+runtime_dir="${XDG_RUNTIME_DIR:-/tmp}"
+activation_lock="$runtime_dir/filesail-${UID}.lock"
+exec {activation_lock_fd}>"$activation_lock"
+flock -x "$activation_lock_fd"
+
+ipc_call() {
+    qs ipc --path "$filesail_data_dir" call filesail.v1 "$@"
+}
+
+# Quickshell IPC is scoped to the current user session. A short probe avoids
+# multiplying engines when the host already owns this configuration.
+if ipc_call ping 1 >/dev/null 2>&1; then
+    if ! ipc_call open "$requested_path" 1 >/dev/null 2>&1; then
+        printf '%s\n' 'filesail: existing host rejected the activation request' >&2
+        exit 1
+    fi
+    exit 0
+fi
+
+qs_args=(--no-duplicate -p "$filesail_data_dir")
 case "${FILESAIL_LOG:-info}" in
     debug) qs_args+=(--log-rules "qml.debug=true;qml.info=true") ;;
     info) qs_args+=(--log-rules "qml.info=true") ;;
 esac
 
-exec qs "${qs_args[@]}"
+qs "${qs_args[@]}" >"$runtime_dir/filesail-qs.log" 2>&1 {activation_lock_fd}>&- &
+host_pid=$!
+
+# The first launcher supplied the host's initial path. Wait for readiness;
+# sending open here would create a duplicate first window. If no-duplicate
+# arbitration says another owner won, route this request to that owner.
+for _ in {1..40}; do
+    if ipc_call ping 1 >/dev/null 2>&1; then
+        if kill -0 "$host_pid" 2>/dev/null; then
+            exit 0
+        fi
+        if ipc_call open "$requested_path" 1 >/dev/null 2>&1; then
+            exit 0
+        fi
+        break
+    fi
+    if ! kill -0 "$host_pid" 2>/dev/null; then break; fi
+    sleep 0.05
+done
+if kill -0 "$host_pid" 2>/dev/null; then
+    kill "$host_pid" 2>/dev/null || true
+    wait "$host_pid" 2>/dev/null || true
+fi
+printf '%s\n' 'filesail: host did not publish its activation endpoint' >&2
+exit 1

@@ -43,8 +43,9 @@ usable for Noctalia plugin development through `scripts/install-noctalia.sh`.
 ./scripts/run.sh ~/Downloads
 ```
 
-Each invocation uses `--allow-duplicate`, so the tiling compositor can manage
-separate FileSail windows instead of application tabs.
+The launcher activates the existing standalone host when one is running, so
+separate compositor-managed windows share one Quickshell engine and backend.
+Use `--new-instance` temporarily when testing an isolated duplicate host.
 
 ## Install into Noctalia 4
 

@@ -24,6 +24,7 @@
 namespace {
 constexpr qsizetype maximumRequestBytes = 8 * 1024 * 1024;
 constexpr qsizetype maximumActiveJobs = 64;
+constexpr int previewIdleMilliseconds = 15000;
 
 QJsonObject failure(const QString &message)
 {
@@ -73,7 +74,30 @@ BackendServer::BackendServer(QObject *parent)
 {
     m_readPool.setMaxThreadCount(2);
     m_mutationPool.setMaxThreadCount(1);
+    m_previewIdleTimer = new QTimer(this);
+    m_previewIdleTimer->setSingleShot(true);
+    m_previewIdleTimer->setInterval(previewIdleMilliseconds);
+    connect(m_previewIdleTimer, &QTimer::timeout, this, [this] {
+        if (!m_previewJobs.isEmpty() || !m_previewService)
+            return;
+        filesailLog(LogLevel::Debug, "preview", "destroying idle preview service");
+        delete m_previewService;
+        m_previewService = nullptr;
+    });
+}
+
+void BackendServer::ensurePreviewService()
+{
+    if (m_previewService)
+        return;
+    filesailLog(LogLevel::Debug, "preview", "creating preview service on demand");
     m_previewService = new PreviewService(this);
+}
+
+void BackendServer::schedulePreviewServiceIdle()
+{
+    if (m_previewService && m_previewJobs.isEmpty())
+        m_previewIdleTimer->start();
 }
 
 bool BackendServer::start()
@@ -198,26 +222,40 @@ void BackendServer::handleRequest(const QByteArray &line)
     } else if (method == "terminal") {
         enqueueOperation(id, m_readPool, [params](const CancellationToken &) { return FileOperations::openTerminal(params); }, false);
     } else if (method == "previewCapabilities") {
+        ensurePreviewService();
+        m_previewIdleTimer->stop();
         QJsonObject result = m_previewService->capabilities(); result.insert("id", id); writeResponse(result);
+        schedulePreviewServiceIdle();
     } else if (method == "thumbnailBatch") {
         if (m_activeJobs >= maximumActiveJobs) {
             writeResponse({{"id", id}, {"ok", false}, {"error", "Backend job queue is full"}});
             return;
         }
+        ensurePreviewService();
+        m_previewIdleTimer->stop();
         const CancellationToken token = std::make_shared<std::atomic_bool>(false);
         m_cancellationTokens.insert(id, token);
+        m_previewJobs.insert(id);
+        filesailLog(LogLevel::Debug, "preview",
+                    QStringLiteral("job acquire count=%1").arg(m_previewJobs.size()));
         ++m_activeJobs;
         m_previewService->thumbnails(id, params, token, [this, id, token](QJsonObject result) {
             const bool canceled = cancellationRequested(token);
             m_cancellationTokens.remove(id);
+            m_previewJobs.remove(id);
+            filesailLog(LogLevel::Debug, "preview",
+                        QStringLiteral("job release count=%1").arg(m_previewJobs.size()));
             if (!canceled) { result.insert("id", id); writeResponse(result); }
             --m_activeJobs;
+            schedulePreviewServiceIdle();
             if (m_inputClosed && m_activeJobs == 0) QCoreApplication::quit();
         });
     } else if (method == "textPreview") {
-        enqueueOperation(id, m_readPool, [this, params](const CancellationToken &token) { return m_previewService->text(params, token); });
+        ensurePreviewService();
+        enqueueOperation(id, m_readPool, [this, params](const CancellationToken &token) { return m_previewService->text(params, token); }, true, true);
     } else if (method == "archivePreview") {
-        enqueueOperation(id, m_readPool, [this, params](const CancellationToken &token) { return m_previewService->archive(params, token); });
+        ensurePreviewService();
+        enqueueOperation(id, m_readPool, [this, params](const CancellationToken &token) { return m_previewService->archive(params, token); }, true, true);
     } else if (method == "cancelPreview") {
         const int requestId = params.value("requestId").toInt(-1);
         if (const auto token = m_cancellationTokens.value(requestId)) {
@@ -276,7 +314,7 @@ void BackendServer::emitSavedLocationsChanged()
 
 void BackendServer::enqueueOperation(int id, QThreadPool &pool,
                                      std::function<QJsonObject(const CancellationToken &)> operation,
-                                     bool cancellable)
+                                     bool cancellable, bool preview)
 {
     if (m_activeJobs >= maximumActiveJobs) {
         QJsonObject result = failure("Backend job queue is full");
@@ -289,15 +327,27 @@ void BackendServer::enqueueOperation(int id, QThreadPool &pool,
     const CancellationToken token = cancellable ? std::make_shared<std::atomic_bool>(false) : CancellationToken{};
     if (cancellable)
         m_cancellationTokens.insert(id, token);
+    if (preview) {
+        m_previewIdleTimer->stop();
+        m_previewJobs.insert(id);
+        filesailLog(LogLevel::Debug, "preview",
+                    QStringLiteral("job acquire count=%1").arg(m_previewJobs.size()));
+    }
     ++m_activeJobs;
-    connect(watcher, &QFutureWatcher<QJsonObject>::finished, this, [this, watcher, id, token, cancellable] {
+    connect(watcher, &QFutureWatcher<QJsonObject>::finished, this, [this, watcher, id, token, cancellable, preview] {
         QJsonObject result = watcher->result();
         const bool canceled = cancellationRequested(token);
         if (cancellable) m_cancellationTokens.remove(id);
+        if (preview) {
+            m_previewJobs.remove(id);
+            filesailLog(LogLevel::Debug, "preview",
+                        QStringLiteral("job release count=%1").arg(m_previewJobs.size()));
+        }
         if (!canceled) { result.insert("id", id); writeResponse(result); }
         watcher->deleteLater();
 
         --m_activeJobs;
+        if (preview) schedulePreviewServiceIdle();
         if (m_inputClosed && m_activeJobs == 0)
             QCoreApplication::quit();
     });

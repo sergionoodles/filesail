@@ -19,10 +19,49 @@ QtObject {
     property bool available: backend.running
     property bool rejectingRequests: false
     property string lastError: ""
+    property int sessionLeases: 0
+    property int operationLeases: 0
+    property bool idleHold: false
+    property int idleGracePeriod: 1500
+    property bool restartRequested: false
+    readonly property int pendingCount: pendingRevision >= 0 ? Object.keys(pendingRequests).length : 0
+    readonly property bool shouldRun: (sessionLeases > 0 || operationLeases > 0
+        || pendingCount > 0 || idleHold || restartRequested)
 
     signal response(int id, var result)
     signal eventReceived(string event, var message)
     signal backendStopped(string message)
+
+    function isMutation(method) {
+        return method === "mkdir" || method === "rename" || method === "trash"
+            || method === "copy" || method === "move"
+            || method === "locations.add" || method === "locations.remove";
+    }
+
+    function acquireSession() {
+        sessionLeases++;
+        idleHold = false;
+        idleShutdownTimer.stop();
+        Logger.debug("backend", `session acquire count=${sessionLeases}`);
+    }
+
+    function releaseSession() {
+        sessionLeases = Math.max(0, sessionLeases - 1);
+        Logger.debug("backend", `session release count=${sessionLeases}`);
+        scheduleIdleShutdown();
+    }
+
+    function scheduleIdleShutdown() {
+        if (sessionLeases > 0 || operationLeases > 0 || pendingCount > 0) {
+            idleHold = false;
+            idleShutdownTimer.stop();
+            return;
+        }
+        if (backend.running) {
+            idleHold = true;
+            idleShutdownTimer.restart();
+        }
+    }
 
     function request(method, params, onSuccess, onFailure, timeout) {
         if (rejectingRequests)
@@ -36,6 +75,8 @@ QtObject {
             onFailure: onFailure,
             deadline: timeoutMs > 0 ? Date.now() + timeoutMs : 0
         };
+        if (root.isMutation(method))
+            operationLeases++;
         pendingRevision++;
         Logger.debug("backend", `→ ${id} ${method}`);
         if (backend.running)
@@ -43,7 +84,8 @@ QtObject {
         else {
             pendingLines.push({ id, line });
             pendingLines = pendingLines.slice();
-            backend.running = true;
+            // `running` is bound to lease/request state. The pending request
+            // above is enough to start the process and flush the line later.
         }
         return id;
     }
@@ -52,6 +94,8 @@ QtObject {
         const pending = pendingRequests[id];
         if (!pending)
             return;
+        if (root.isMutation(pending.method))
+            return;
         delete pendingRequests[id];
         pendingRevision++;
         if (pending.method === "thumbnailBatch" || pending.method === "textPreview"
@@ -59,13 +103,18 @@ QtObject {
             cancelPreview(id);
         else if (pending.method === "list")
             request("cancel", { requestId: id }, null, null, 0);
+        scheduleIdleShutdown();
     }
 
     function forget(id) {
-        if (!pendingRequests[id])
+        const pending = pendingRequests[id];
+        if (!pending)
             return;
         delete pendingRequests[id];
+        if (root.isMutation(pending.method))
+            operationLeases = Math.max(0, operationLeases - 1);
         pendingRevision++;
+        scheduleIdleShutdown();
     }
 
     function cancelPreview(id) {
@@ -133,6 +182,8 @@ QtObject {
         pendingLines = [];
         for (const id in requests) {
             const pending = requests[id];
+            if (root.isMutation(pending.method))
+                operationLeases = Math.max(0, operationLeases - 1);
             if (pending.onFailure) {
                 try {
                     pending.onFailure(message, { id: Number(id), ok: false, error: message });
@@ -141,7 +192,9 @@ QtObject {
                 }
             }
         }
+        pendingRevision++;
         rejectingRequests = false;
+        scheduleIdleShutdown();
     }
 
     function listDirectory(params, onSuccess, onFailure) {
@@ -215,7 +268,7 @@ QtObject {
     property Process backend: Process {
         command: [root.backendCommand, "--serve"]
         stdinEnabled: true
-        running: true
+        running: root.shouldRun
 
         stdout: SplitParser {
             onRead: line => {
@@ -240,6 +293,7 @@ QtObject {
         }
 
         onStarted: {
+            root.restartRequested = false;
             root.lastError = "";
             Logger.info("backend", `started ${root.backendCommand}`);
             root.flush();
@@ -253,6 +307,12 @@ QtObject {
                 Logger.error("backend", message);
             root.rejectAll(message);
             root.backendStopped(message);
+            root.scheduleIdleShutdown();
+            // Re-evaluate the running binding after an unexpected exit. The
+            // lease state remains authoritative, so later reads can restart
+            // the backend without replaying rejected requests or mutations.
+            if (root.sessionLeases > 0)
+                root.restartRequested = true;
         }
     }
 
@@ -290,5 +350,22 @@ QtObject {
                 }
             }
         }
+    }
+
+    property Timer idleShutdownTimer: Timer {
+        interval: root.idleGracePeriod
+        repeat: false
+        onTriggered: {
+            if (root.sessionLeases === 0 && root.operationLeases === 0 && root.pendingCount === 0) {
+                root.idleHold = false;
+                Logger.info("backend", "idle grace period elapsed");
+            }
+        }
+    }
+
+    Component.onDestruction: {
+        idleShutdownTimer.stop();
+        root.rejectAll("FileSail host is shutting down");
+        root.idleHold = false;
     }
 }

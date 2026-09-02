@@ -14,6 +14,8 @@ QtObject {
     property int clipboardRevision: 0
     property int pendingHistoryTarget: 0
     property var activeOperations: ({})
+    property bool backendSessionAcquired: false
+    property bool sessionAlive: true
     readonly property int selectedCount: Object.keys(selectedPaths).length
     readonly property alias directory: directoryModel
     readonly property alias navigation: navigationController
@@ -101,7 +103,7 @@ QtObject {
             && clipboardPaths.every((path, index) => path === operationPaths[index]);
         let operationId = -1;
         const detach = () => {
-            if (operationId < 0)
+            if (!root.sessionAlive || operationId < 0)
                 return;
             const operations = Object.assign({}, root.activeOperations);
             delete operations[operationId];
@@ -109,6 +111,8 @@ QtObject {
         };
         const succeeded = result => {
             detach();
+            if (!root.sessionAlive)
+                return;
             if ((clearClipboardOnSuccess ?? false)
                     && root.clipboardRevision === clipboardRevisionAtStart) {
                 root.clipboardPaths = [];
@@ -122,6 +126,8 @@ QtObject {
         };
         const failed = (message, result) => {
             detach();
+            if (!root.sessionAlive)
+                return;
             const completed = result?.completed?.length ?? 0;
             const partial = result?.partial?.length ?? 0;
             const changed = completed + partial;
@@ -169,7 +175,7 @@ QtObject {
             operationId = BackendClient.performOperation(method, params, succeededLogged, failedLogged);
         if (operationId >= 0) {
             const operations = Object.assign({}, activeOperations);
-            operations[operationId] = true;
+            operations[operationId] = method;
             activeOperations = operations;
         }
         return operationId;
@@ -224,9 +230,24 @@ QtObject {
             `${count} item(s) were hidden because their names are unsafe in the current locale`, true)
     }
 
+    Component.onCompleted: {
+        BackendClient.acquireSession();
+        backendSessionAcquired = true;
+    }
+
     Component.onDestruction: {
-        for (const id of Object.keys(activeOperations))
-            BackendClient.cancel(Number(id));
+        sessionAlive = false;
+        for (const id of Object.keys(activeOperations)) {
+            // A committed mutation owns an independent backend lease and must
+            // finish after its initiating browser is closed. Read/preview
+            // requests are safe to cancel with the session.
+            if (!BackendClient.isMutation(activeOperations[id]))
+                BackendClient.cancel(Number(id));
+        }
         activeOperations = ({});
+        if (backendSessionAcquired) {
+            BackendClient.releaseSession();
+            backendSessionAcquired = false;
+        }
     }
 }

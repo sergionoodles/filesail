@@ -21,6 +21,7 @@ QtObject {
     property int revision: 0
     property int activeDecodeBytes: 0
     property var requests: ({})
+    readonly property int activeJobs: revision >= 0 ? Object.keys(requests).length : 0
 
     function key(entry, flavor) {
         return `${entry.path}|${entry.size}|${entry.modified}|${flavor}`;
@@ -207,12 +208,16 @@ QtObject {
         revision++;
     }
 
-    function acquireView() { activeViews++; }
+    function acquireView() {
+        activeViews++;
+        Logger.debug("preview", `view acquire count=${activeViews}`);
+    }
     function releaseView() {
         activeViews = Math.max(0, activeViews - 1);
+        Logger.debug("preview", `view release count=${activeViews}`);
         if (activeViews !== 0) return;
         flushDelay.stop();
-        for (const requestKey of Object.keys(requests)) BackendClient.cancel(requests[requestKey]);
+            for (const requestKey of Object.keys(requests)) BackendClient.cancel(requests[requestKey]);
         results = ({ }); queued = ({ }); consumers = ({ }); consumerKeys = ({ }); requests = ({ });
         activeDecodeBytes = 0;
         revision++;

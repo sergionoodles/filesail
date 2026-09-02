@@ -72,6 +72,7 @@ if [[ -z "$qs_path" || ! -x "$qs_path" ]]; then
     exit 1
 fi
 qs_path="$(readlink -f -- "$qs_path")"
+qs_qml_dir="${FILESAIL_QS_QML_DIR:-}"
 
 qmake_path="${FILESAIL_QMAKE:-}"
 if [[ -z "$qmake_path" ]]; then
@@ -86,6 +87,12 @@ qt_qml_dir="$("$qmake_path" -query QT_INSTALL_QML)"
 if [[ ! -d "$qt_qml_dir" ]]; then
     printf 'Qt QML directory not found: %s\n' "$qt_qml_dir" >&2
     exit 1
+fi
+if [[ -z "$qs_qml_dir" ]]; then
+    qs_qml_dir="$(dirname -- "$qs_path")/../lib/qt6/qml"
+fi
+if [[ ! -d "$qs_qml_dir/Quickshell" ]]; then
+    qs_qml_dir="$qt_qml_dir"
 fi
 qt_plugins_dir="$("$qmake_path" -query QT_INSTALL_PLUGINS)"
 wayland_platform_plugins=""
@@ -144,7 +151,7 @@ rm -f -- \
 # are still needed for imports such as Quickshell.Io and Quickshell.Widgets.
 install -Dm755 -- "$qs_path" "$appdir/usr/bin/qs"
 mkdir -p -- "$appdir/usr/qml"
-cp -a -- "$qt_qml_dir/Quickshell" "$appdir/usr/qml/"
+cp -a -- "$qs_qml_dir/Quickshell" "$appdir/usr/qml/"
 install -Dm644 -- "$project_dir/packaging/appimage/qt.conf" "$appdir/usr/bin/qt.conf"
 install -Dm755 -- "$project_dir/packaging/appimage/AppRun" "$appdir/AppRun"
 
@@ -156,7 +163,7 @@ rm -f -- "$output_file"
     export QMAKE="$qmake_wrapper"
     export PATH="$(dirname -- "$qt_plugin"):$PATH"
     export QML_SOURCES_PATHS="$qml_sources_dir"
-    export QML_MODULES_PATHS="$appdir/usr/qml:$qt_qml_dir"
+    export QML_MODULES_PATHS="$appdir/usr/qml:$qt_qml_dir:$qs_qml_dir"
     export EXTRA_PLATFORM_PLUGINS="$wayland_platform_plugins"
     export NO_STRIP=1
     "$linuxdeploy" \

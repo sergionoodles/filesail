@@ -11,8 +11,7 @@ permissions:
 
 jobs:
   build:
-    # Quickshell's Ubuntu packages require Qt 6.6+, which is provided by
-    # Ubuntu 26.04. The runner is currently public preview.
+    # Quickshell requires Qt 6.6+, which is provided by Ubuntu 26.04.
     runs-on: ubuntu-26.04
 
     steps:
@@ -26,16 +25,55 @@ jobs:
             build-essential \
             cmake \
             curl \
+            git \
             libarchive-dev \
+            libcli11-dev \
+            libdrm-dev \
             pkg-config \
+            ninja-build \
             qt6-base-dev \
+            qt6-base-private-dev \
             qt6-declarative-dev \
+            qt6-declarative-private-dev \
+            qt6-shadertools-dev \
             qt6-tools-dev \
             qt6-wayland-dev \
-            software-properties-common
-          sudo add-apt-repository --yes ppa:avengemedia/danklinux
-          sudo apt-get update
-          sudo apt-get install --yes quickshell-git
+            qt6-wayland-private-dev \
+            spirv-tools \
+            wayland-protocols
+
+      - name: Build Quickshell
+        run: |
+          quickshell_source="$RUNNER_TEMP/quickshell-source"
+          quickshell_prefix="$RUNNER_TEMP/quickshell"
+          git clone --depth 1 --branch v0.3.0 \
+            https://github.com/quickshell-mirror/quickshell.git \
+            "$quickshell_source"
+          cmake -S "$quickshell_source" -B "$RUNNER_TEMP/quickshell-build" \
+            -GNinja \
+            -DCMAKE_BUILD_TYPE=Release \
+            -DCMAKE_INSTALL_PREFIX="$quickshell_prefix" \
+            -DINSTALL_QML_PREFIX=lib/qt6/qml \
+            -DDISTRIBUTOR="FileSail GitHub Actions" \
+            -DCRASH_HANDLER=OFF \
+            -DUSE_JEMALLOC=OFF \
+            -DSCREENCOPY=OFF \
+            -DX11=OFF \
+            -DI3=OFF \
+            -DSERVICE_STATUS_NOTIFIER=OFF \
+            -DSERVICE_PIPEWIRE=OFF \
+            -DSERVICE_MPRIS=OFF \
+            -DSERVICE_PAM=OFF \
+            -DSERVICE_POLKIT=OFF \
+            -DSERVICE_GREETD=OFF \
+            -DSERVICE_UPOWER=OFF \
+            -DSERVICE_NOTIFICATIONS=OFF \
+            -DBLUETOOTH=OFF \
+            -DNETWORK=OFF
+          cmake --build "$RUNNER_TEMP/quickshell-build" --parallel
+          cmake --install "$RUNNER_TEMP/quickshell-build"
+          echo "FILESAIL_QS_PATH=$quickshell_prefix/bin/qs" >> "$GITHUB_ENV"
+          echo "FILESAIL_QS_QML_DIR=$quickshell_prefix/lib/qt6/qml" >> "$GITHUB_ENV"
 
       - name: Determine package version
         id: version

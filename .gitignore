@@ -13,7 +13,13 @@
 /*.cmake.user
 
 # Arch makepkg working directories and package archives
+/dist/
 /pkg/
+# Legacy source mirrors created before makepkg was configured to use ./dist.
+/filesail/
+/filesail-checkout/
+/src/filesail-checkout/
+# Keep checkouts created by older PKGBUILD revisions ignored.
 /src/filesail/
 /src/filesail-build/
 /*.pkg.tar.*

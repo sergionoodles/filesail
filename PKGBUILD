@@ -10,11 +10,19 @@ makedepends=('cmake' 'git' 'pkgconf')
 checkdepends=('jq')
 # This follows main until the first release tag exists. Pin this to a release
 # tag or commit before publishing a stable AUR revision.
-source=('filesail::git+https://github.com/sergionoodles/filesail.git#branch=main')
+source=('filesail-checkout::git+https://github.com/sergionoodles/filesail.git#branch=main')
 sha256sums=('SKIP')
 
+# Keep makepkg's source cache, build tree, package staging tree, logs, and
+# generated package archives together in a local, git-ignored directory.
+BUILDDIR="$startdir/dist"
+SRCDEST="$BUILDDIR"
+PKGDEST="$BUILDDIR"
+SRCPKGDEST="$BUILDDIR"
+LOGDEST="$BUILDDIR"
+
 build() {
-    cmake -S "$srcdir/filesail" -B "$srcdir/filesail-build" \
+    cmake -S "$srcdir/filesail-checkout" -B "$srcdir/filesail-build" \
         -DCMAKE_BUILD_TYPE=None \
         -DCMAKE_INSTALL_PREFIX=/usr
     cmake --build "$srcdir/filesail-build" --parallel

@@ -16,10 +16,29 @@ The current MVP scaffold includes:
 - persistent display preferences in `~/.config/filesail/config.json`;
 - a normal tiled window and a native Noctalia plugin panel using the same UI.
 
-## Build the backend
+## Dependencies
 
-Requirements: CMake 3.24+, a C++20 compiler, Qt 6 Core and Concurrent, and
-Quickshell.
+FileSail runs on Linux under a Wayland compositor. The standalone host requires
+Quickshell (`qs` or `quickshell`), a working D-Bus session, and `xdg-utils` for
+opening files and folders with the desktop defaults. Thumbnail previews require
+a thumbnailer service such as Tumbler, but FileSail can run without one.
+
+To build from source, install:
+
+- CMake 3.24 or newer;
+- a C++20 compiler;
+- Qt 6.6 or newer with the Core, Concurrent, and DBus components, including the
+  Qt Wayland platform plugin;
+- `libarchive` and its development files;
+- `pkg-config` (or an equivalent `pkgconf` implementation); and
+- Quickshell.
+
+The AppImage bundles FileSail, its backend, Qt, and the Quickshell runtime. It
+still needs a Linux/Wayland desktop session and the host libraries required by
+your compositor. `xdg-utils` is recommended for opening files from the
+AppImage.
+
+## Build the backend
 
 ```sh
 cmake -S . -B build
@@ -37,12 +56,45 @@ This installs the `filesail` launcher, backend, desktop entry, QML tree, and
 Noctalia adapter using CMake's configured install prefix. The checkout remains
 usable for Noctalia plugin development through `scripts/install-noctalia.sh`.
 
+## Install from an Arch package
+
+`PKGBUILD` builds the standalone package and declares its runtime dependencies:
+`hicolor-icon-theme`, `libarchive`, `qt6-base`, `quickshell`, and `xdg-utils`.
+Build and install it from the repository root with:
+
+```sh
+makepkg -si
+```
+
+The package build also uses CMake, Git, and `pkgconf`; `jq` is used by the
+package checks. To add the Noctalia 4 panel and bar integration after installing
+FileSail, build the optional package in `integrations/noctalia`:
+
+```sh
+cd integrations/noctalia
+makepkg -si
+```
+
+The Noctalia package depends on both `filesail` and `noctalia-shell`.
+
+## Install the AppImage
+
+Download the AppImage from a GitHub release or workflow artifact, make it
+executable, and launch it:
+
+```sh
+chmod +x FileSail-*-x86_64.AppImage
+./FileSail-*-x86_64.AppImage
+```
+
+AppImages are self-contained and do not need to be installed system-wide. The
+filename uses the version in `VERSION` and the machine architecture.
+
 ## Build an AppImage
 
 The AppImage bundles FileSail, its backend, and the Quickshell runtime used by
-the standalone host. Install Qt development packages, libarchive, CMake, and
-Quickshell first; the packaging script downloads its linuxdeploy tools on the
-first run.
+the standalone host. Install the source-build dependencies above, plus `curl`
+to download the linuxdeploy tools on the first run.
 
 ```sh
 ./scripts/build-appimage.sh

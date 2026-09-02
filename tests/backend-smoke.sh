@@ -163,7 +163,7 @@ if command -v setfacl >/dev/null && command -v getfacl >/dev/null; then
         mkdir -- "$test_dir/acl-destination"
         acl_copy="$(printf '{"id":19,"method":"copy","params":{"paths":["%s/acl-source"],"targetDirectory":"%s/acl-destination"}}\n' "$test_dir" "$test_dir" | "$backend" --serve)"
         jq -e '.id == 19 and .ok == true' <<<"$acl_copy" >/dev/null
-        getfacl -cnp "$test_dir/acl-destination/acl-source" | rg -x 'user:65534:r--(\s+#effective:r--)?'
+        getfacl -cnp "$test_dir/acl-destination/acl-source" | grep -E -x 'user:65534:r--([[:space:]]+#effective:r--)?'
     fi
 fi
 

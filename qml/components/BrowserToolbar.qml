@@ -22,6 +22,7 @@ ColumnLayout {
     required property Action gridViewAction
     required property Action hiddenFilesAction
     required property Action previewAction
+    required property Action aboutAction
 
     signal navigate(string path)
 
@@ -42,6 +43,7 @@ ColumnLayout {
         listViewAction: root.listViewAction
         gridViewAction: root.gridViewAction
         hiddenFilesAction: root.hiddenFilesAction
+        aboutAction: root.aboutAction
         onNavigate: path => root.navigate(path)
     }
 

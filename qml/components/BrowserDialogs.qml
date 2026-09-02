@@ -13,7 +13,8 @@ Item {
     property string createParent: ""
     property string renameTarget: ""
     property var trashTargets: []
-    readonly property bool active: promptLoader.item ? promptLoader.item.visible : false
+    readonly property bool active: (promptLoader.item ? promptLoader.item.visible : false)
+        || (aboutLoader.item ? aboutLoader.item.visible : false)
     anchors.fill: parent
     z: 1000
 
@@ -50,6 +51,10 @@ Item {
                    qsTr("This folder contains at least %1 items. Loading it may temporarily make FileSail less responsive.").arg(entryCountAtLeast),
                    qsTr("Load folder"), false, false, "", { path, entryCountAtLeast }, focusTarget);
     }
+    function openAbout(focusTarget) {
+        aboutLoader.active = true;
+        aboutLoader.item.open(focusTarget);
+    }
 
     Loader {
         id: promptLoader
@@ -69,5 +74,12 @@ Item {
                 else if (root.mode === "largeDirectory") root.session.loadLargeDirectory(payload.path);
             }
         }
+    }
+
+    Loader {
+        id: aboutLoader
+        anchors.fill: parent
+        active: false
+        sourceComponent: AboutDialog {}
     }
 }

@@ -11,6 +11,7 @@ SidebarLocationList 1.0 SidebarLocationList.qml
 ContextBadge 1.0 ContextBadge.qml
 FolderContextBar 1.0 FolderContextBar.qml
 ModalPrompt 1.0 ModalPrompt.qml
+AboutDialog 1.0 AboutDialog.qml
 BrowserActions 1.0 BrowserActions.qml
 BrowserToolbar 1.0 BrowserToolbar.qml
 NavigationBar 1.0 NavigationBar.qml

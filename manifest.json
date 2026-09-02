@@ -1,7 +1,7 @@
 {
   "id": "filesail",
   "name": "FileSail",
-  "version": "2026.9.1",
+  "version": "0.1.0",
   "minNoctaliaVersion": "4.7.7",
   "author": "FileSail contributors",
   "license": "MIT",

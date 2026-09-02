@@ -15,6 +15,7 @@ Rectangle {
     required property Action listViewAction
     required property Action gridViewAction
     required property Action hiddenFilesAction
+    required property Action aboutAction
     readonly property int actionIconSize: Math.round(18 * Theme.scale)
 
     signal navigate(string path)
@@ -102,6 +103,18 @@ Rectangle {
             checked: root.hiddenFilesAction.checked
             enabled: root.hiddenFilesAction.enabled
             onTriggered: root.hiddenFilesAction.trigger()
+        }
+        MenuSeparator {
+            padding: Theme.spaceS
+            contentItem: Rectangle {
+                implicitHeight: 1
+                color: Theme.divider
+            }
+        }
+        MenuItem {
+            text: root.aboutAction.text
+            enabled: root.aboutAction.enabled
+            onTriggered: root.aboutAction.trigger()
         }
     }
 }

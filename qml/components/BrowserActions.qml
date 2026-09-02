@@ -15,6 +15,7 @@ QtObject {
     signal createRequested()
     signal renameRequested()
     signal trashRequested()
+    signal aboutRequested()
 
     property Action editLocationAction: Action { shortcut: "Ctrl+L"; enabled: !root.modalActive; onTriggered: root.editLocationRequested() }
     property Action backAction: Action { text: qsTr("Back"); shortcut: "Alt+Left"; enabled: !root.modalActive && root.session.navigation.canGoBack; onTriggered: root.session.navigation.back() }
@@ -40,4 +41,5 @@ QtObject {
     property Action listViewAction: Action { text: qsTr("Details view"); shortcut: "Ctrl+1"; checked: root.viewMode === "list"; enabled: !root.modalActive; onTriggered: Settings.setViewMode("list") }
     property Action gridViewAction: Action { text: qsTr("Grid view"); shortcut: "Ctrl+2"; checked: root.viewMode === "grid"; enabled: !root.modalActive; onTriggered: Settings.setViewMode("grid") }
     property Action previewAction: Action { text: qsTr("Preview pane"); shortcut: "Ctrl+P"; checked: root.previewPaneEnabled; enabled: !root.modalActive; onTriggered: Settings.setPreviewPaneEnabled(!Settings.previewPaneEnabled) }
+    property Action aboutAction: Action { text: qsTr("About FileSail"); enabled: !root.modalActive; onTriggered: root.aboutRequested() }
 }

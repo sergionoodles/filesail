@@ -89,6 +89,7 @@ Rectangle {
                 return;
             dialogs.openTrash(Object.keys(session.selectedPaths), toolbar);
         }
+        onAboutRequested: dialogs.openAbout(toolbar)
     }
 
     RowLayout {
@@ -131,6 +132,7 @@ Rectangle {
                 gridViewAction: actions.gridViewAction
                 hiddenFilesAction: actions.hiddenFilesAction
                 previewAction: actions.previewAction
+                aboutAction: actions.aboutAction
                 onNavigate: path => root.navigate(path)
             }
 

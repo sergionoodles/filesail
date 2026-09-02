@@ -122,6 +122,7 @@ Rectangle {
                 forwardAction: actions.forwardAction
                 upAction: actions.upAction
                 openNewWindowAction: actions.openNewWindowAction
+                openTerminalAction: actions.openTerminalAction
                 createAction: actions.createAction
                 renameAction: actions.renameAction
                 copyAction: actions.copyAction

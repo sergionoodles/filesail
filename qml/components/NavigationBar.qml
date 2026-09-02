@@ -12,6 +12,7 @@ Rectangle {
     required property Action forwardAction
     required property Action upAction
     required property Action openNewWindowAction
+    required property Action openTerminalAction
     required property Action listViewAction
     required property Action gridViewAction
     required property Action hiddenFilesAction
@@ -75,6 +76,12 @@ Rectangle {
                 enabled: root.openNewWindowAction.enabled
                 tooltip: root.openNewWindowAction.text
                 onClicked: root.openNewWindowAction.trigger()
+            }
+            IconButton {
+                iconName: "square-terminal"
+                enabled: root.openTerminalAction.enabled
+                tooltip: root.openTerminalAction.text
+                onClicked: root.openTerminalAction.trigger()
             }
             IconButton {
                 id: overflowButton

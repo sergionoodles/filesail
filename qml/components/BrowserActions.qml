@@ -37,6 +37,11 @@ QtObject {
         text: qsTr("Open New Window Here"); shortcut: "Ctrl+N"; enabled: !root.modalActive
         onTriggered: root.newWindowRequested(root.session.directory.path)
     }
+    property Action openTerminalAction: Action {
+        text: qsTr("Open Terminal Here"); enabled: !root.modalActive
+        onTriggered: root.session.runOperation("terminal", { path: root.session.directory.path }, false,
+                                         qsTr("Terminal opened"), false, false)
+    }
     property Action trashAction: Action { text: qsTr("Move to Trash"); shortcut: "Delete"; enabled: !root.modalActive && root.session.selectedCount > 0; onTriggered: root.trashRequested() }
     property Action listViewAction: Action { text: qsTr("Details view"); shortcut: "Ctrl+1"; checked: root.viewMode === "list"; enabled: !root.modalActive; onTriggered: Settings.setViewMode("list") }
     property Action gridViewAction: Action { text: qsTr("Grid view"); shortcut: "Ctrl+2"; checked: root.viewMode === "grid"; enabled: !root.modalActive; onTriggered: Settings.setViewMode("grid") }

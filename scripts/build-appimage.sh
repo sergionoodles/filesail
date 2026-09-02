@@ -95,6 +95,7 @@ if [[ ! -d "$qs_qml_dir/Quickshell" ]]; then
     qs_qml_dir="$qt_qml_dir"
 fi
 qt_plugins_dir="$("$qmake_path" -query QT_INSTALL_PLUGINS)"
+qt_lib_dir="$("$qmake_path" -query QT_INSTALL_LIBS)"
 wayland_platform_plugins=""
 for plugin in libqwayland-egl.so libqwayland-generic.so libqwayland.so; do
     if [[ -f "$qt_plugins_dir/platforms/$plugin" ]]; then
@@ -107,7 +108,11 @@ if [[ -z "$wayland_platform_plugins" ]]; then
 fi
 qt_plugin_source_dir="$build_dir/qt-plugins"
 rm -rf -- "$qt_plugin_source_dir"
-mkdir -p -- "$qt_plugin_source_dir/platforms" "$qt_plugin_source_dir/imageformats"
+mkdir -p -- \
+    "$qt_plugin_source_dir/platforms" \
+    "$qt_plugin_source_dir/imageformats" \
+    "$qt_plugin_source_dir/wayland-shell-integration" \
+    "$qt_plugin_source_dir/wayland-graphics-integration-client"
 for plugin in libqxcb.so libqwayland-egl.so libqwayland-generic.so libqwayland.so; do
     if [[ -f "$qt_plugins_dir/platforms/$plugin" ]]; then
         cp -a -- "$qt_plugins_dir/platforms/$plugin" "$qt_plugin_source_dir/platforms/"
@@ -116,6 +121,30 @@ done
 for plugin in libqgif.so libqico.so libqjpeg.so libqsvg.so libqwebp.so; do
     if [[ -f "$qt_plugins_dir/imageformats/$plugin" ]]; then
         cp -a -- "$qt_plugins_dir/imageformats/$plugin" "$qt_plugin_source_dir/imageformats/"
+    fi
+done
+# The Wayland platform plugin loads its client buffer integration at runtime.
+# In particular, libqt-plugin-wayland-egl.so is required for the OpenGL-backed
+# surfaces used by Quickshell windows.
+for plugin in "$qt_plugins_dir/wayland-graphics-integration-client"/*.so; do
+    if [[ -f "$plugin" ]]; then
+        cp -a -- "$plugin" "$qt_plugin_source_dir/wayland-graphics-integration-client/"
+    fi
+done
+# linuxdeploy cannot discover these plugins from qs because Quickshell loads
+# them dynamically at runtime. Without the shell integration plugins the
+# bundled Wayland platform plugin is present but cannot initialize on a
+# compositor, and qs aborts before the launcher can observe its IPC endpoint.
+for plugin in \
+    libfullscreen-shell-v1.so \
+    libivi-shell.so \
+    liblayer-shell.so \
+    libqt-shell.so \
+    libwl-shell-plugin.so \
+    libxdg-shell.so; do
+    if [[ -f "$qt_plugins_dir/wayland-shell-integration/$plugin" ]]; then
+        cp -a -- "$qt_plugins_dir/wayland-shell-integration/$plugin" \
+            "$qt_plugin_source_dir/wayland-shell-integration/"
     fi
 done
 qmake_wrapper="$build_dir/qmake-wrapper"
@@ -137,6 +166,16 @@ cmake -S "$project_dir" -B "$build_dir" \
 cmake --build "$build_dir" --parallel
 ctest --test-dir "$build_dir" --output-on-failure
 DESTDIR="$appdir" cmake --install "$build_dir"
+
+# libQt6WlShellIntegration is loaded by libwl-shell-plugin.so and is not a
+# direct dependency of qs. Keep it in the AppDir even when linuxdeploy only
+# scans the executable's direct dependencies.
+mkdir -p -- "$appdir/usr/lib"
+for library in "$qt_lib_dir"/libQt6WlShellIntegration.so.6*; do
+    if [[ -f "$library" ]]; then
+        cp -a -- "$library" "$appdir/usr/lib/"
+    fi
+done
 
 # The AppImage is the standalone host. Keep the Noctalia-only panel adapter out
 # of its QML scan; it imports qs.Commons and qs.Services.UI from Noctalia.
@@ -170,6 +209,19 @@ rm -f -- "$output_file"
         --executable "$appdir/usr/bin/qs" \
         --executable "$appdir/usr/bin/filesail-backend" \
         --plugin qt
+
+    # The Qt deployment plugin only preserves a subset of plugin directories.
+    # Restore the dynamically loaded Wayland integrations in the final AppDir
+    # so the bundled platform can create OpenGL-backed client surfaces.
+    for plugin_dir in wayland-graphics-integration-client wayland-shell-integration; do
+        mkdir -p -- "$appdir/usr/plugins/$plugin_dir"
+        for plugin in "$qt_plugin_source_dir/$plugin_dir"/*.so; do
+            if [[ -f "$plugin" ]]; then
+                cp -a -- "$plugin" "$appdir/usr/plugins/$plugin_dir/"
+            fi
+        done
+    done
+
     ln -sfn -- usr/share/applications/dev.filesail.FileSail.desktop \
         "$appdir/dev.filesail.FileSail.desktop"
     ln -sfn -- usr/share/icons/hicolor/1200x1200/apps/filesail.png "$appdir/filesail.png"

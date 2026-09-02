@@ -7,6 +7,8 @@ QtObject {
     property string initialPath: String(Quickshell.env("HOME") ?? "/")
     property var selectedPaths: ({})
     property string primarySelectionPath: ""
+    property string focusedPath: ""
+    property string selectionAnchorPath: ""
     property var selectedEntries: []
     property int selectionRevision: 0
     property var clipboardPaths: []
@@ -34,7 +36,13 @@ QtObject {
     function clearSelection() {
         selectedPaths = ({});
         primarySelectionPath = "";
+        selectionAnchorPath = "";
         updateSelectedEntries();
+    }
+
+    function resetFocus() {
+        focusedPath = directoryModel.entries.length > 0 ? directoryModel.entries[0].path : "";
+        clearSelection();
     }
 
     function removeFromSelection(paths) {
@@ -44,6 +52,8 @@ QtObject {
         selectedPaths = next;
         primarySelectionPath = next[primarySelectionPath]
             ? primarySelectionPath : Object.keys(next)[0] ?? "";
+        if (!next[selectionAnchorPath])
+            selectionAnchorPath = primarySelectionPath;
         updateSelectedEntries();
     }
 
@@ -59,27 +69,118 @@ QtObject {
         selectedPaths = next;
         primarySelectionPath = next[primarySelectionPath]
             ? primarySelectionPath : Object.keys(next)[0] ?? "";
+        if (!next[selectionAnchorPath])
+            selectionAnchorPath = primarySelectionPath;
         updateSelectedEntries();
     }
 
     function select(path, modifiers) {
-        const additive = (modifiers & Qt.ControlModifier) !== 0;
-        const next = additive ? Object.assign({}, selectedPaths) : {};
-        if (additive && next[path])
-            delete next[path];
-        else
+        selectEntry(path, modifiers);
+    }
+
+    function visibleIndex(path) {
+        for (let index = 0; index < directoryModel.entries.length; ++index) {
+            if (directoryModel.entries[index].path === path)
+                return index;
+        }
+        return -1;
+    }
+
+    function setSelection(paths, additive, anchorPath, basePaths) {
+        const next = additive
+            ? Object.assign({}, basePaths ? basePaths.reduce((result, path) => {
+                result[path] = true;
+                return result;
+            }, {}) : selectedPaths)
+            : {};
+        for (const path of paths ?? [])
             next[path] = true;
         selectedPaths = next;
-        primarySelectionPath = next[path] ? path : Object.keys(next)[0] ?? "";
+        const visibleAnchor = anchorPath && visibleIndex(anchorPath) >= 0 ? anchorPath : "";
+        primarySelectionPath = visibleAnchor && next[visibleAnchor]
+            ? visibleAnchor : Object.keys(next)[0] ?? "";
+        if (visibleAnchor) {
+            focusedPath = visibleAnchor;
+            selectionAnchorPath = visibleAnchor;
+        }
         updateSelectedEntries();
+    }
+
+    function selectRange(anchorPath, targetPath, additive) {
+        const targetIndex = visibleIndex(targetPath);
+        const anchorIndex = visibleIndex(anchorPath);
+        if (targetIndex < 0)
+            return;
+        if (anchorIndex < 0) {
+            setSelection([targetPath], additive, targetPath);
+            return;
+        }
+        const first = Math.min(anchorIndex, targetIndex);
+        const last = Math.max(anchorIndex, targetIndex);
+        const paths = [];
+        for (let index = first; index <= last; ++index)
+            paths.push(directoryModel.entries[index].path);
+        setSelection(paths, additive, targetPath);
+    }
+
+    function selectEntry(path, modifiers) {
+        if (visibleIndex(path) < 0)
+            return;
+        const shift = (modifiers & Qt.ShiftModifier) !== 0;
+        const additive = (modifiers & Qt.ControlModifier) !== 0;
+        focusedPath = path;
+        if (shift) {
+            selectRange(selectionAnchorPath || path, path, additive);
+            return;
+        }
+        if (additive) {
+            const next = Object.assign({}, selectedPaths);
+            if (next[path])
+                delete next[path];
+            else
+                next[path] = true;
+            selectedPaths = next;
+            primarySelectionPath = next[path] ? path : Object.keys(next)[0] ?? "";
+            selectionAnchorPath = path;
+            updateSelectedEntries();
+            return;
+        }
+        setSelection([path], false, path);
+    }
+
+    function moveFocus(path, modifiers) {
+        if (visibleIndex(path) < 0)
+            return;
+        focusedPath = path;
+        const shift = (modifiers & Qt.ShiftModifier) !== 0;
+        const additive = (modifiers & Qt.ControlModifier) !== 0;
+        if (shift)
+            selectRange(selectionAnchorPath || path, path, additive);
+        else if (!additive)
+            setSelection([path], false, path);
+    }
+
+    function toggleFocusedEntry() {
+        if (focusedPath)
+            selectEntry(focusedPath, Qt.ControlModifier);
+    }
+
+    function selectAllVisible() {
+        const paths = directoryModel.entries.map(entry => entry.path);
+        setSelection(paths, false, focusedPath || paths[0] || "");
     }
 
     // Directory order is the only stable order shared by list and grid views.
     // Entries are retained by reference from the current immutable snapshot.
     function updateSelectedEntries() {
-        const paths = Object.keys(selectedPaths).filter(path => directoryModel.pathIndexes[path] !== undefined);
-        paths.sort((left, right) => directoryModel.pathIndexes[left] - directoryModel.pathIndexes[right]);
-        const ordered = paths.map(path => directoryModel.sourceEntries[directoryModel.pathIndexes[path]]);
+        const ordered = directoryModel.entries.filter(entry => selectedPaths[entry.path]);
+        const visiblePaths = {};
+        for (const entry of ordered)
+            visiblePaths[entry.path] = true;
+        for (const entry of directoryModel.sourceEntries) {
+            if (selectedPaths[entry.path] && !visiblePaths[entry.path])
+                ordered.push(entry);
+        }
         selectedEntries = ordered;
         selectionRevision++;
     }
@@ -216,9 +317,12 @@ QtObject {
             if (navigation) {
                 navigationController.commit(path, root.pendingHistoryTarget);
                 root.pendingHistoryTarget = -1;
-                root.clearSelection();
+                root.resetFocus();
             } else {
                 root.reconcileSelection();
+                if (!root.focusedPath || root.visibleIndex(root.focusedPath) < 0)
+                    root.focusedPath = root.directory.entries.length > 0
+                        ? root.directory.entries[0].path : "";
             }
         }
         onLoadFailed: message => root.pendingHistoryTarget = -1

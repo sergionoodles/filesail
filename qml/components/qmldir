@@ -18,6 +18,7 @@ FileActionBar 1.0 FileActionBar.qml
 FileBrowserPane 1.0 FileBrowserPane.qml
 FileListView 1.0 FileListView.qml
 FileGridView 1.0 FileGridView.qml
+SelectionMarquee 1.0 SelectionMarquee.qml
 BrowserPaneStateOverlay 1.0 BrowserPaneStateOverlay.qml
 FileVisual 1.0 FileVisual.qml
 PreviewPane 1.0 PreviewPane.qml

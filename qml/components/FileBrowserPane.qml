@@ -7,6 +7,14 @@ Item {
     required property var session
     property string viewMode: "list"
 
+    function focusActiveView() {
+        const activeLoader = root.viewMode === "list" ? listLoader : gridLoader;
+        if (activeLoader.item && activeLoader.item.focusView)
+            activeLoader.item.focusView();
+    }
+
+    onViewModeChanged: Qt.callLater(root.focusActiveView)
+
     Rectangle {
         anchors.fill: parent
         color: Theme.surface

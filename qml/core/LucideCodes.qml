@@ -11,6 +11,7 @@ QtObject {
         "monitor": 57629, "scissors": 57678, "search": 57681, "square-pen": 57714,
         "square-terminal": 57866, "trash-2": 57742, "clipboard-paste": 58344,
         "grid-2x2": 58623, "star": 57718, "code": 57491, "image": 57590,
+        "square-arrow-out-up-right": 58788,
         "bot": 57787, "git-branch": 57570, "code-2": 57862
     })
 }

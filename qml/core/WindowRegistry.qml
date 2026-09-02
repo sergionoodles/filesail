@@ -57,6 +57,7 @@ QtObject {
             return false;
         }
         window.closeRequested.connect(() => root.close(window));
+        window.newWindowRequested.connect(path => root.open(path, root.protocolVersion));
         root.windows = root.windows.concat([window]);
         Logger.info("windows", `opened ${windowId} path=${path} live=${root.windowCount}`);
         root.windowOpened(windowId, path);

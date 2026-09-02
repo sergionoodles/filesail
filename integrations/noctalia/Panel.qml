@@ -1,4 +1,5 @@
 import QtQuick
+import Quickshell
 import "../../qml/components" as FileSail
 import "../../qml/core" as FileSailCore
 
@@ -36,6 +37,7 @@ Item {
         sourceComponent: FileSail.FileSailView {
             compact: true
             cornerRadius: 0
+            onNewWindowRequested: path => Quickshell.execDetached(["filesail", "--path", path])
         }
     }
 }

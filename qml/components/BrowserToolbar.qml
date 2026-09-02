@@ -11,6 +11,7 @@ ColumnLayout {
     required property Action backAction
     required property Action forwardAction
     required property Action upAction
+    required property Action openNewWindowAction
     required property Action openTerminalAction
     required property Action createAction
     required property Action renameAction
@@ -38,6 +39,7 @@ ColumnLayout {
         backAction: root.backAction
         forwardAction: root.forwardAction
         upAction: root.upAction
+        openNewWindowAction: root.openNewWindowAction
         openTerminalAction: root.openTerminalAction
         listViewAction: root.listViewAction
         gridViewAction: root.gridViewAction

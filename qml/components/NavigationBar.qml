@@ -11,6 +11,7 @@ Rectangle {
     required property Action backAction
     required property Action forwardAction
     required property Action upAction
+    required property Action openNewWindowAction
     required property Action openTerminalAction
     required property Action listViewAction
     required property Action gridViewAction
@@ -68,6 +69,12 @@ Rectangle {
                 tooltip: root.listViewAction.checked ? root.gridViewAction.text : root.listViewAction.text
                 checkable: false
                 onClicked: root.listViewAction.checked ? root.gridViewAction.trigger() : root.listViewAction.trigger()
+            }
+            IconButton {
+                iconName: "square-arrow-out-up-right"
+                enabled: root.openNewWindowAction.enabled
+                tooltip: root.openNewWindowAction.text
+                onClicked: root.openNewWindowAction.trigger()
             }
             IconButton {
                 iconName: "square-terminal"

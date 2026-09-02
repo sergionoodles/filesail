@@ -44,6 +44,8 @@ Rectangle {
     readonly property bool previewEnabled: previewPaneEnabled && width >= previewRequiredWidth
     readonly property bool modalActive: dialogs.active
 
+    signal newWindowRequested(string path)
+
     color: Theme.surface
     radius: cornerRadius
     clip: true
@@ -74,6 +76,7 @@ Rectangle {
         id: actions
         session: session
         modalActive: root.modalActive
+        onNewWindowRequested: path => root.newWindowRequested(path)
         onEditLocationRequested: toolbar.beginPathEditing()
         onCreateRequested: dialogs.openCreate(session.directory.path, toolbar)
         onRenameRequested: {
@@ -117,6 +120,7 @@ Rectangle {
                 backAction: actions.backAction
                 forwardAction: actions.forwardAction
                 upAction: actions.upAction
+                openNewWindowAction: actions.openNewWindowAction
                 openTerminalAction: actions.openTerminalAction
                 createAction: actions.createAction
                 renameAction: actions.renameAction

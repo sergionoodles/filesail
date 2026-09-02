@@ -10,6 +10,7 @@ QtObject {
     property bool previewPaneEnabled: false
 
     signal editLocationRequested()
+    signal newWindowRequested(string path)
     signal createRequested()
     signal renameRequested()
     signal trashRequested()
@@ -29,6 +30,10 @@ QtObject {
     property Action createAction: Action { text: qsTr("New folder"); shortcut: "Ctrl+Shift+N"; enabled: !root.modalActive; onTriggered: root.createRequested() }
     property Action renameAction: Action { text: qsTr("Rename"); shortcut: "F2"; enabled: !root.modalActive && root.session.selectedCount === 1; onTriggered: root.renameRequested() }
     property Action refreshAction: Action { text: qsTr("Refresh"); shortcut: "F5"; enabled: !root.modalActive; onTriggered: root.session.directory.refresh("refresh") }
+    property Action openNewWindowAction: Action {
+        text: qsTr("Open New Window Here"); enabled: !root.modalActive
+        onTriggered: root.newWindowRequested(root.session.directory.path)
+    }
     property Action openTerminalAction: Action {
         text: qsTr("Open Terminal Here"); shortcut: "F4"; enabled: !root.modalActive
         onTriggered: root.session.runOperation("terminal", { path: root.session.directory.path }, false,

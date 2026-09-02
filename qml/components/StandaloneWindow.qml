@@ -10,6 +10,7 @@ FloatingWindow {
     property bool beingDestroyed: false
 
     signal closeRequested()
+    signal newWindowRequested(string path)
 
     visible: true
     title: "FileSail"
@@ -21,6 +22,7 @@ FloatingWindow {
     FileSailView {
         anchors.fill: parent
         initialPath: root.initialPath
+        onNewWindowRequested: path => root.newWindowRequested(path)
     }
 
     onVisibleChanged: {

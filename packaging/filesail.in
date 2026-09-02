@@ -1,11 +1,28 @@
 #!/usr/bin/env bash
 set -euo pipefail
 
-filesail_data_dir=@FILESAIL_INSTALL_DATADIR_SHELL@/filesail
-filesail_backend_default=@FILESAIL_INSTALL_BINDIR_SHELL@/filesail-backend
+if [[ -n "${APPDIR:-}" && -d "$APPDIR/usr/share/filesail" ]]; then
+    filesail_data_dir="$APPDIR/usr/share/filesail"
+    filesail_qs_default="$APPDIR/usr/bin/qs"
+    filesail_backend_default="$APPDIR/usr/bin/filesail-backend"
+else
+    filesail_data_dir=@FILESAIL_INSTALL_DATADIR_SHELL@/filesail
+    filesail_qs_default=""
+    filesail_backend_default=@FILESAIL_INSTALL_BINDIR_SHELL@/filesail-backend
+fi
+
+if [[ -n "$filesail_qs_default" && -x "$filesail_qs_default" ]]; then
+    filesail_qs="$filesail_qs_default"
+else
+    filesail_qs="${FILESAIL_QS:-$(command -v qs || command -v quickshell || true)}"
+fi
 
 if [[ ! -x "${FILESAIL_BACKEND:-$filesail_backend_default}" ]]; then
     printf 'FileSail backend not found. Expected: %s\n' "${FILESAIL_BACKEND:-$filesail_backend_default}" >&2
+    exit 1
+fi
+if [[ ! -x "$filesail_qs" ]]; then
+    printf '%s\n' 'FileSail requires Quickshell (qs or quickshell) to be installed.' >&2
     exit 1
 fi
 
@@ -59,7 +76,7 @@ if [[ "$force_new_instance" == true ]]; then
         debug) qs_args+=(--log-rules "qml.debug=true;qml.info=true") ;;
         info) qs_args+=(--log-rules "qml.info=true") ;;
     esac
-    exec qs "${qs_args[@]}"
+    exec "$filesail_qs" "${qs_args[@]}"
 fi
 
 runtime_dir="${XDG_RUNTIME_DIR:-/tmp}"
@@ -68,7 +85,7 @@ exec {activation_lock_fd}>"$activation_lock"
 flock -x "$activation_lock_fd"
 
 ipc_call() {
-    qs ipc --path "$filesail_data_dir" call filesail.v1 "$@"
+    "$filesail_qs" ipc --path "$filesail_data_dir" call filesail.v1 "$@"
 }
 
 # Quickshell IPC is scoped to the current user session. A short probe avoids
@@ -87,7 +104,7 @@ case "${FILESAIL_LOG:-info}" in
     info) qs_args+=(--log-rules "qml.info=true") ;;
 esac
 
-qs "${qs_args[@]}" >"$runtime_dir/filesail-qs.log" 2>&1 {activation_lock_fd}>&- &
+"$filesail_qs" "${qs_args[@]}" >"$runtime_dir/filesail-qs.log" 2>&1 {activation_lock_fd}>&- &
 host_pid=$!
 
 # The first launcher supplied the host's initial path. Wait for readiness;

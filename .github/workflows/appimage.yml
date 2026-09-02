@@ -1,0 +1,68 @@
+name: AppImage
+
+on:
+  push:
+    tags:
+      - 'v*'
+  workflow_dispatch:
+
+permissions:
+  contents: write
+
+jobs:
+  build:
+    runs-on: ubuntu-24.04
+
+    steps:
+      - name: Check out source
+        uses: actions/checkout@v4
+
+      - name: Install build and runtime dependencies
+        run: |
+          sudo apt-get update
+          sudo apt-get install --yes \
+            build-essential \
+            cmake \
+            curl \
+            libarchive-dev \
+            pkg-config \
+            qt6-base-dev \
+            qt6-declarative-dev \
+            qt6-tools-dev \
+            qt6-wayland-dev \
+            software-properties-common
+          sudo add-apt-repository --yes ppa:avengemedia/danklinux
+          sudo apt-get update
+          sudo apt-get install --yes quickshell
+
+      - name: Determine package version
+        id: version
+        run: |
+          if [[ "$GITHUB_REF" == refs/tags/v* ]]; then
+            echo "version=${GITHUB_REF_NAME#v}" >> "$GITHUB_OUTPUT"
+          else
+            echo "version=0.1.0" >> "$GITHUB_OUTPUT"
+          fi
+
+      - name: Build AppImage
+        env:
+          FILESAIL_VERSION: ${{ steps.version.outputs.version }}
+        run: ./scripts/build-appimage.sh
+
+      - name: Smoke-test AppImage launcher
+        run: |
+          appimage="$(find dist -maxdepth 1 -name '*.AppImage' -print -quit)"
+          APPIMAGE_EXTRACT_AND_RUN=1 "$appimage" --help
+
+      - name: Upload AppImage artifact
+        uses: actions/upload-artifact@v4
+        with:
+          name: filesail-appimage
+          path: dist/*.AppImage
+          if-no-files-found: error
+
+      - name: Publish tagged release asset
+        if: startsWith(github.ref, 'refs/tags/v')
+        uses: softprops/action-gh-release@v2
+        with:
+          files: dist/*.AppImage

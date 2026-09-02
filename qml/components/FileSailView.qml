@@ -34,16 +34,12 @@ Rectangle {
         // directory entries rather than relying on the primary selection so a
         // mixed selection also collapses the otherwise empty preview pane.
         const selected = session.selectedPaths;
-        for (let index = 0; index < session.directory.count; index++) {
-            const entry = session.directory.entries.get(index);
+        for (const entry of session.directory.entries) {
             if (selected[entry.path] && entry.isDirectory)
                 return true;
         }
         return false;
     }
-    // Selection routing belongs to PreviewPanel. Keeping the pane instantiated
-    // gives empty and unsupported selections stable geometry and avoids losing
-    // provider state between clicks.
     readonly property real previewRequiredWidth: (190 + 1 + 360 + 220) * Theme.scale
     readonly property bool previewEnabled: previewPaneEnabled && width >= previewRequiredWidth
     readonly property bool modalActive: dialogs.active
@@ -52,7 +48,8 @@ Rectangle {
     radius: cornerRadius
     clip: true
 
-    Component.onCompleted: Logger.info("view", `ready path=${initialPath}`)
+    Component.onCompleted: { Logger.info("view", `ready path=${initialPath}`); PreviewManager.acquireView(); }
+    Component.onDestruction: PreviewManager.releaseView()
 
     function navigate(path) { session.navigate(path); }
 
@@ -66,6 +63,11 @@ Rectangle {
         onNoticeRequested: (message, error) => root.showNotice(message, error)
         onLargeDirectoryWarningRequested: (path, entryCountAtLeast) =>
             dialogs.openLargeDirectory(path, entryCountAtLeast, toolbar)
+    }
+
+    Connections {
+        target: session.directory
+        function onRevisionChanged() { PreviewManager.advanceGeneration(); }
     }
 
     BrowserActions {

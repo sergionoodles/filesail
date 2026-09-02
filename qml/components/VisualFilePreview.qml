@@ -1,4 +1,5 @@
 import QtQuick
+import QtQuick.Window
 import QtQuick.Layouts
 import "../core"
 
@@ -16,8 +17,8 @@ Item {
                 width: Math.min(parent.width, parent.height)
                 height: width
                 entry: root.entry
-                thumbnailSize: 1024 * Theme.scale
-                flavor: "xx-large"
+                thumbnailSize: Math.max(1, Math.ceil(Math.min(parent.width, parent.height) * Screen.devicePixelRatio))
+                flavor: thumbnailSize <= 128 ? "normal" : thumbnailSize <= 256 ? "large" : "x-large"
                 priority: "foreground"
             }
         }

@@ -27,6 +27,7 @@ add_executable(filesail-backend
     src/backend/logging.h
     src/backend/backendserver.cpp
     src/backend/backendserver.h
+    src/backend/cancellation.h
     src/backend/fileoperations.cpp
     src/backend/fileoperations.h
     src/backend/foldercontext.cpp

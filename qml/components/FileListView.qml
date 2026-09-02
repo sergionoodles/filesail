@@ -34,6 +34,7 @@ ColumnLayout {
         Layout.fillHeight: true
         model: root.model
         clip: true
+        reuseItems: true
         cacheBuffer: 168 * Theme.scale
         boundsBehavior: Flickable.StopAtBounds
 
@@ -52,6 +53,7 @@ ColumnLayout {
         delegate: Rectangle {
             id: listDelegate
             required property int index
+            required property var modelData
             required property string name
             required property string path
             required property bool isDirectory
@@ -81,8 +83,9 @@ ColumnLayout {
                 anchors.rightMargin: Theme.spaceL
                 spacing: Theme.spaceM
                 FileVisual {
+                    id: listVisual
                     Layout.preferredWidth: 24 * Theme.scale; Layout.preferredHeight: 24 * Theme.scale
-                    entry: ({ name: listDelegate.name, path: listDelegate.path, isDirectory: listDelegate.isDirectory, size: listDelegate.size, modified: listDelegate.modified, iconName: listDelegate.iconName, mimeType: listDelegate.mimeType })
+                    entry: listDelegate.modelData
                     selected: root.session.selectedPaths[listDelegate.path] ?? false
                     thumbnailSize: 24 * Theme.scale
                 }
@@ -102,6 +105,8 @@ ColumnLayout {
                 Keys.onEnterPressed: root.session.openEntry(listDelegate.path, listDelegate.isDirectory)
                 Keys.onSpacePressed: root.session.select(listDelegate.path, Qt.NoModifier)
             }
+            ListView.onPooled: listVisual.releaseConsumer()
+            ListView.onReused: listVisual.acquireConsumer()
         }
     }
 }

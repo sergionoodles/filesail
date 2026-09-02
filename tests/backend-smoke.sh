@@ -50,6 +50,32 @@ jq -e '.id == 28 and .ok == true and (.flavors | index("normal"))' <<<"$preview_
 preview_relative="$(printf '%s\n' '{"id":29,"method":"textPreview","params":{"path":"relative.txt"}}' | "$backend" --serve)"
 jq -e '.id == 29 and .ok == false and (.error | type == "string")' <<<"$preview_relative" >/dev/null
 
+# Preview content limits are exact at the boundary. A terminal newline does
+# not manufacture an extra empty line.
+for line_count in 499 500 501; do
+    seq "$line_count" > "$test_dir/lines-$line_count.txt"
+    text_boundary="$(printf '{"id":%s,"method":"textPreview","params":{"path":"%s/lines-%s.txt"}}\n' "$line_count" "$test_dir" "$line_count" | "$backend" --serve)"
+    jq -e --argjson count "$line_count" '
+        .id == $count and .ok == true and .lineCount == (if $count > 500 then 500 else $count end)
+        and .truncated == ($count > 500)
+    ' <<<"$text_boundary" >/dev/null
+done
+for character_count in 65535 65536 65537; do
+    head -c "$character_count" /dev/zero | tr '\0' 'a' > "$test_dir/chars-$character_count.txt"
+    character_boundary="$(printf '{"id":%s,"method":"textPreview","params":{"path":"%s/chars-%s.txt"}}\n' "$character_count" "$test_dir" "$character_count" | "$backend" --serve)"
+    jq -e --argjson count "$character_count" '.id == $count and .ok == true and .truncated == ($count > 65536)' <<<"$character_boundary" >/dev/null
+done
+
+# Thumbnail batches and directory completion have independent hard caps.
+thumbnail_items="["
+for _ in $(seq 1 65); do thumbnail_items+='{ "path": "relative" },'; done
+thumbnail_items="${thumbnail_items%,}]"
+thumbnail_boundary="$(printf '{"id":30,"method":"thumbnailBatch","params":{"items":%s}}\n' "$thumbnail_items" | "$backend" --serve)"
+jq -e '.id == 30 and .ok == false and (.error | contains("64"))' <<<"$thumbnail_boundary" >/dev/null
+mkdir -p -- "$test_dir/completion/apple" "$test_dir/completion/application" "$test_dir/completion/apricot"
+completion="$(printf '{"id":32,"method":"completeDirectories","params":{"parent":"%s/completion","prefix":"ap"}}\n' "$test_dir" | "$backend" --serve)"
+jq -e '.id == 32 and .ok == true and (.entries | length == 3) and ([.entries[].name] | sort == ["apple", "application", "apricot"])' <<<"$completion" >/dev/null
+
 # Diagnostic logs belong on stderr. Mixing them into stdout would break the
 # newline-delimited JSON protocol.
 protocol_out="$(printf '%s\n' '{"id":31,"method":"previewCapabilities","params":{}}' | FILESAIL_LOG=info "$backend" --serve 2>"$test_dir/backend.log")"

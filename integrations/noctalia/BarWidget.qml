@@ -34,8 +34,9 @@ Item {
             width: root.capsuleHeight * 0.58
             height: width
             source: "../../logo.png"
+            sourceSize: Qt.size(Math.ceil(root.contentWidth * 0.58), Math.ceil(root.contentHeight * 0.58))
             fillMode: Image.PreserveAspectFit
-            mipmap: true
+            mipmap: false
         }
     }
 

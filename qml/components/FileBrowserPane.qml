@@ -13,19 +13,25 @@ Item {
 
         MouseArea { anchors.fill: parent; onClicked: root.session.clearSelection() }
 
-        FileListView {
+        Loader {
+            id: listLoader
             anchors.fill: parent
-            session: root.session
-            visible: root.viewMode === "list"
-            model: root.viewMode === "list" ? root.session.directory.entries : null
+            active: root.viewMode === "list"
+            sourceComponent: FileListView {
+                session: root.session
+                model: root.session.directory.entries
+            }
         }
 
-        FileGridView {
+        Loader {
+            id: gridLoader
             anchors.fill: parent
             anchors.margins: Theme.spaceL
-            session: root.session
-            visible: root.viewMode === "grid"
-            model: root.viewMode === "grid" ? root.session.directory.entries : null
+            active: root.viewMode === "grid"
+            sourceComponent: FileGridView {
+                session: root.session
+                model: root.session.directory.entries
+            }
         }
 
         BrowserPaneStateOverlay {

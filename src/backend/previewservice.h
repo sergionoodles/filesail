@@ -2,9 +2,15 @@
 
 #include <QJsonObject>
 #include <QObject>
-#include <QSet>
+#include <QHash>
+#include <QJsonArray>
+#include <QStringList>
 
-class QEventLoop;
+#include "cancellation.h"
+
+#include <functional>
+
+class QTimer;
 
 class PreviewService final : public QObject
 {
@@ -13,9 +19,11 @@ class PreviewService final : public QObject
 public:
     explicit PreviewService(QObject *parent = nullptr);
     QJsonObject capabilities() const;
-    QJsonObject thumbnails(const QJsonObject &params);
-    QJsonObject text(const QJsonObject &params) const;
-    QJsonObject archive(const QJsonObject &params) const;
+    void thumbnails(int requestId, const QJsonObject &params, const CancellationToken &token,
+                   std::function<void(QJsonObject)> completed);
+    void cancelThumbnail(int requestId);
+    QJsonObject text(const QJsonObject &params, const CancellationToken &token = {}) const;
+    QJsonObject archive(const QJsonObject &params, const CancellationToken &token = {}) const;
 
 private:
     static QString localRegularFile(const QJsonObject &params, QString *error);
@@ -27,8 +35,16 @@ private slots:
     void tumblerFinished(uint handle);
 
 private:
-    uint m_tumblerHandle = 0;
-    QEventLoop *m_tumblerWaitLoop = nullptr;
-    QSet<QString> m_tumblerReadyUris;
-    QSet<QString> m_tumblerErrorUris;
+    struct ThumbnailRequest {
+        int requestId = -1;
+        uint tumblerHandle = 0;
+        QString flavor;
+        QJsonArray items;
+        CancellationToken token;
+        std::function<void(QJsonObject)> completed;
+    };
+
+    void finishThumbnail(int requestId);
+    QHash<int, ThumbnailRequest> m_thumbnailRequests;
+    QHash<uint, int> m_tumblerRequests;
 };

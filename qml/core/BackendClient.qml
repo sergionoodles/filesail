@@ -14,6 +14,7 @@ QtObject {
     property int nextRequestId: 1
     property var pendingLines: []
     property var pendingRequests: ({})
+    property int pendingRevision: 0
     property int requestTimeout: 30000
     property bool available: backend.running
     property bool rejectingRequests: false
@@ -29,14 +30,13 @@ QtObject {
         const id = nextRequestId++;
         const line = JSON.stringify({ id, method, params: params ?? {} }) + "\n";
         const timeoutMs = timeout === undefined ? requestTimeout : timeout;
-        const requests = Object.assign({}, pendingRequests);
-        requests[id] = {
+        pendingRequests[id] = {
             method: method,
             onSuccess: onSuccess,
             onFailure: onFailure,
             deadline: timeoutMs > 0 ? Date.now() + timeoutMs : 0
         };
-        pendingRequests = requests;
+        pendingRevision++;
         Logger.debug("backend", `→ ${id} ${method}`);
         if (backend.running)
             backend.write(line);
@@ -49,11 +49,23 @@ QtObject {
     }
 
     function cancel(id) {
+        const pending = pendingRequests[id];
+        if (!pending)
+            return;
+        delete pendingRequests[id];
+        pendingRevision++;
+        if (pending.method === "thumbnailBatch" || pending.method === "textPreview"
+                || pending.method === "archivePreview")
+            cancelPreview(id);
+        else if (pending.method === "list")
+            request("cancel", { requestId: id }, null, null, 0);
+    }
+
+    function forget(id) {
         if (!pendingRequests[id])
             return;
-        const requests = Object.assign({}, pendingRequests);
-        delete requests[id];
-        pendingRequests = requests;
+        delete pendingRequests[id];
+        pendingRevision++;
     }
 
     function cancelPreview(id) {
@@ -85,7 +97,7 @@ QtObject {
             response(id, message);
             return;
         }
-        cancel(id);
+        forget(id);
         Logger.debug("backend", `← ${id} ${pending.method} ok=${!!message.ok}`);
         if (message.ok) {
             if (pending.onSuccess)
@@ -134,6 +146,10 @@ QtObject {
 
     function listDirectory(params, onSuccess, onFailure) {
         return request("list", params, onSuccess, onFailure);
+    }
+
+    function completeDirectories(parent, prefix, onSuccess, onFailure) {
+        return request("completeDirectories", { parent, prefix }, onSuccess, onFailure);
     }
 
     function listLocations(onSuccess, onFailure) {

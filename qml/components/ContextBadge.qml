@@ -7,7 +7,7 @@ Rectangle {
     id: root
     required property var signalData
     readonly property var details: ContextBadgeCatalog.details(signalData ?? {})
-    readonly property color accent: details.accent
+    readonly property color accent: details.accent ?? "#9aa5ce"
     implicitWidth: content.implicitWidth + Theme.spaceM * 2
     implicitHeight: content.implicitHeight + Theme.spaceXs * 2
     radius: Theme.radiusS

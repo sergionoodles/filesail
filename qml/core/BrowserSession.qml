@@ -47,8 +47,8 @@ QtObject {
 
     function reconcileSelection() {
         const available = {};
-        for (let index = 0; index < directoryModel.count; index++)
-            available[directoryModel.entries.get(index).path] = true;
+        for (const entry of directoryModel.sourceEntries)
+            available[entry.path] = true;
         const next = {};
         for (const path of Object.keys(selectedPaths)) {
             if (available[path])
@@ -73,28 +73,11 @@ QtObject {
     }
 
     // Directory order is the only stable order shared by list and grid views.
-    // Keeping complete entries here also avoids preview code re-statting paths.
+    // Entries are retained by reference from the current immutable snapshot.
     function updateSelectedEntries() {
-        const ordered = [];
-        for (let index = 0; index < directoryModel.count; ++index) {
-            const entry = directoryModel.entries.get(index);
-            if (selectedPaths[entry.path]) {
-                // ListModel.get() returns a live proxy. Preview providers retain
-                // entries beyond this loop, so project them into plain values.
-                ordered.push({
-                    name: entry.name,
-                    path: entry.path,
-                    url: entry.url,
-                    mimeType: entry.mimeType,
-                    size: entry.size,
-                    modified: entry.modified,
-                    isDirectory: entry.isDirectory,
-                    isSymlink: entry.isSymlink,
-                    isReadable: entry.isReadable,
-                    iconName: entry.iconName
-                });
-            }
-        }
+        const paths = Object.keys(selectedPaths).filter(path => directoryModel.pathIndexes[path] !== undefined);
+        paths.sort((left, right) => directoryModel.pathIndexes[left] - directoryModel.pathIndexes[right]);
+        const ordered = paths.map(path => directoryModel.sourceEntries[directoryModel.pathIndexes[path]]);
         selectedEntries = ordered;
         selectionRevision++;
     }
@@ -231,7 +214,6 @@ QtObject {
             } else {
                 root.reconcileSelection();
             }
-            root.updateSelectedEntries();
         }
         onLoadFailed: message => root.pendingHistoryTarget = -1
         onLargeDirectoryWarning: (path, entryCountAtLeast) => {

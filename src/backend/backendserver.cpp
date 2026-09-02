@@ -23,7 +23,7 @@
 
 namespace {
 constexpr qsizetype maximumRequestBytes = 8 * 1024 * 1024;
-constexpr qsizetype maximumActiveJobs = 256;
+constexpr qsizetype maximumActiveJobs = 64;
 
 QJsonObject failure(const QString &message)
 {
@@ -140,15 +140,18 @@ void BackendServer::readRequests()
     }
 
     qsizetype newline = -1;
-    while ((newline = m_requestBuffer.indexOf('\n')) >= 0) {
-        const QByteArray frame = m_requestBuffer.first(newline).trimmed();
-        m_requestBuffer.remove(0, newline + 1);
+    qsizetype consumed = 0;
+    while ((newline = m_requestBuffer.indexOf('\n', consumed)) >= 0) {
+        const QByteArray frame = m_requestBuffer.mid(consumed, newline - consumed).trimmed();
+        consumed = newline + 1;
         if (frame.size() > maximumRequestBytes) {
             writeResponse({{"id", -1}, {"ok", false}, {"error", "Request exceeds 8 MiB limit"}});
         } else if (!frame.isEmpty()) {
             handleRequest(frame);
         }
     }
+    if (consumed > 0)
+        m_requestBuffer.remove(0, consumed);
 }
 
 void BackendServer::handleRequest(const QByteArray &line)
@@ -168,39 +171,66 @@ void BackendServer::handleRequest(const QByteArray &line)
                 QStringLiteral("request id=%1 method=%2").arg(id).arg(method));
 
     if (method == "list") {
-        enqueueOperation(id, m_readPool, [params] { return FileOperations::listDirectory(params); });
+        enqueueOperation(id, m_readPool, [params](const CancellationToken &token) { return FileOperations::listDirectory(params, token); });
+    } else if (method == "completeDirectories") {
+        enqueueOperation(id, m_readPool, [params](const CancellationToken &token) { return FileOperations::completeDirectories(params, token); });
     } else if (method == "locations.list") {
         ensureSavedLocationsWatch();
-        enqueueOperation(id, m_readPool, [] { return SavedLocations::list(); });
+        enqueueOperation(id, m_readPool, [](const CancellationToken &) { return SavedLocations::list(); }, false);
     } else if (method == "locations.add") {
         ensureSavedLocationsWatch();
-        enqueueOperation(id, m_mutationPool, [params] { return SavedLocations::add(params); });
+        enqueueOperation(id, m_mutationPool, [params](const CancellationToken &) { return SavedLocations::add(params); }, false);
     } else if (method == "locations.remove") {
         ensureSavedLocationsWatch();
-        enqueueOperation(id, m_mutationPool, [params] { return SavedLocations::remove(params); });
+        enqueueOperation(id, m_mutationPool, [params](const CancellationToken &) { return SavedLocations::remove(params); }, false);
     } else if (method == "mkdir") {
-        enqueueOperation(id, m_mutationPool, [params] { return FileOperations::createDirectory(params); });
+        enqueueOperation(id, m_mutationPool, [params](const CancellationToken &) { return FileOperations::createDirectory(params); }, false);
     } else if (method == "rename") {
-        enqueueOperation(id, m_mutationPool, [params] { return FileOperations::renamePath(params); });
+        enqueueOperation(id, m_mutationPool, [params](const CancellationToken &) { return FileOperations::renamePath(params); }, false);
     } else if (method == "trash") {
-        enqueueOperation(id, m_mutationPool, [params] { return FileOperations::trashPaths(params); });
+        enqueueOperation(id, m_mutationPool, [params](const CancellationToken &) { return FileOperations::trashPaths(params); }, false);
     } else if (method == "copy") {
-        enqueueOperation(id, m_mutationPool, [params] { return FileOperations::copyPaths(params); });
+        enqueueOperation(id, m_mutationPool, [params](const CancellationToken &) { return FileOperations::copyPaths(params); }, false);
     } else if (method == "move") {
-        enqueueOperation(id, m_mutationPool, [params] { return FileOperations::movePaths(params); });
+        enqueueOperation(id, m_mutationPool, [params](const CancellationToken &) { return FileOperations::movePaths(params); }, false);
     } else if (method == "open") {
-        enqueueOperation(id, m_readPool, [params] { return FileOperations::openPath(params); });
+        enqueueOperation(id, m_readPool, [params](const CancellationToken &) { return FileOperations::openPath(params); }, false);
     } else if (method == "terminal") {
-        enqueueOperation(id, m_readPool, [params] { return FileOperations::openTerminal(params); });
+        enqueueOperation(id, m_readPool, [params](const CancellationToken &) { return FileOperations::openTerminal(params); }, false);
     } else if (method == "previewCapabilities") {
         QJsonObject result = m_previewService->capabilities(); result.insert("id", id); writeResponse(result);
     } else if (method == "thumbnailBatch") {
-        QJsonObject result = m_previewService->thumbnails(params); result.insert("id", id); writeResponse(result);
+        if (m_activeJobs >= maximumActiveJobs) {
+            writeResponse({{"id", id}, {"ok", false}, {"error", "Backend job queue is full"}});
+            return;
+        }
+        const CancellationToken token = std::make_shared<std::atomic_bool>(false);
+        m_cancellationTokens.insert(id, token);
+        ++m_activeJobs;
+        m_previewService->thumbnails(id, params, token, [this, id, token](QJsonObject result) {
+            const bool canceled = cancellationRequested(token);
+            m_cancellationTokens.remove(id);
+            if (!canceled) { result.insert("id", id); writeResponse(result); }
+            --m_activeJobs;
+            if (m_inputClosed && m_activeJobs == 0) QCoreApplication::quit();
+        });
     } else if (method == "textPreview") {
-        enqueueOperation(id, m_readPool, [this, params] { return m_previewService->text(params); });
+        enqueueOperation(id, m_readPool, [this, params](const CancellationToken &token) { return m_previewService->text(params, token); });
     } else if (method == "archivePreview") {
-        enqueueOperation(id, m_readPool, [this, params] { return m_previewService->archive(params); });
+        enqueueOperation(id, m_readPool, [this, params](const CancellationToken &token) { return m_previewService->archive(params, token); });
     } else if (method == "cancelPreview") {
+        const int requestId = params.value("requestId").toInt(-1);
+        if (const auto token = m_cancellationTokens.value(requestId)) {
+            token->store(true, std::memory_order_relaxed);
+            m_previewService->cancelThumbnail(requestId);
+        }
+        writeResponse({{"id", id}, {"ok", true}});
+    } else if (method == "cancel") {
+        const int requestId = params.value("requestId").toInt(-1);
+        if (const auto token = m_cancellationTokens.value(requestId)) {
+            token->store(true, std::memory_order_relaxed);
+            m_previewService->cancelThumbnail(requestId);
+        }
         writeResponse({{"id", id}, {"ok", true}});
     } else {
         QJsonObject result;
@@ -245,7 +275,8 @@ void BackendServer::emitSavedLocationsChanged()
 }
 
 void BackendServer::enqueueOperation(int id, QThreadPool &pool,
-                                     std::function<QJsonObject()> operation)
+                                     std::function<QJsonObject(const CancellationToken &)> operation,
+                                     bool cancellable)
 {
     if (m_activeJobs >= maximumActiveJobs) {
         QJsonObject result = failure("Backend job queue is full");
@@ -255,20 +286,24 @@ void BackendServer::enqueueOperation(int id, QThreadPool &pool,
     }
 
     auto *watcher = new QFutureWatcher<QJsonObject>(this);
+    const CancellationToken token = cancellable ? std::make_shared<std::atomic_bool>(false) : CancellationToken{};
+    if (cancellable)
+        m_cancellationTokens.insert(id, token);
     ++m_activeJobs;
-    connect(watcher, &QFutureWatcher<QJsonObject>::finished, this, [this, watcher, id] {
+    connect(watcher, &QFutureWatcher<QJsonObject>::finished, this, [this, watcher, id, token, cancellable] {
         QJsonObject result = watcher->result();
-        result.insert("id", id);
-        writeResponse(result);
+        const bool canceled = cancellationRequested(token);
+        if (cancellable) m_cancellationTokens.remove(id);
+        if (!canceled) { result.insert("id", id); writeResponse(result); }
         watcher->deleteLater();
 
         --m_activeJobs;
         if (m_inputClosed && m_activeJobs == 0)
             QCoreApplication::quit();
     });
-    watcher->setFuture(QtConcurrent::run(&pool, [operation = std::move(operation)] {
+    watcher->setFuture(QtConcurrent::run(&pool, [operation = std::move(operation), token] {
         try {
-            return operation();
+            return operation(token);
         } catch (const std::exception &exception) {
             return failure(QStringLiteral("Backend operation failed: %1")
                                .arg(QString::fromLocal8Bit(exception.what())));

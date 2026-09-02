@@ -3,9 +3,7 @@ pragma Singleton
 import QtQuick
 
 QtObject {
-    function details(signal) {
-        signal = signal ?? {};
-        const entries = {
+    readonly property var entries: ({
             "agent-instructions": [qsTr("Agent instructions"), "bot", "#7aa2f7"],
             claude: [qsTr("Claude Code"), "bot", "#ff9e64"],
             gemini: [qsTr("Gemini CLI"), "bot", "#7dcfff"],
@@ -24,7 +22,9 @@ QtObject {
             php: [qsTr("PHP"), "code-2", "#9d7cd8"],
             swift: [qsTr("Swift"), "code-2", "#fca7ea"],
             dotnet: [qsTr(".NET"), "code-2", "#c4a7e7"]
-        };
+        })
+    function details(signal) {
+        signal = signal ?? {};
         const entry = entries[signal.id] ?? [qsTr("Folder marker"), "folder", "#9aa5ce"];
         return { label: entry[0], iconName: entry[1], accent: entry[2], evidence: signal.evidence ?? [] };
     }

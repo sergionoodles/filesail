@@ -8,8 +8,12 @@ QtObject {
     id: root
 
     property var theme: null
-    property var colors: ({})
-    property var metrics: ({})
+    property var colors: ({
+        primary: "#7aa2f7", primaryText: "#16161e", surface: "#1a1b26",
+        surfaceVariant: "#24283b", text: "#c0caf5", textMuted: "#9aa5ce",
+        outline: "#353d57", error: "#f7768e", errorText: "#16161e"
+    })
+    property var metrics: ({ appearance: "dark", scale: 1, radiusRatio: 1, animationFast: 150 })
     readonly property string configDir: {
         const configured = String(Quickshell.env("NOCTALIA_CONFIG_DIR") ?? "");
         if (configured.length > 0)

@@ -4,17 +4,23 @@
 #include <QJsonArray>
 
 #include <algorithm>
-#include <filesystem>
 #include <system_error>
 
 namespace {
-using Type = FolderContextEntry::Type;
-
-bool hasEntry(const std::vector<FolderContextEntry> &entries, const QString &name, Type type)
+QJsonObject signal(const char *id, const char *category, const QStringList &evidence)
 {
-    return std::any_of(entries.cbegin(), entries.cend(), [&](const auto &entry) {
-        return entry.name == name && entry.type == type;
-    });
+    QJsonArray values;
+    for (const QString &item : evidence) values.append(item);
+    return {{"id", QString::fromLatin1(id)}, {"category", QString::fromLatin1(category)}, {"evidence", values}};
+}
+
+QJsonObject signalIf(const char *id, const char *category, QStringList evidence)
+{
+    evidence.removeAll({});
+    if (evidence.isEmpty()) return {};
+    std::sort(evidence.begin(), evidence.end());
+    evidence.removeDuplicates();
+    return signal(id, category, evidence.sliced(0, std::min<qsizetype>(3, evidence.size())));
 }
 
 bool isRegularFile(const std::filesystem::path &path)
@@ -28,96 +34,68 @@ bool isDirectory(const std::filesystem::path &path)
     std::error_code error;
     return std::filesystem::is_directory(std::filesystem::symlink_status(path, error));
 }
-
-QJsonObject signal(const char *id, const char *category, const QStringList &evidence)
-{
-    QJsonArray jsonEvidence;
-    for (const QString &item : evidence)
-        jsonEvidence.append(item);
-    return {{"id", QString::fromLatin1(id)}, {"category", QString::fromLatin1(category)},
-            {"evidence", jsonEvidence}};
 }
 
-QStringList extensionEvidence(const std::vector<FolderContextEntry> &entries,
-                              const QStringList &extensions)
+void FolderContextAccumulator::addEvidence(QStringList &target, const QString &name)
 {
-    QStringList names;
-    for (const auto &entry : entries) {
-        if (entry.type != Type::RegularFile)
-            continue;
-        for (const QString &extension : extensions) {
-            if (entry.name.endsWith(extension, Qt::CaseSensitive)) {
-                names.append(entry.name);
-                break;
-            }
-        }
-    }
-    std::sort(names.begin(), names.end());
-    names.removeDuplicates();
-    return names.sliced(0, std::min<qsizetype>(3, names.size()));
-}
+    if (!target.contains(name)) target.append(name);
 }
 
-QJsonObject FolderContextDetector::detect(const QString &directoryPath,
-                                          const std::vector<FolderContextEntry> &entries)
+void FolderContextAccumulator::add(const QString &name, bool regularFile, bool directory)
 {
-    QJsonArray contextSignals;
-    const auto add = [&](const char *id, const char *category, QStringList evidence) {
-        evidence.removeAll({});
-        if (!evidence.isEmpty())
-            contextSignals.append(signal(id, category, evidence));
+    auto marker = [&](const QString &file, const QString &dir, QStringList &target) {
+        if (regularFile && name == file) addEvidence(target, file);
+        if (directory && name == dir) addEvidence(target, dir);
     };
-    const auto file = [&](const QString &name) { return hasEntry(entries, name, Type::RegularFile); };
-    const auto directory = [&](const QString &name) { return hasEntry(entries, name, Type::Directory); };
-
-    add("agent-instructions", "ai", {file("AGENTS.md") ? "AGENTS.md" : QString(),
-                                        file("AGENTS.override.md") ? "AGENTS.override.md" : QString(),
-                                        directory(".agents") ? ".agents" : QString()});
-    add("claude", "ai", {file("CLAUDE.md") ? "CLAUDE.md" : QString(),
-                            directory(".claude") ? ".claude" : QString()});
-    add("gemini", "ai", {file("GEMINI.md") ? "GEMINI.md" : QString(),
-                            directory(".gemini") ? ".gemini" : QString()});
-    add("cursor", "ai", {directory(".cursor") ? ".cursor" : QString(),
-                            file(".cursorrules") ? ".cursorrules" : QString()});
-    add("windsurf", "ai", {directory(".windsurf") ? ".windsurf" : QString(),
-                              file(".windsurfrules") ? ".windsurfrules" : QString()});
-
-    // Copilot's two markers are the only fixed nested probes. Both the parent
-    // and the marker must be real directories/files, never symlinks.
-    QStringList copilot;
-    const std::filesystem::path root(QFile::encodeName(directoryPath).constData());
-    if (directory(".github")) {
-        const auto github = root / ".github";
-        if (isDirectory(github / "instructions"))
-            copilot.append(".github/instructions/");
-        if (isRegularFile(github / "copilot-instructions.md"))
-            copilot.append(".github/copilot-instructions.md");
+    marker("AGENTS.md", ".agents", m_agent);
+    marker("CLAUDE.md", ".claude", m_claude);
+    marker("GEMINI.md", ".gemini", m_gemini);
+    marker(".cursorrules", ".cursor", m_cursor);
+    marker(".windsurfrules", ".windsurf", m_windsurf);
+    if (directory && name == ".github") {
+        const std::filesystem::path root(QFile::encodeName(m_directoryPath).constData());
+        if (isDirectory(root / ".github" / "instructions")) addEvidence(m_copilot, ".github/instructions/");
+        if (isRegularFile(root / ".github" / "copilot-instructions.md")) addEvidence(m_copilot, ".github/copilot-instructions.md");
     }
-    add("copilot", "ai", copilot);
+    if ((regularFile || directory) && (name == ".git")) m_git = true;
+    if (regularFile && name == "package.json") m_node = true;
+    if (regularFile && name == "tsconfig.json") m_typescript = true;
+    if (regularFile && (name == "pyproject.toml" || name == "setup.py" || name == "Pipfile" || name == "requirements.txt")) { m_python = true; addEvidence(m_pythonEvidence, name); }
+    if (regularFile && name == "Cargo.toml") m_rust = true;
+    if (regularFile && name == "go.mod") m_go = true;
+    if (regularFile && (name == "pom.xml" || name == "build.gradle" || name == "build.gradle.kts")) { m_jvm = true; addEvidence(m_jvmEvidence, name); }
+    if (regularFile && name == "Gemfile") m_ruby = true;
+    if (regularFile && name == "composer.json") m_php = true;
+    if (regularFile && name == "Package.swift") m_swift = true;
+    if (regularFile && (name == "CMakeLists.txt" || name == "meson.build")) addEvidence(m_cpp, name);
+    if (regularFile && (name.endsWith(".c") || name.endsWith(".cc") || name.endsWith(".cpp") || name.endsWith(".h") || name.endsWith(".hpp"))) addEvidence(m_cpp, name);
+    if (regularFile && (name.endsWith(".sln") || name.endsWith(".csproj") || name.endsWith(".fsproj"))) addEvidence(m_dotnet, name);
+}
 
-    if (directory(".git") || file(".git"))
-        add("git", "vcs", {".git"});
-    add("node", "technology", file("package.json") ? QStringList{"package.json"} : QStringList{});
-    add("typescript", "technology", file("tsconfig.json") ? QStringList{"tsconfig.json"} : QStringList{});
-    add("python", "technology", {file("pyproject.toml") ? "pyproject.toml" : QString(),
-                                     file("setup.py") ? "setup.py" : QString(),
-                                     file("Pipfile") ? "Pipfile" : QString(),
-                                     file("requirements.txt") ? "requirements.txt" : QString()});
-    add("rust", "technology", file("Cargo.toml") ? QStringList{"Cargo.toml"} : QStringList{});
-    add("go", "technology", file("go.mod") ? QStringList{"go.mod"} : QStringList{});
-    add("jvm", "technology", {file("pom.xml") ? "pom.xml" : QString(),
-                                  file("build.gradle") ? "build.gradle" : QString(),
-                                  file("build.gradle.kts") ? "build.gradle.kts" : QString()});
-    QStringList cppEvidence{file("CMakeLists.txt") ? "CMakeLists.txt" : QString(),
-                            file("meson.build") ? "meson.build" : QString()};
-    cppEvidence.removeAll({});
-    cppEvidence.append(extensionEvidence(entries, {".c", ".cc", ".cpp", ".h", ".hpp"}));
-    cppEvidence = cppEvidence.sliced(0, std::min<qsizetype>(3, cppEvidence.size()));
-    add("cpp", "technology", cppEvidence);
-    add("ruby", "technology", file("Gemfile") ? QStringList{"Gemfile"} : QStringList{});
-    add("php", "technology", file("composer.json") ? QStringList{"composer.json"} : QStringList{});
-    add("swift", "technology", file("Package.swift") ? QStringList{"Package.swift"} : QStringList{});
-    add("dotnet", "technology", extensionEvidence(entries, {".sln", ".csproj", ".fsproj"}));
-
-    return {{"version", 1}, {"signals", contextSignals}};
+QJsonObject FolderContextAccumulator::result() const
+{
+    QJsonArray signalArray;
+    const auto add = [&](const char *id, const char *category, QStringList evidence) {
+        const QJsonObject item = signalIf(id, category, std::move(evidence));
+        if (!item.isEmpty()) signalArray.append(item);
+    };
+    add("agent-instructions", "ai", m_agent);
+    add("claude", "ai", m_claude);
+    add("gemini", "ai", m_gemini);
+    add("cursor", "ai", m_cursor);
+    add("windsurf", "ai", m_windsurf);
+    add("copilot", "ai", m_copilot);
+    if (m_git) add("git", "vcs", {".git"});
+    if (m_node) add("node", "technology", {"package.json"});
+    if (m_typescript) add("typescript", "technology", {"tsconfig.json"});
+    if (m_python) add("python", "technology", m_pythonEvidence);
+    if (m_rust) add("rust", "technology", {"Cargo.toml"});
+    if (m_go) add("go", "technology", {"go.mod"});
+    if (m_jvm) add("jvm", "technology", m_jvmEvidence);
+    add("cpp", "technology", m_cpp);
+    if (m_ruby) add("ruby", "technology", {"Gemfile"});
+    if (m_php) add("php", "technology", {"composer.json"});
+    if (m_swift) add("swift", "technology", {"Package.swift"});
+    add("dotnet", "technology", m_dotnet);
+    return {{"version", 1}, {"signals", signalArray}};
 }

@@ -9,6 +9,7 @@ GridView {
     required property var session
 
     clip: true
+    reuseItems: true
     cacheBuffer: gridView.cellHeight * 2
     cellWidth: 118 * Theme.scale
     cellHeight: 112 * Theme.scale
@@ -29,6 +30,7 @@ GridView {
     delegate: Rectangle {
         id: gridDelegate
         required property int index
+        required property var modelData
         required property string name
         required property string path
         required property bool isDirectory
@@ -49,8 +51,8 @@ GridView {
             anchors.centerIn: parent
             width: parent.width - Theme.spaceM * 2
             spacing: Theme.spaceS
-            FileVisual { width: 46 * Theme.scale; height: 46 * Theme.scale; anchors.horizontalCenter: parent.horizontalCenter
-                entry: ({ name: gridDelegate.name, path: gridDelegate.path, isDirectory: gridDelegate.isDirectory, iconName: gridDelegate.iconName, mimeType: gridDelegate.mimeType, size: gridDelegate.size, modified: gridDelegate.modified })
+            FileVisual { id: gridVisual; width: 46 * Theme.scale; height: 46 * Theme.scale; anchors.horizontalCenter: parent.horizontalCenter
+                entry: gridDelegate.modelData
                 selected: gridView.session.selectedPaths[gridDelegate.path] ?? false }
             Text { width: parent.width; text: Format.safeText(gridDelegate.name); textFormat: Text.PlainText; color: Theme.text; font.pixelSize: Theme.fontBody; horizontalAlignment: Text.AlignHCenter; elide: Text.ElideRight; maximumLineCount: 2; wrapMode: Text.Wrap }
         }
@@ -65,5 +67,7 @@ GridView {
             Keys.onEnterPressed: gridView.session.openEntry(gridDelegate.path, gridDelegate.isDirectory)
             Keys.onSpacePressed: gridView.session.select(gridDelegate.path, Qt.NoModifier)
         }
+        GridView.onPooled: gridVisual.releaseConsumer()
+        GridView.onReused: gridVisual.acquireConsumer()
     }
 }

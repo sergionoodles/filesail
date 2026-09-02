@@ -7,6 +7,8 @@
 #include <QObject>
 #include <QThreadPool>
 
+#include "cancellation.h"
+
 #include <functional>
 
 class QFileSystemWatcher;
@@ -27,7 +29,8 @@ private:
     void handleRequest(const QByteArray &line);
     void writeResponse(const QJsonObject &response);
     void enqueueOperation(int id, QThreadPool &pool,
-                          std::function<QJsonObject()> operation);
+                          std::function<QJsonObject(const CancellationToken &)> operation,
+                          bool cancellable = true);
     QJsonObject addDirectoryWatch(const QJsonObject &params);
     QJsonObject removeDirectoryWatch(const QJsonObject &params);
     void ensureSavedLocationsWatch();
@@ -44,6 +47,7 @@ private:
     QThreadPool m_mutationPool;
     PreviewService *m_previewService = nullptr;
     QHash<QString, qsizetype> m_directoryWatchCounts;
+    QHash<int, CancellationToken> m_cancellationTokens;
     qsizetype m_activeJobs = 0;
     bool m_inputClosed = false;
 };

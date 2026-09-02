@@ -2,6 +2,7 @@
 #include "foldercontext.h"
 
 #include <QDateTime>
+#include <QCollator>
 #include <QDir>
 #include <QFile>
 #include <QFileInfo>
@@ -13,6 +14,7 @@
 #include <QStandardPaths>
 #include <QUuid>
 #include <QUrl>
+#include <QVector>
 
 #include <algorithm>
 #include <cerrno>
@@ -629,7 +631,7 @@ QJsonObject transferPaths(const QJsonObject &params, bool move)
 
 namespace FileOperations {
 
-QJsonObject listDirectory(const QJsonObject &params)
+QJsonObject listDirectory(const QJsonObject &params, const CancellationToken &token)
 {
     QString error;
     const QString requestedPath = requiredPath(params, "path", &error);
@@ -648,16 +650,21 @@ QJsonObject listDirectory(const QJsonObject &params)
     const bool allowLargeDirectory = params.value("allowLargeDirectory").toBool(false);
     const QString query = params.value("filter").toString().trimmed();
     QFileInfoList entries;
-    std::vector<FolderContextEntry> contextEntries;
+    FolderContextAccumulator context(path);
     const bool includeContext = params.value("includeContext").toBool(false);
     std::error_code enumerationError;
     std::filesystem::directory_iterator iterator(fileSystemPath(path), enumerationError);
     const std::filesystem::directory_iterator end;
     constexpr qsizetype largeDirectoryWarningThreshold = 5000;
+    constexpr qsizetype maximumConfirmedDirectoryEntries = 50000;
     qsizetype entryCount = 0;
     qsizetype unsafeEntryCount = 0;
     while (!enumerationError && iterator != end) {
+        if (cancellationRequested(token))
+            return {};
         ++entryCount;
+        if (allowLargeDirectory && entryCount > maximumConfirmedDirectoryEntries)
+            return failure(QStringLiteral("Directory exceeds the %1-entry safety limit").arg(maximumConfirmedDirectoryEntries));
         if (!allowLargeDirectory && entryCount > largeDirectoryWarningThreshold) {
             return failure(QStringLiteral("Directory contains more than %1 entries; confirmation is required before loading it")
                                .arg(largeDirectoryWarningThreshold),
@@ -675,14 +682,8 @@ QJsonObject listDirectory(const QJsonObject &params)
         if (includeContext) {
             std::error_code statusError;
             const auto status = iterator->symlink_status(statusError);
-            FolderContextEntry::Type type = FolderContextEntry::Type::Other;
-            if (!statusError) {
-                if (std::filesystem::is_regular_file(status))
-                    type = FolderContextEntry::Type::RegularFile;
-                else if (std::filesystem::is_directory(status))
-                    type = FolderContextEntry::Type::Directory;
-            }
-            contextEntries.push_back({name, type});
+            if (!statusError)
+                context.add(name, std::filesystem::is_regular_file(status), std::filesystem::is_directory(status));
         }
         // Active staging entries are an internal implementation detail and
         // must not appear during concurrent directory refreshes. Matching
@@ -700,6 +701,9 @@ QJsonObject listDirectory(const QJsonObject &params)
 
     const QString sortBy = params.value("sortBy").toString("name");
     const bool descending = params.value("descending").toBool(false);
+    if (cancellationRequested(token))
+        return {};
+    QCollator collator;
     std::sort(entries.begin(), entries.end(), [&](const QFileInfo &left, const QFileInfo &right) {
         if (left.isDir() != right.isDir())
             return left.isDir();
@@ -712,13 +716,15 @@ QJsonObject listDirectory(const QJsonObject &params)
         else if (sortBy == "type")
             comparison = QString::compare(left.suffix(), right.suffix(), Qt::CaseInsensitive);
         if (comparison == 0)
-            comparison = QString::localeAwareCompare(left.fileName(), right.fileName());
+            comparison = collator.compare(left.fileName(), right.fileName());
         return descending ? comparison > 0 : comparison < 0;
     });
 
     QMimeDatabase mimeDatabase;
     QJsonArray jsonEntries;
     for (const QFileInfo &info : entries) {
+        if (cancellationRequested(token))
+            return {};
         const auto mime = info.isDir()
             ? mimeDatabase.mimeTypeForName("inode/directory")
             : mimeDatabase.mimeTypeForFile(info, QMimeDatabase::MatchExtension);
@@ -744,9 +750,42 @@ QJsonObject listDirectory(const QJsonObject &params)
                        {"parentPath", QDir(path).absolutePath() == "/" ? "/" : QFileInfo(path).dir().absolutePath()},
                        {"entries", jsonEntries},
                        {"unsafeEntryCount", static_cast<double>(unsafeEntryCount)}};
+    if (cancellationRequested(token))
+        return {};
     if (includeContext)
-        result.insert("context", FolderContextDetector::detect(path, contextEntries));
+        result.insert("context", context.result());
     return success(result);
+}
+
+QJsonObject completeDirectories(const QJsonObject &params, const CancellationToken &token)
+{
+    QString error;
+    const QString parent = requiredPath(params, "parent", &error);
+    if (!error.isEmpty()) return failure(error);
+    const QFileInfo parentInfo(parent);
+    if (!parentInfo.isDir()) return failure(QStringLiteral("Directory does not exist: %1").arg(parent));
+    const QString prefix = params.value("prefix").toString();
+    constexpr int maximumResults = 8;
+    QVector<QPair<QString, QString>> matches;
+    std::error_code enumerationError;
+    std::filesystem::directory_iterator iterator(fileSystemPath(parent), enumerationError);
+    const std::filesystem::directory_iterator end;
+    while (!enumerationError && iterator != end) {
+        if (cancellationRequested(token)) return {};
+        if (!isRoundTrippableFileSystemPath(iterator->path())) { iterator.increment(enumerationError); continue; }
+        const QFileInfo info(qtPath(iterator->path()));
+        if (info.isDir() && info.fileName().startsWith(prefix, Qt::CaseInsensitive))
+            matches.append({info.fileName(), info.absoluteFilePath()});
+        iterator.increment(enumerationError);
+    }
+    if (enumerationError) return failure(QStringLiteral("Could not enumerate directory %1").arg(parent));
+    std::sort(matches.begin(), matches.end(), [](const auto &left, const auto &right) {
+        return QString::localeAwareCompare(left.first, right.first) < 0;
+    });
+    QJsonArray results;
+    for (int index = 0; index < std::min<qsizetype>(maximumResults, matches.size()); ++index)
+        results.append(QJsonObject{{"name", matches.at(index).first}, {"path", matches.at(index).second}});
+    return success({{"entries", results}});
 }
 
 QJsonObject createDirectory(const QJsonObject &params)

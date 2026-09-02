@@ -59,14 +59,6 @@ Rectangle {
             }
         }
 
-        Rectangle {
-            Layout.preferredWidth: 1
-            Layout.fillHeight: true
-            Layout.topMargin: Theme.spaceS
-            Layout.bottomMargin: Theme.spaceS
-            color: Theme.divider
-        }
-
         RowLayout {
             spacing: Theme.spaceXs
 

@@ -124,6 +124,13 @@ ColumnLayout {
             IconButton { iconName: "trash-2"; iconSize: root.actionIconSize; enabled: root.trashAction.enabled; tooltip: root.trashAction.text; onClicked: root.trashAction.trigger() }
 
             IconButton { iconName: "image"; iconSize: root.actionIconSize; checked: root.previewAction.checked; tooltip: root.previewAction.text; onClicked: root.previewAction.trigger() }
+
+            FolderContextBar {
+                Layout.fillWidth: true
+                Layout.fillHeight: true
+                Layout.leftMargin: Theme.spaceM
+                folderContext: root.session.directory.folderContext
+            }
         }
     }
 
@@ -145,10 +152,6 @@ ColumnLayout {
             onTriggered: root.hiddenFilesAction.trigger()
         }
     }
-
-    Rectangle { Layout.fillWidth: true; implicitHeight: 1; color: Qt.alpha(Theme.outline, 0.5) }
-
-    FolderContextBar { Layout.fillWidth: true; folderContext: root.session.directory.folderContext }
 
     Rectangle { Layout.fillWidth: true; implicitHeight: 1; color: Qt.alpha(Theme.outline, 0.5) }
 }

@@ -90,6 +90,7 @@ Rectangle {
     Menu {
         id: overflowMenu
         width: 220 * Theme.scale
+        delegate: ThemedMenuItem {}
 
         background: Rectangle {
             color: Theme.surfaceVariant
@@ -97,7 +98,7 @@ Rectangle {
             border.color: Theme.divider
         }
 
-        MenuItem {
+        ThemedMenuItem {
             text: root.hiddenFilesAction.text
             checkable: true
             checked: root.hiddenFilesAction.checked
@@ -111,7 +112,7 @@ Rectangle {
                 color: Theme.divider
             }
         }
-        MenuItem {
+        ThemedMenuItem {
             text: root.aboutAction.text
             enabled: root.aboutAction.enabled
             onTriggered: root.aboutAction.trigger()

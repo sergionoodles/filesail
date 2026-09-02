@@ -1,5 +1,5 @@
 pkgname=filesail
-pkgver=0.1.0
+pkgver="$(bash "$startdir/scripts/read-version.sh")"
 pkgrel=1
 pkgdesc='Quickshell-native file manager'
 arch=('x86_64')

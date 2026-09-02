@@ -11,6 +11,8 @@ if [[ ! -x "$backend" ]]; then
     exit 1
 fi
 
+"$project_dir/scripts/generate-manifest.sh" "$project_dir/manifest.json"
+
 if [[ -e "$plugin_dir" && ! -L "$plugin_dir" ]]; then
     printf 'Refusing to replace existing non-symlink plugin directory: %s\n' "$plugin_dir" >&2
     exit 1

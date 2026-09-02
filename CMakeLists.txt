@@ -1,6 +1,10 @@
 cmake_minimum_required(VERSION 3.24)
 
-set(FILESAIL_VERSION "2026.9.1" CACHE STRING "FileSail project version")
+file(READ "${CMAKE_CURRENT_SOURCE_DIR}/VERSION" FILESAIL_VERSION)
+string(STRIP "${FILESAIL_VERSION}" FILESAIL_VERSION)
+if(NOT FILESAIL_VERSION MATCHES "^[0-9]+\\.[0-9]+\\.[0-9]+$")
+    message(FATAL_ERROR "VERSION must contain a numeric major.minor.patch version")
+endif()
 project(FileSail VERSION ${FILESAIL_VERSION} LANGUAGES CXX)
 
 if(NOT CMAKE_SYSTEM_NAME STREQUAL "Linux")
@@ -93,6 +97,7 @@ add_test(
 add_test(
     NAME manifest-version-consistency
     COMMAND ${CMAKE_COMMAND}
+        -DVERSION_FILE=${CMAKE_CURRENT_SOURCE_DIR}/VERSION
         -DPROJECT_VERSION=${PROJECT_VERSION}
         -DMANIFEST=${CMAKE_CURRENT_BINARY_DIR}/manifest.json
         -P ${CMAKE_CURRENT_SOURCE_DIR}/tests/check-manifest-version.cmake

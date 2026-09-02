@@ -70,9 +70,11 @@ installs `filesail-backend` and the `filesail` launcher in the configured bindir
 and installs `shell.qml`, the QML tree, desktop entry, and the Noctalia adapter
 under `share/filesail`. The root-level `shell.qml` remains the sole standalone
 host; `hosts/standalone` is reserved until there is a second standalone host
-implementation. The installed manifest is configured from `PROJECT_VERSION`.
-Noctalia development remains supported by `scripts/install-noctalia.sh`, which
-intentionally symlinks the checkout.
+implementation. Release metadata has one source of truth in the root `VERSION`
+file; CMake derives `PROJECT_VERSION` from it and configures the installed
+manifest. The Noctalia development installer generates the same manifest in
+the checkout when needed. Noctalia development remains supported by
+`scripts/install-noctalia.sh`, which intentionally symlinks the checkout.
 
 ## Deliberate MVP boundaries
 

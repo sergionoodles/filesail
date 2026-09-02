@@ -46,7 +46,7 @@ first run.
 
 ```sh
 ./scripts/build-appimage.sh
-./dist/FileSail-0.1.0-x86_64.AppImage
+./dist/FileSail-$(tr -d '\n' < VERSION)-x86_64.AppImage
 ```
 
 Use `FILESAIL_QS_PATH` when the Quickshell executable is not named `qs` or
@@ -95,3 +95,9 @@ for previews.
 
 See [docs/architecture.md](docs/architecture.md) for module boundaries and MVP
 trade-offs.
+
+## Release version
+
+The application version is defined once in [`VERSION`](VERSION). CMake, the
+Noctalia manifest, AppImage packaging, Arch packaging, and release validation
+derive their versions from that file.

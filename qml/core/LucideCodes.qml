@@ -5,7 +5,7 @@ import QtQuick
 QtObject {
     readonly property var values: ({
         "arrow-left": 57416, "arrow-right": 57417, "arrow-up": 57418,
-        "chevron-right": 57455, "copy": 57502, "eye": 57530, "eye-off": 57531,
+        "check": 57452, "chevron-right": 57455, "copy": 57502, "eye": 57530, "eye-off": 57531,
         "folder": 57559, "folder-plus": 57561, "house": 57589, "list": 57606,
         "layout-grid": 57599, "layout-list": 57817, "ellipsis-vertical": 57527,
         "monitor": 57629, "scissors": 57678, "search": 57681, "square-pen": 57714,

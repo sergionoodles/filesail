@@ -1,6 +1,7 @@
 # CMake build trees (the documented build directory and in-source builds)
 /build/
 /build-appimage/
+/manifest.json
 /CMakeCache.txt
 /CMakeFiles/
 /CMakeScripts/

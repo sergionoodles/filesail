@@ -3,6 +3,7 @@ FileIcon 1.0 FileIcon.qml
 IconButton 1.0 IconButton.qml
 LucideIcon 1.0 LucideIcon.qml
 ThemedTextField 1.0 ThemedTextField.qml
+ThemedMenuItem 1.0 ThemedMenuItem.qml
 TestPreview 1.0 TestPreview.qml
 BreadcrumbBar 1.0 BreadcrumbBar.qml
 Sidebar 1.0 Sidebar.qml

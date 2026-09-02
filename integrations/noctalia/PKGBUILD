@@ -1,5 +1,5 @@
 pkgname=filesail-noctalia
-pkgver=0.1.0
+pkgver="$(bash "$startdir/../../scripts/read-version.sh")"
 pkgrel=1
 pkgdesc='Noctalia panel and bar integration for FileSail'
 arch=('x86_64')
@@ -14,9 +14,11 @@ sha256sums=('SKIP')
 
 package() {
     local plugin_root="$pkgdir/usr/share/filesail/noctalia-plugin"
+    local manifest="$srcdir/filesail-generated/manifest.json"
+    "$srcdir/filesail/scripts/generate-manifest.sh" "$manifest"
     install -d "$plugin_root/integrations/noctalia"
 
-    install -Dm644 "$srcdir/filesail/manifest.json" \
+    install -Dm644 "$manifest" \
         "$plugin_root/manifest.json"
     install -Dm644 "$srcdir/filesail/integrations/noctalia/BarWidget.qml" \
         "$plugin_root/integrations/noctalia/BarWidget.qml"

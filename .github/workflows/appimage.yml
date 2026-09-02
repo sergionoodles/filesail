@@ -75,18 +75,18 @@ jobs:
           echo "FILESAIL_QS_PATH=$quickshell_prefix/bin/qs" >> "$GITHUB_ENV"
           echo "FILESAIL_QS_QML_DIR=$quickshell_prefix/lib/qt6/qml" >> "$GITHUB_ENV"
 
-      - name: Determine package version
-        id: version
+      - name: Validate release version
         run: |
+          version="$(./scripts/read-version.sh)"
           if [[ "$GITHUB_REF" == refs/tags/v* ]]; then
-            echo "version=${GITHUB_REF_NAME#v}" >> "$GITHUB_OUTPUT"
-          else
-            echo "version=0.1.0" >> "$GITHUB_OUTPUT"
+            tag_version="${GITHUB_REF_NAME#v}"
+            if [[ "$tag_version" != "$version" ]]; then
+              echo "Release tag $GITHUB_REF_NAME does not match VERSION ($version)." >&2
+              exit 1
+            fi
           fi
 
       - name: Build AppImage
-        env:
-          FILESAIL_VERSION: ${{ steps.version.outputs.version }}
         run: ./scripts/build-appimage.sh
 
       - name: Smoke-test AppImage launcher

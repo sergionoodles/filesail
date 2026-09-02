@@ -13,7 +13,7 @@ case "$(uname -m)" in
     *) printf 'Unsupported AppImage architecture: %s\n' "$(uname -m)" >&2; exit 1 ;;
 esac
 
-version="${FILESAIL_VERSION:-0.1.0}"
+version="$("$project_dir/scripts/read-version.sh")"
 output_file="$output_dir/FileSail-${version}-${appimage_arch}.AppImage"
 
 linuxdeploy_url="https://github.com/linuxdeploy/linuxdeploy/releases/download/continuous/linuxdeploy-${appimage_arch}.AppImage"
@@ -133,8 +133,7 @@ mkdir -p -- "$appdir" "$output_dir"
 
 cmake -S "$project_dir" -B "$build_dir" \
     -DCMAKE_BUILD_TYPE=Release \
-    -DCMAKE_INSTALL_PREFIX=/usr \
-    -DFILESAIL_VERSION="$version"
+    -DCMAKE_INSTALL_PREFIX=/usr
 cmake --build "$build_dir" --parallel
 ctest --test-dir "$build_dir" --output-on-failure
 DESTDIR="$appdir" cmake --install "$build_dir"

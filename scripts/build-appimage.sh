@@ -111,6 +111,8 @@ rm -rf -- "$qt_plugin_source_dir"
 mkdir -p -- \
     "$qt_plugin_source_dir/platforms" \
     "$qt_plugin_source_dir/imageformats" \
+    "$qt_plugin_source_dir/iconengines" \
+    "$qt_plugin_source_dir/platformthemes" \
     "$qt_plugin_source_dir/wayland-shell-integration" \
     "$qt_plugin_source_dir/wayland-graphics-integration-client"
 for plugin in libqxcb.so libqwayland-egl.so libqwayland-generic.so libqwayland.so; do
@@ -123,6 +125,12 @@ for plugin in libqgif.so libqico.so libqjpeg.so libqsvg.so libqwebp.so; do
         cp -a -- "$qt_plugins_dir/imageformats/$plugin" "$qt_plugin_source_dir/imageformats/"
     fi
 done
+if [[ -f "$qt_plugins_dir/platformthemes/libqgtk3.so" ]]; then
+    cp -a -- "$qt_plugins_dir/platformthemes/libqgtk3.so" "$qt_plugin_source_dir/platformthemes/"
+fi
+if [[ -f "$qt_plugins_dir/iconengines/libqsvgicon.so" ]]; then
+    cp -a -- "$qt_plugins_dir/iconengines/libqsvgicon.so" "$qt_plugin_source_dir/iconengines/"
+fi
 # The Wayland platform plugin loads its client buffer integration at runtime.
 # In particular, libqt-plugin-wayland-egl.so is required for the OpenGL-backed
 # surfaces used by Quickshell windows.
@@ -213,7 +221,11 @@ rm -f -- "$output_file"
     # The Qt deployment plugin only preserves a subset of plugin directories.
     # Restore the dynamically loaded Wayland integrations in the final AppDir
     # so the bundled platform can create OpenGL-backed client surfaces.
-    for plugin_dir in wayland-graphics-integration-client wayland-shell-integration; do
+    for plugin_dir in \
+        iconengines \
+        platformthemes \
+        wayland-graphics-integration-client \
+        wayland-shell-integration; do
         mkdir -p -- "$appdir/usr/plugins/$plugin_dir"
         for plugin in "$qt_plugin_source_dir/$plugin_dir"/*.so; do
             if [[ -f "$plugin" ]]; then

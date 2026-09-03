@@ -15,6 +15,7 @@ QtObject {
     signal createRequested()
     signal renameRequested()
     signal trashRequested()
+    signal infoRequested()
     signal aboutRequested()
 
     property Action editLocationAction: Action { shortcut: "Ctrl+L"; enabled: !root.modalActive; onTriggered: root.editLocationRequested() }
@@ -43,6 +44,7 @@ QtObject {
                                          qsTr("Terminal opened"), false, false)
     }
     property Action trashAction: Action { text: qsTr("Move to Trash"); shortcut: "Delete"; enabled: !root.modalActive && root.session.selectedCount > 0; onTriggered: root.trashRequested() }
+    property Action infoAction: Action { text: qsTr("File info"); shortcut: "Ctrl+I"; enabled: !root.modalActive && root.session.selectedCount === 1; onTriggered: root.infoRequested() }
     property Action listViewAction: Action { text: qsTr("Details view"); shortcut: "Ctrl+1"; checked: root.viewMode === "list"; enabled: !root.modalActive; onTriggered: Settings.setViewMode("list") }
     property Action gridViewAction: Action { text: qsTr("Grid view"); shortcut: "Ctrl+2"; checked: root.viewMode === "grid"; enabled: !root.modalActive; onTriggered: Settings.setViewMode("grid") }
     property Action previewAction: Action { text: qsTr("Preview pane"); shortcut: "Ctrl+P"; checked: root.previewPaneEnabled; enabled: !root.modalActive; onTriggered: Settings.setPreviewPaneEnabled(!Settings.previewPaneEnabled) }

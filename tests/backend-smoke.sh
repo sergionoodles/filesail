@@ -157,6 +157,35 @@ private_copy="$(printf '{"id":16,"method":"copy","params":{"paths":["%s/private-
 jq -e '.id == 16 and .ok == true' <<<"$private_copy" >/dev/null
 [[ $(stat -c '%a' "$test_dir/private-destination/private-source") == 600 ]]
 
+# Listings expose symbolic permissions, effective executable state, and
+# creation metadata for the file info view.
+printf 'script' > "$test_dir/info-target"
+chmod 644 "$test_dir/info-target"
+mkdir -- "$test_dir/info-dir"
+chmod 755 "$test_dir/info-dir"
+info_listing="$(printf '{"id":40,"method":"list","params":{"path":"%s","showHidden":true}}\n' "$test_dir" | "$backend" --serve)"
+jq -e '.id == 40 and .ok == true and ([.entries[] | select(.name=="info-target")][0] | .permissions == "-rw-r--r--" and .isExecutable == false and (.created | type == "string"))' <<<"$info_listing" >/dev/null
+jq -e '[.entries[] | select(.name=="info-dir")][0] | .permissions == "drwxr-xr-x"' <<<"$info_listing" >/dev/null
+
+# The executable bit toggles owner/group/other together, mirroring `chmod a+x`.
+exec_on="$(printf '{"id":41,"method":"setExecutable","params":{"path":"%s/info-target","executable":true}}\n' "$test_dir" | "$backend" --serve)"
+jq -e '.id == 41 and .ok == true and .executable == true' <<<"$exec_on" >/dev/null
+[[ $(stat -c '%a' "$test_dir/info-target") == 755 ]]
+exec_off="$(printf '{"id":42,"method":"setExecutable","params":{"path":"%s/info-target","executable":false}}\n' "$test_dir" | "$backend" --serve)"
+jq -e '.id == 42 and .ok == true and .executable == false' <<<"$exec_off" >/dev/null
+[[ $(stat -c '%a' "$test_dir/info-target") == 644 ]]
+
+# Directories are refused so a quick toggle cannot remove traversal rights.
+exec_dir="$(printf '{"id":43,"method":"setExecutable","params":{"path":"%s/info-dir","executable":false}}\n' "$test_dir" | "$backend" --serve)"
+jq -e '.id == 43 and .ok == false and (.error | type == "string")' <<<"$exec_dir" >/dev/null
+[[ $(stat -c '%a' "$test_dir/info-dir") == 755 ]]
+exec_missing="$(printf '{"id":44,"method":"setExecutable","params":{"path":"%s/no-such-file","executable":true}}\n' "$test_dir" | "$backend" --serve)"
+jq -e '.id == 44 and .ok == false and (.error | type == "string")' <<<"$exec_missing" >/dev/null
+exec_invalid="$(printf '{"id":45,"method":"setExecutable","params":{"path":"%s/info-target","executable":"yes"}}\n' "$test_dir" | "$backend" --serve)"
+jq -e '.id == 45 and .ok == false and (.error | type == "string")' <<<"$exec_invalid" >/dev/null
+exec_empty="$(printf '%s\n' '{"id":46,"method":"setExecutable","params":{"path":""}}' | "$backend" --serve)"
+jq -e '.id == 46 and .ok == false and (.error | type == "string")' <<<"$exec_empty" >/dev/null
+
 if command -v setfacl >/dev/null && command -v getfacl >/dev/null; then
     printf 'acl' > "$test_dir/acl-source"
     if setfacl -m u:65534:r-- "$test_dir/acl-source"; then

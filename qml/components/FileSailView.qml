@@ -91,6 +91,11 @@ Rectangle {
                 return;
             dialogs.openTrash(Object.keys(session.selectedPaths), toolbar);
         }
+        onInfoRequested: {
+            if (session.selectedCount !== 1)
+                return;
+            dialogs.openInfo(session.selectedEntries[0], toolbar);
+        }
         onAboutRequested: dialogs.openAbout(toolbar)
     }
 
@@ -131,6 +136,7 @@ Rectangle {
                 moveAction: actions.moveAction
                 pasteAction: actions.pasteAction
                 trashAction: actions.trashAction
+                infoAction: actions.infoAction
                 listViewAction: actions.listViewAction
                 gridViewAction: actions.gridViewAction
                 hiddenFilesAction: actions.hiddenFilesAction

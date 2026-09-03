@@ -19,6 +19,7 @@ ColumnLayout {
     required property Action moveAction
     required property Action pasteAction
     required property Action trashAction
+    required property Action infoAction
     required property Action listViewAction
     required property Action gridViewAction
     required property Action hiddenFilesAction
@@ -57,6 +58,7 @@ ColumnLayout {
         moveAction: root.moveAction
         pasteAction: root.pasteAction
         trashAction: root.trashAction
+        infoAction: root.infoAction
         previewAction: root.previewAction
     }
 

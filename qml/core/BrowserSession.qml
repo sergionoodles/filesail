@@ -274,6 +274,8 @@ QtObject {
             operationId = BackendClient.movePaths(params.paths, params.targetDirectory, succeededLogged, failedLogged);
         else if (method === "trash")
             operationId = BackendClient.trashPaths(params.paths, succeededLogged, failedLogged);
+        else if (method === "setExecutable")
+            operationId = BackendClient.setExecutable(params.path, params.executable, succeededLogged, failedLogged);
         else
             operationId = BackendClient.performOperation(method, params, succeededLogged, failedLogged);
         if (operationId >= 0) {

@@ -15,6 +15,7 @@ Item {
     property var trashTargets: []
     readonly property bool active: (promptLoader.item ? promptLoader.item.visible : false)
         || (aboutLoader.item ? aboutLoader.item.visible : false)
+        || (infoLoader.item ? infoLoader.item.visible : false)
     anchors.fill: parent
     z: 1000
 
@@ -55,6 +56,13 @@ Item {
         aboutLoader.active = true;
         aboutLoader.item.open(focusTarget);
     }
+    function openInfo(entry, focusTarget) {
+        if (!entry)
+            return;
+        infoLoader.active = true;
+        infoLoader.item.session = root.session;
+        infoLoader.item.open(entry, focusTarget);
+    }
 
     Loader {
         id: promptLoader
@@ -81,5 +89,12 @@ Item {
         anchors.fill: parent
         active: false
         sourceComponent: AboutDialog {}
+    }
+
+    Loader {
+        id: infoLoader
+        anchors.fill: parent
+        active: false
+        sourceComponent: FileInfoDialog {}
     }
 }

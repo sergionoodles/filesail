@@ -26,7 +26,9 @@ boundary has two advantages:
 2. A native backend fault cannot crash the user's desktop shell.
 
 The primary protocol methods are `list`, `mkdir`, `rename`, `trash`, `copy`,
-`move`, and `open`. Requests carry numeric IDs. `watch` and `unwatch` manage
+`move`, `setExecutable`, and `open`. Requests carry numeric IDs. Directory
+entries include symbolic `permissions`, effective `isExecutable` state, and a
+`created` timestamp for the file info view. `watch` and `unwatch` manage
 explicit, reference-counted directory subscriptions; `QFileSystemWatcher`
 events are emitted immediately and each directory model debounces its own
 refreshes.

@@ -34,7 +34,7 @@ QtObject {
 
     function isMutation(method) {
         return method === "mkdir" || method === "rename" || method === "trash"
-            || method === "copy" || method === "move"
+            || method === "copy" || method === "move" || method === "setExecutable"
             || method === "locations.add" || method === "locations.remove";
     }
 
@@ -255,6 +255,10 @@ QtObject {
 
     function trashPaths(paths, onSuccess, onFailure) {
         return request("trash", { paths }, onSuccess, onFailure, 0);
+    }
+
+    function setExecutable(path, executable, onSuccess, onFailure) {
+        return request("setExecutable", { path, executable }, onSuccess, onFailure, 0);
     }
 
     function flush() {

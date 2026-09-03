@@ -13,6 +13,7 @@ Rectangle {
     required property Action moveAction
     required property Action pasteAction
     required property Action trashAction
+    required property Action infoAction
     required property Action previewAction
     readonly property int actionIconSize: Math.round(18 * Theme.scale)
 
@@ -32,6 +33,7 @@ Rectangle {
         IconButton { iconName: "scissors"; iconSize: root.actionIconSize; enabled: root.moveAction.enabled; tooltip: qsTr("Cut"); onClicked: root.moveAction.trigger() }
         IconButton { iconName: "clipboard-paste"; iconSize: root.actionIconSize; enabled: root.pasteAction.enabled; tooltip: root.pasteAction.text; onClicked: root.pasteAction.trigger() }
         IconButton { iconName: "trash-2"; iconSize: root.actionIconSize; enabled: root.trashAction.enabled; tooltip: root.trashAction.text; onClicked: root.trashAction.trigger() }
+        IconButton { iconName: "info"; iconSize: root.actionIconSize; enabled: root.infoAction.enabled; tooltip: root.infoAction.text; onClicked: root.infoAction.trigger() }
 
         IconButton { iconName: "image"; iconSize: root.actionIconSize; checked: root.previewAction.checked; tooltip: root.previewAction.text; onClicked: root.previewAction.trigger() }
 

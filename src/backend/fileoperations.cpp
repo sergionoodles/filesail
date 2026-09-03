@@ -192,6 +192,30 @@ bool lstatPath(const std::filesystem::path &path, struct stat *status, QString *
     return false;
 }
 
+// Symbolic mode string in `ls -l` style (for example `drwxr-xr-x`). Symlinks
+// are reported as links, matching lstat semantics. Setuid/setgid/sticky bits
+// are intentionally rendered as plain `x`/`-` to keep the display compact.
+QString symbolicPermissions(const QFileInfo &info)
+{
+    struct stat status;
+    if (::lstat(QFile::encodeName(info.absoluteFilePath()).constData(), &status) != 0)
+        return {};
+    const mode_t mode = status.st_mode;
+    QString result;
+    result.reserve(10);
+    result += S_ISDIR(mode) ? u'd' : (S_ISLNK(mode) ? u'l' : u'-');
+    result += (mode & S_IRUSR) ? u'r' : u'-';
+    result += (mode & S_IWUSR) ? u'w' : u'-';
+    result += (mode & S_IXUSR) ? u'x' : u'-';
+    result += (mode & S_IRGRP) ? u'r' : u'-';
+    result += (mode & S_IWGRP) ? u'w' : u'-';
+    result += (mode & S_IXGRP) ? u'x' : u'-';
+    result += (mode & S_IROTH) ? u'r' : u'-';
+    result += (mode & S_IWOTH) ? u'w' : u'-';
+    result += (mode & S_IXOTH) ? u'x' : u'-';
+    return result;
+}
+
 bool setCopiedMetadata(const std::filesystem::path &source,
                        const std::filesystem::path &destination,
                        const std::filesystem::file_status &status,
@@ -739,8 +763,13 @@ QJsonObject listDirectory(const QJsonObject &params, const CancellationToken &to
             {"isHidden", info.isHidden()},
             {"isReadable", info.isReadable()},
             {"isWritable", info.isWritable()},
+            {"isExecutable", info.isExecutable()},
+            {"permissions", symbolicPermissions(info)},
             {"size", static_cast<double>(info.size())},
             {"modified", info.lastModified().toUTC().toString(Qt::ISODateWithMs)},
+            {"created", info.birthTime().isValid()
+                            ? info.birthTime().toUTC().toString(Qt::ISODateWithMs)
+                            : QString()},
             {"mimeType", mime.name()},
             {"iconName", info.isDir() ? QStringLiteral("folder") : iconName},
         });
@@ -859,6 +888,34 @@ QJsonObject copyPaths(const QJsonObject &params)
 QJsonObject movePaths(const QJsonObject &params)
 {
     return transferPaths(params, true);
+}
+
+QJsonObject setExecutable(const QJsonObject &params)
+{
+    QString error;
+    const QString path = requiredPath(params, "path", &error);
+    if (!error.isEmpty())
+        return failure(error);
+    if (!params.value("executable").isBool())
+        return failure("executable must be a boolean");
+    const bool executable = params.value("executable").toBool();
+    if (!entryExists(path))
+        return failure(QStringLiteral("Path does not exist: %1").arg(path));
+    // Directories need the execute bit for traversal. Toggling it from a
+    // quick file action could lock the user out, so this stays file-only.
+    if (QFileInfo(path).isDir())
+        return failure(QStringLiteral("Cannot change execution permission of a directory: %1").arg(path));
+    constexpr auto execBits = std::filesystem::perms::owner_exec
+        | std::filesystem::perms::group_exec | std::filesystem::perms::others_exec;
+    std::error_code ec;
+    std::filesystem::permissions(fileSystemPath(path), execBits,
+                                 executable ? std::filesystem::perm_options::add
+                                            : std::filesystem::perm_options::remove,
+                                 ec);
+    if (ec)
+        return failure(QStringLiteral("Could not change execution permission of %1: %2")
+                           .arg(path, QString::fromStdString(ec.message())));
+    return success({{"path", path}, {"executable", executable}});
 }
 
 QJsonObject openPath(const QJsonObject &params)

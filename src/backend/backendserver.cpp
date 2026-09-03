@@ -217,6 +217,8 @@ void BackendServer::handleRequest(const QByteArray &line)
         enqueueOperation(id, m_mutationPool, [params](const CancellationToken &) { return FileOperations::copyPaths(params); }, false);
     } else if (method == "move") {
         enqueueOperation(id, m_mutationPool, [params](const CancellationToken &) { return FileOperations::movePaths(params); }, false);
+    } else if (method == "setExecutable") {
+        enqueueOperation(id, m_mutationPool, [params](const CancellationToken &) { return FileOperations::setExecutable(params); }, false);
     } else if (method == "open") {
         enqueueOperation(id, m_readPool, [params](const CancellationToken &) { return FileOperations::openPath(params); }, false);
     } else if (method == "terminal") {

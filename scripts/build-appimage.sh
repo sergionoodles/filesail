@@ -170,7 +170,8 @@ mkdir -p -- "$appdir" "$output_dir"
 
 cmake -S "$project_dir" -B "$build_dir" \
     -DCMAKE_BUILD_TYPE=Release \
-    -DCMAKE_INSTALL_PREFIX=/usr
+    -DCMAKE_INSTALL_PREFIX=/usr \
+    -DFILESAIL_BUILD_DBUS=OFF
 cmake --build "$build_dir" --parallel
 ctest --test-dir "$build_dir" --output-on-failure
 DESTDIR="$appdir" cmake --install "$build_dir"

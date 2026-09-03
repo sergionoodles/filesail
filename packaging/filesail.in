@@ -28,6 +28,7 @@ fi
 
 export FILESAIL_BACKEND="${FILESAIL_BACKEND:-$filesail_backend_default}"
 requested_path="${FILESAIL_PATH:-$HOME}"
+selection_json="${FILESAIL_SELECTION_JSON:-[]}"
 force_new_instance=false
 while (($#)); do
     case "$1" in
@@ -39,6 +40,11 @@ while (($#)); do
         --path=*)
             requested_path="${1#--path=}"
             shift
+            ;;
+        --select-json)
+            [[ $# -ge 2 ]] || { printf '%s\n' 'filesail: --select-json requires JSON' >&2; exit 2; }
+            selection_json="$2"
+            shift 2
             ;;
         --help|-h)
             printf '%s\n' 'Usage: filesail [--path PATH] [PATH]' \
@@ -67,6 +73,7 @@ if [[ ${#requested_path} -gt 4096 || "$requested_path" != /* || "$requested_path
     printf '%s\n' 'filesail: PATH must be an absolute local directory path' >&2
     exit 2
 fi
+export FILESAIL_SELECTION_JSON="$selection_json"
 export FILESAIL_PATH="$requested_path"
 export QS_APP_ID="dev.filesail.FileSail"
 
@@ -91,7 +98,7 @@ ipc_call() {
 # Quickshell IPC is scoped to the current user session. A short probe avoids
 # multiplying engines when the host already owns this configuration.
 if ipc_call ping 1 >/dev/null 2>&1; then
-    if ! ipc_call open "$requested_path" 1 >/dev/null 2>&1; then
+    if ! ipc_call show "$requested_path" "$selection_json" 1 >/dev/null 2>&1; then
         printf '%s\n' 'filesail: existing host rejected the activation request' >&2
         exit 1
     fi
@@ -115,7 +122,7 @@ for _ in {1..40}; do
         if kill -0 "$host_pid" 2>/dev/null; then
             exit 0
         fi
-        if ipc_call open "$requested_path" 1 >/dev/null 2>&1; then
+        if ipc_call show "$requested_path" "$selection_json" 1 >/dev/null 2>&1; then
             exit 0
         fi
         break

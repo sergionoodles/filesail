@@ -7,6 +7,7 @@ FloatingWindow {
 
     required property int windowId
     required property string initialPath
+    property var initialSelectionPaths: []
     property bool beingDestroyed: false
 
     signal closeRequested()
@@ -22,6 +23,7 @@ FloatingWindow {
     FileSailView {
         anchors.fill: parent
         initialPath: root.initialPath
+        initialSelectionPaths: root.initialSelectionPaths
         onNewWindowRequested: path => root.newWindowRequested(path)
     }
 

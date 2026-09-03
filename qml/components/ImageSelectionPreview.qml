@@ -26,8 +26,12 @@ Item {
 
     GridView {
         id: previewGrid
-        anchors.fill: parent
-        anchors.margins: Theme.spaceM
+        anchors.left: parent.left
+        anchors.right: parent.right
+        anchors.verticalCenter: parent.verticalCenter
+        anchors.leftMargin: Theme.spaceM
+        anchors.rightMargin: Theme.spaceM
+        height: Math.max(1, Math.min(parent.height - Theme.spaceM * 2, contentGridHeight))
         clip: true
         visible: root.visibleEntries.length > 1
         boundsBehavior: Flickable.StopAtBounds
@@ -36,6 +40,8 @@ Item {
         cellWidth: visibleEntries.length === 1
             ? Math.max(1, width) : Math.max(120 * Theme.scale, width / 2)
         cellHeight: cellWidth
+        readonly property int columnCount: Math.max(1, Math.floor(width / cellWidth))
+        readonly property real contentGridHeight: Math.ceil(root.visibleEntries.length / columnCount) * cellHeight
 
         delegate: Item {
             required property var modelData

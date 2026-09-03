@@ -56,6 +56,11 @@ This installs the `filesail` launcher, backend, desktop entry, QML tree, and
 Noctalia adapter using CMake's configured install prefix. The checkout remains
 usable for Noctalia plugin development through `scripts/install-noctalia.sh`.
 
+The optional `org.freedesktop.FileManager1` integration is not included in the
+standard package or AppImage. Arch users can opt in by building the separate
+package in `integrations/dbus`; it depends on `filesail` and installs only the
+session-bus service.
+
 ## Install from an Arch package
 
 `PKGBUILD` builds the standalone package and declares its runtime dependencies:

@@ -5,6 +5,8 @@ QtObject {
     id: root
 
     property string initialPath: String(Quickshell.env("HOME") ?? "/")
+    property var initialSelectionPaths: []
+    property bool initialSelectionApplied: false
     property var selectedPaths: ({})
     property string primarySelectionPath: ""
     property string focusedPath: ""
@@ -314,6 +316,10 @@ QtObject {
         id: directoryModel
         path: root.initialPath
         onLoaded: (path, navigation) => {
+            if (!root.initialSelectionApplied && root.initialSelectionPaths.length > 0) {
+                root.setSelection(root.initialSelectionPaths, false, root.initialSelectionPaths[0]);
+                root.initialSelectionApplied = true;
+            }
             if (navigation) {
                 navigationController.commit(path, root.pendingHistoryTarget);
                 root.pendingHistoryTarget = -1;

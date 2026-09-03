@@ -8,6 +8,7 @@ Rectangle {
     id: root
 
     property string initialPath: String(Quickshell.env("HOME") ?? "/")
+    property var initialSelectionPaths: []
     // Hosts may override density; otherwise the view adapts to its available width.
     property bool compact: width > 0 && width < 900 * Theme.scale
     property int cornerRadius: 0
@@ -62,6 +63,7 @@ Rectangle {
     BrowserSession {
         id: session
         initialPath: root.initialPath
+        initialSelectionPaths: root.initialSelectionPaths
         onNoticeRequested: (message, error) => root.showNotice(message, error)
         onLargeDirectoryWarningRequested: (path, entryCountAtLeast) =>
             dialogs.openLargeDirectory(path, entryCountAtLeast, toolbar)

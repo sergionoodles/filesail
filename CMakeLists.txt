@@ -16,6 +16,8 @@ set(CMAKE_CXX_STANDARD_REQUIRED ON)
 set(CMAKE_CXX_EXTENSIONS OFF)
 set(CMAKE_AUTOMOC ON)
 
+option(FILESAIL_BUILD_DBUS "Build the optional FileManager1 D-Bus service" OFF)
+
 find_package(Qt6 6.6 REQUIRED COMPONENTS Core Concurrent DBus)
 find_package(PkgConfig REQUIRED)
 pkg_check_modules(LIBARCHIVE REQUIRED IMPORTED_TARGET libarchive)
@@ -49,6 +51,20 @@ target_compile_options(filesail-backend PRIVATE
     $<$<CXX_COMPILER_ID:GNU,Clang>:-Wall -Wextra -Wpedantic>
 )
 
+if(FILESAIL_BUILD_DBUS)
+    add_executable(filesail-filemanager1
+        src/filemanager1/main.cpp
+        src/filemanager1/filemanager1service.cpp
+        src/filemanager1/filemanager1service.h
+        src/filemanager1/uriresolver.cpp
+        src/filemanager1/uriresolver.h
+    )
+    target_link_libraries(filesail-filemanager1 PRIVATE Qt6::Core Qt6::DBus)
+    target_compile_options(filesail-filemanager1 PRIVATE
+        $<$<CXX_COMPILER_ID:GNU,Clang>:-Wall -Wextra -Wpedantic>
+    )
+endif()
+
 include(GNUInstallDirs)
 set(FILESAIL_INSTALL_DATA_DIR "${CMAKE_INSTALL_DATADIR}/filesail")
 
@@ -74,6 +90,11 @@ configure_file(
 )
 
 install(TARGETS filesail-backend RUNTIME DESTINATION ${CMAKE_INSTALL_BINDIR})
+if(FILESAIL_BUILD_DBUS)
+    install(TARGETS filesail-filemanager1 RUNTIME DESTINATION ${CMAKE_INSTALL_BINDIR})
+    install(FILES packaging/org.freedesktop.FileManager1.service
+        DESTINATION ${CMAKE_INSTALL_DATADIR}/dbus-1/services)
+endif()
 install(PROGRAMS ${CMAKE_CURRENT_BINARY_DIR}/filesail DESTINATION ${CMAKE_INSTALL_BINDIR})
 install(FILES shell.qml logo.png ${CMAKE_CURRENT_BINARY_DIR}/manifest.json
     DESTINATION ${FILESAIL_INSTALL_DATA_DIR})
@@ -90,6 +111,13 @@ install(FILES logo.png
     RENAME filesail.png)
 
 enable_testing()
+if(FILESAIL_BUILD_DBUS)
+    add_test(
+        NAME filemanager1-smoke
+        COMMAND ${CMAKE_CURRENT_SOURCE_DIR}/tests/filemanager1-smoke.sh
+            $<TARGET_FILE:filesail-filemanager1>
+    )
+endif()
 add_test(
     NAME backend-protocol-smoke
     COMMAND ${CMAKE_CURRENT_SOURCE_DIR}/tests/backend-smoke.sh $<TARGET_FILE:filesail-backend>

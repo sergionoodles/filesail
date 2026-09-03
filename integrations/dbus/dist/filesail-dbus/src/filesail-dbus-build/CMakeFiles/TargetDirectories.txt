@@ -1,0 +1,10 @@
+/home/sergio/workspace/filesail/integrations/dbus/dist/filesail-dbus/src/filesail-dbus-build/CMakeFiles/filesail-backend.dir
+/home/sergio/workspace/filesail/integrations/dbus/dist/filesail-dbus/src/filesail-dbus-build/CMakeFiles/test.dir
+/home/sergio/workspace/filesail/integrations/dbus/dist/filesail-dbus/src/filesail-dbus-build/CMakeFiles/edit_cache.dir
+/home/sergio/workspace/filesail/integrations/dbus/dist/filesail-dbus/src/filesail-dbus-build/CMakeFiles/rebuild_cache.dir
+/home/sergio/workspace/filesail/integrations/dbus/dist/filesail-dbus/src/filesail-dbus-build/CMakeFiles/list_install_components.dir
+/home/sergio/workspace/filesail/integrations/dbus/dist/filesail-dbus/src/filesail-dbus-build/CMakeFiles/install.dir
+/home/sergio/workspace/filesail/integrations/dbus/dist/filesail-dbus/src/filesail-dbus-build/CMakeFiles/install/local.dir
+/home/sergio/workspace/filesail/integrations/dbus/dist/filesail-dbus/src/filesail-dbus-build/CMakeFiles/install/strip.dir
+/home/sergio/workspace/filesail/integrations/dbus/dist/filesail-dbus/src/filesail-dbus-build/CMakeFiles/filesail-backend_autogen_timestamp_deps.dir
+/home/sergio/workspace/filesail/integrations/dbus/dist/filesail-dbus/src/filesail-dbus-build/CMakeFiles/filesail-backend_autogen.dir

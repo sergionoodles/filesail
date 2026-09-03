@@ -1,0 +1,36 @@
+pkgname=filesail-dbus
+pkgver="$(bash "$startdir/../../scripts/read-version.sh")"
+pkgrel=1
+pkgdesc='Optional org.freedesktop.FileManager1 integration for FileSail'
+arch=('x86_64')
+url='https://github.com/sergionoodles/filesail'
+license=('MIT')
+depends=('filesail')
+makedepends=('cmake' 'git' 'pkgconf')
+source=('filesail::git+https://github.com/sergionoodles/filesail.git#branch=main')
+sha256sums=('SKIP')
+
+BUILDDIR="$startdir/dist"
+SRCDEST="$BUILDDIR"
+PKGDEST="$BUILDDIR"
+SRCPKGDEST="$BUILDDIR"
+LOGDEST="$BUILDDIR"
+
+build() {
+    cmake -S "$srcdir/filesail" -B "$srcdir/filesail-dbus-build" \
+        -DCMAKE_BUILD_TYPE=None \
+        -DCMAKE_INSTALL_PREFIX=/usr \
+        -DFILESAIL_BUILD_DBUS=ON
+    cmake --build "$srcdir/filesail-dbus-build" --parallel
+}
+
+check() {
+    ctest --test-dir "$srcdir/filesail-dbus-build" --output-on-failure
+}
+
+package() {
+    DESTDIR="$pkgdir" cmake --install "$srcdir/filesail-dbus-build"
+    rm -f -- "$pkgdir/usr/bin/filesail" "$pkgdir/usr/bin/filesail-backend"
+    rm -rf -- "$pkgdir/usr/share/filesail" "$pkgdir/usr/share/applications" \
+        "$pkgdir/usr/share/icons" "$pkgdir/usr/share/pixmaps"
+}

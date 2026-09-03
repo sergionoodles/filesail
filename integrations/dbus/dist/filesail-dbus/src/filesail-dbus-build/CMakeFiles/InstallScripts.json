@@ -1,0 +1,7 @@
+{
+	"InstallScripts" : 
+	[
+		"/home/sergio/workspace/filesail/integrations/dbus/dist/filesail-dbus/src/filesail-dbus-build/cmake_install.cmake"
+	],
+	"Parallel" : false
+}

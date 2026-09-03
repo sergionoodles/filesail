@@ -32,11 +32,16 @@ ShellRoot {
         function open(path: string, version: string) {
             return windowRegistry.open(path, version) ? "accepted" : "rejected";
         }
+
+        function show(path: string, selectionJson: string, version: string) {
+            return windowRegistry.show(path, selectionJson, version) ? "accepted" : "rejected";
+        }
     }
 
     Component.onCompleted: {
         const initial = String(Quickshell.env("FILESAIL_PATH") ?? "");
-        if (!windowRegistry.open(initial, String(windowRegistry.protocolVersion)))
+        const selection = String(Quickshell.env("FILESAIL_SELECTION_JSON") ?? "[]");
+        if (!windowRegistry.show(initial, selection, String(windowRegistry.protocolVersion)))
             Qt.quit();
     }
 

@@ -1,0 +1,20 @@
+{
+  "id": "filesail",
+  "name": "FileSail",
+  "version": "2026.9.1",
+  "minNoctaliaVersion": "4.7.7",
+  "author": "FileSail contributors",
+  "license": "MIT",
+  "description": "A native-feeling file navigator for Quickshell desktops",
+  "tags": ["Bar", "Productivity", "Files"],
+  "entryPoints": {
+    "barWidget": "integrations/noctalia/BarWidget.qml",
+    "panel": "integrations/noctalia/Panel.qml"
+  },
+  "dependencies": {
+    "plugins": []
+  },
+  "metadata": {
+    "defaultSettings": {}
+  }
+}

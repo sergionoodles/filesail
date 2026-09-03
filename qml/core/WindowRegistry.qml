@@ -38,6 +38,10 @@ QtObject {
     }
 
     function open(requestedPath, version) {
+        return root.show(requestedPath, "[]", version);
+    }
+
+    function show(requestedPath, selectionJson, version) {
         if (!root.acceptsVersion(version)) {
             Logger.warn("windows", `activation protocol mismatch: ${version}`);
             return false;
@@ -47,10 +51,21 @@ QtObject {
             Logger.warn("windows", "activation rejected invalid local path");
             return false;
         }
+        let selectionPaths = [];
+        try {
+            const parsed = JSON.parse(String(selectionJson ?? "[]"));
+            if (!Array.isArray(parsed) || !parsed.every(item => typeof item === "string" && item[0] === "/"))
+                throw new Error("selection must be an array of absolute paths");
+            selectionPaths = parsed;
+        } catch (error) {
+            Logger.warn("windows", `activation rejected invalid selection: ${error}`);
+            return false;
+        }
         const windowId = root.nextWindowId++;
         const window = root.windowComponent.createObject(root.owner, {
             windowId: windowId,
-            initialPath: path
+            initialPath: path,
+            initialSelectionPaths: selectionPaths
         });
         if (!window) {
             Logger.error("windows", `could not create window ${windowId}`);

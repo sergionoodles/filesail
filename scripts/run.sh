@@ -11,6 +11,7 @@ fi
 
 export FILESAIL_BACKEND="$backend"
 requested_path="${FILESAIL_PATH:-$HOME}"
+selection_json="${FILESAIL_SELECTION_JSON:-[]}";
 force_new_instance=false
 while (($#)); do
     case "$1" in
@@ -20,6 +21,11 @@ while (($#)); do
             shift 2
             ;;
         --path=*) requested_path="${1#--path=}"; shift ;;
+        --select-json)
+            [[ $# -ge 2 ]] || { printf '%s\n' 'filesail: --select-json requires JSON' >&2; exit 2; }
+            selection_json="$2"
+            shift 2
+            ;;
         --help|-h) printf '%s\n' 'Usage: filesail [--path PATH] [PATH]' 'Options: --new-instance (temporary duplicate-host escape hatch)' 'Environment: FILESAIL_LOG=error|warn|info|debug (default: info)'; exit 0 ;;
         --new-instance|--allow-duplicate) force_new_instance=true; shift ;;
         -*) printf 'filesail: unknown option: %s\\n' "$1" >&2; exit 2 ;;
@@ -31,6 +37,7 @@ if [[ ${#requested_path} -gt 4096 || "$requested_path" != /* || "$requested_path
     printf '%s\n' 'filesail: PATH must be an absolute local directory path' >&2
     exit 2
 fi
+export FILESAIL_SELECTION_JSON="$selection_json"
 export FILESAIL_PATH="$requested_path"
 export QS_APP_ID="dev.filesail.FileSail"
 
@@ -55,7 +62,7 @@ ipc_call() {
 }
 
 if ipc_call ping 1 >/dev/null 2>&1; then
-    if ! ipc_call open "$requested_path" 1 >/dev/null 2>&1; then
+    if ! ipc_call show "$requested_path" "$selection_json" 1 >/dev/null 2>&1; then
         printf '%s\n' 'filesail: existing host rejected the activation request' >&2
         exit 1
     fi
@@ -76,7 +83,7 @@ host_pid=$!
 for _ in {1..40}; do
     if ipc_call ping 1 >/dev/null 2>&1; then
         if kill -0 "$host_pid" 2>/dev/null; then exit 0; fi
-        if ipc_call open "$requested_path" 1 >/dev/null 2>&1; then exit 0; fi
+        if ipc_call show "$requested_path" "$selection_json" 1 >/dev/null 2>&1; then exit 0; fi
         break
     fi
     if ! kill -0 "$host_pid" 2>/dev/null; then break; fi

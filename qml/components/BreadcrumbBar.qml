@@ -10,6 +10,8 @@ Item {
     property bool editing: false
     property var completions: []
     property int completionRequest: -1
+    readonly property int crumbHeight: 28 * Theme.scale
+    readonly property int editReserve: Math.round(32 * Theme.scale)
     signal navigate(string path)
 
     function beginEditing() {
@@ -53,9 +55,17 @@ Item {
         completionRequest = requestId;
     }
 
+    function revealCurrentCrumb() {
+        if (root.editing)
+            return;
+        breadcrumbFlick.contentX = Math.max(0, breadcrumbRow.implicitWidth - breadcrumbFlick.width);
+    }
+
     readonly property var crumbs: {
-        const parts = path.split('/').filter(Boolean);
-        const result = [{ label: "Computer", path: "/" }];
+        const parts = path.split("/").filter(Boolean);
+        if (parts.length === 0)
+            return [{ label: "/", path: "/" }];
+        const result = [];
         let current = "";
         for (const part of parts) {
             current += "/" + part;
@@ -66,67 +76,129 @@ Item {
 
     implicitHeight: 36 * Theme.scale
 
+    onPathChanged: Qt.callLater(root.revealCurrentCrumb)
+
     Rectangle {
         anchors.fill: parent
         radius: Theme.radiusS
         color: Qt.alpha(Theme.surfaceVariant, 0.72)
         border.width: 1
-        border.color: Qt.alpha(Theme.outline, 0.72)
+        border.color: root.editing ? Theme.primary : Qt.alpha(Theme.outline, 0.72)
+
+        Behavior on border.color { ColorAnimation { duration: Theme.animationFast } }
     }
 
     Flickable {
         id: breadcrumbFlick
-        anchors.fill: parent
-        anchors.leftMargin: Theme.spaceS
-        anchors.rightMargin: Theme.spaceS
+        anchors.left: parent.left
+        anchors.leftMargin: Theme.spaceXs
+        anchors.top: parent.top
+        anchors.bottom: parent.bottom
+        width: {
+            const trailing = Math.min(root.editReserve, Math.max(Theme.spaceL, parent.width / 6));
+            const available = Math.max(0, parent.width - Theme.spaceXs - trailing);
+            return Math.min(breadcrumbRow.implicitWidth, available);
+        }
         visible: !root.editing
         contentWidth: breadcrumbRow.implicitWidth
         contentHeight: height
         clip: true
+        flickableDirection: Flickable.HorizontalFlick
+        boundsBehavior: Flickable.StopAtBounds
+        interactive: contentWidth > width
 
         Row {
             id: breadcrumbRow
             height: parent.height
-            spacing: 1
+            spacing: 0
 
             Repeater {
                 model: root.crumbs
 
-                delegate: Row {
+                delegate: MouseArea {
+                    id: crumbButton
                     required property int index
                     required property var modelData
-                    height: breadcrumbRow.height
 
-                    Text {
-                        visible: index > 0
-                        text: "›"
-                        color: Theme.textMuted
-                        anchors.verticalCenter: parent.verticalCenter
-                        font.pixelSize: Theme.fontBody
-                    }
+                    readonly property bool isCurrent: index === root.crumbs.length - 1
+                    readonly property bool isFirst: index === 0
+
+                    anchors.verticalCenter: parent.verticalCenter
+                    height: root.crumbHeight
+                    width: crumbContent.implicitWidth + Theme.spaceS + (isCurrent ? Theme.spaceS : Theme.spaceXs)
+                    hoverEnabled: true
+                    cursorShape: Qt.PointingHandCursor
+                    acceptedButtons: Qt.LeftButton
+                    Accessible.name: modelData.label
+                    Accessible.role: Accessible.Button
+                    onClicked: root.navigate(modelData.path)
 
                     Rectangle {
-                        width: crumbText.implicitWidth + Theme.spaceM * 2
-                        height: 28 * Theme.scale
-                        anchors.verticalCenter: parent.verticalCenter
+                        anchors.fill: parent
                         radius: Theme.radiusS
-                        color: "transparent"
+                        color: crumbButton.pressed ? Qt.alpha(Theme.primary, 0.26)
+                             : crumbButton.isCurrent ? Theme.selectionFill
+                             : crumbButton.containsMouse ? Theme.controlHover
+                             : "transparent"
 
-                        Text {
-                            id: crumbText
-                            anchors.centerIn: parent
-                            text: Format.safeText(modelData.label)
-                            textFormat: Text.PlainText
-                            color: index === root.crumbs.length - 1 ? Theme.text : Theme.textMuted
-                            font.pixelSize: Theme.fontBody
-                            font.weight: index === root.crumbs.length - 1 ? Font.DemiBold : Font.Normal
-                            elide: Text.ElideMiddle
+                        Behavior on color { ColorAnimation { duration: Theme.animationFast } }
+                    }
+
+                    Row {
+                        id: crumbContent
+                        anchors.verticalCenter: parent.verticalCenter
+                        anchors.left: parent.left
+                        anchors.leftMargin: Theme.spaceS
+                        spacing: Theme.spaceXs
+
+                        LucideIcon {
+                            visible: crumbButton.isFirst
+                            name: "folder"
+                            iconSize: Theme.fontBody
+                            iconColor: crumbButton.isCurrent || crumbButton.containsMouse ? Theme.primary : Theme.textMuted
+                            anchors.verticalCenter: parent.verticalCenter
                         }
 
+                        Text {
+                            text: Format.safeText(crumbButton.modelData.label)
+                            textFormat: Text.PlainText
+                            color: crumbButton.isCurrent ? Theme.text : Theme.textMuted
+                            font.pixelSize: Theme.fontBody
+                            font.weight: crumbButton.isCurrent ? Font.DemiBold : Font.Medium
+                            anchors.verticalCenter: parent.verticalCenter
+                        }
+
+                        LucideIcon {
+                            visible: !crumbButton.isCurrent
+                            name: "chevron-right"
+                            iconSize: Theme.fontSmall
+                            iconColor: Theme.textMuted
+                            opacity: crumbButton.containsMouse ? 1 : 0.7
+                            anchors.verticalCenter: parent.verticalCenter
+                        }
                     }
+
+                    ToolTip.visible: containsMouse
+                    ToolTip.text: Format.safeText(modelData.path)
+                    ToolTip.delay: 450
                 }
             }
         }
+    }
+
+    MouseArea {
+        id: editArea
+        anchors.left: breadcrumbFlick.right
+        anchors.right: parent.right
+        anchors.top: parent.top
+        anchors.bottom: parent.bottom
+        visible: !root.editing
+        hoverEnabled: true
+        cursorShape: Qt.IBeamCursor
+        acceptedButtons: Qt.LeftButton
+        onClicked: root.beginEditing()
+        Accessible.name: qsTr("Edit location")
+        Accessible.role: Accessible.Button
     }
 
     ThemedTextField {
@@ -150,17 +222,14 @@ Item {
         }
     }
 
-    MouseArea {
-        anchors.fill: parent
-        visible: !root.editing
-        acceptedButtons: Qt.LeftButton | Qt.MiddleButton
-        cursorShape: Qt.IBeamCursor
-        onClicked: root.beginEditing()
-    }
-
     property Timer completionDelay: Timer {
         interval: 120
         onTriggered: root.refreshCompletions()
+    }
+
+    Connections {
+        target: breadcrumbRow
+        function onImplicitWidthChanged() { root.revealCurrentCrumb(); }
     }
 
     Popup {

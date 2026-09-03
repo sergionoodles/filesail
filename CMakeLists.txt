@@ -92,8 +92,8 @@ configure_file(
 install(TARGETS filesail-backend RUNTIME DESTINATION ${CMAKE_INSTALL_BINDIR})
 if(FILESAIL_BUILD_DBUS)
     install(TARGETS filesail-filemanager1 RUNTIME DESTINATION ${CMAKE_INSTALL_BINDIR})
-    install(FILES packaging/org.freedesktop.FileManager1.service
-        DESTINATION ${CMAKE_INSTALL_DATADIR}/dbus-1/services)
+    install(FILES packaging/filesail-filemanager1.service
+        DESTINATION ${CMAKE_INSTALL_LIBDIR}/systemd/user)
 endif()
 install(PROGRAMS ${CMAKE_CURRENT_BINARY_DIR}/filesail DESTINATION ${CMAKE_INSTALL_BINDIR})
 install(FILES shell.qml logo.png ${CMAKE_CURRENT_BINARY_DIR}/manifest.json

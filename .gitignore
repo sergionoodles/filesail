@@ -28,6 +28,9 @@
 /integrations/noctalia/pkg/
 /integrations/noctalia/src/
 /integrations/noctalia/*.pkg.tar.*
+/integrations/dbus/dist/
+/integrations/dbus/pkg/
+/integrations/dbus/*.pkg.tar.*
 
 # Generated Qt/CMake artifacts and the local backend executable
 /.qt/

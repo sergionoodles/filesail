@@ -1,0 +1,9 @@
+[Unit]
+Description=FileSail FileManager1 D-Bus service
+After=graphical-session.target
+
+[Service]
+Type=dbus
+BusName=org.freedesktop.FileManager1
+ExecStart=/usr/bin/filesail-filemanager1
+Restart=on-failure

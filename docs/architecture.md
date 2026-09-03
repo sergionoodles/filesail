@@ -64,8 +64,11 @@ escape hatch.
 The optional `filesail-dbus` package adds a separate native Qt service for
 `org.freedesktop.FileManager1`. It translates local URI requests into the same
 launcher and IPC path, so the default package and AppImage do not claim the
-global session-bus name. `ShowItems` groups selections by containing directory
-and applies them after the directory snapshot loads.
+global session-bus name. The package installs a user-level systemd unit rather
+than a system D-Bus activation file, avoiding conflicts with file managers such
+as Nautilus. Users explicitly enable the unit when they want FileSail to own
+the name. `ShowItems` groups selections by containing directory and applies them
+after the directory snapshot loads.
 - A future Omarchy host should map Omarchy tokens and panel lifecycle into the
   same shared UI. No compositor code belongs in the file model or operations.
 

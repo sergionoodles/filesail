@@ -58,8 +58,19 @@ usable for Noctalia plugin development through `scripts/install-noctalia.sh`.
 
 The optional `org.freedesktop.FileManager1` integration is not included in the
 standard package or AppImage. Arch users can opt in by building the separate
-package in `integrations/dbus`; it depends on `filesail` and installs only the
-session-bus service.
+package in `integrations/dbus`; it depends on `filesail` and installs a user
+service that can claim the session-bus name without replacing Nautilus files.
+Enable it with:
+
+```sh
+systemctl --user enable --now filesail-filemanager1.service
+```
+
+Disable it with:
+
+```sh
+systemctl --user disable --now filesail-filemanager1.service
+```
 
 ## Install from an Arch package
 

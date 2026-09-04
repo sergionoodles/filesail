@@ -11,7 +11,7 @@ Item {
     }
     Layout.fillWidth: true
     Layout.fillHeight: true
-    implicitHeight: 32 * Theme.scale
+    implicitHeight: 28 * Theme.scale
     clip: true
 
     Flickable {

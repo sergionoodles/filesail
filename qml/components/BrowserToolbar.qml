@@ -32,6 +32,7 @@ ColumnLayout {
     required property Action previewAction
     required property Action aboutAction
 
+    readonly property real navigationSectionHeight: navigationBar.y + navigationBar.height
     signal navigate(string path)
 
     function beginPathEditing() {
@@ -74,5 +75,5 @@ ColumnLayout {
         previewAction: root.previewAction
     }
 
-    Rectangle { Layout.fillWidth: true; implicitHeight: 1; color: Qt.alpha(Theme.outline, 0.5) }
+    Rectangle { Layout.fillWidth: true; implicitHeight: 1; color: Theme.subtleDivider }
 }

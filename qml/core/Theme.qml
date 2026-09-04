@@ -19,6 +19,7 @@ QtObject {
     readonly property color selectionFill: Qt.alpha(primary, 0.18)
     readonly property color controlHover: Qt.alpha(text, 0.08)
     readonly property color divider: Qt.alpha(outline, 0.72)
+    readonly property color subtleDivider: Qt.alpha(outline, 0.42)
     property color errorText: "#16161e"
     // A host may bind this to its appearance setting. Preview providers use it
     // only to select generated syntax colours; they never load host resources.

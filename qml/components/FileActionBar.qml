@@ -15,10 +15,10 @@ Rectangle {
     required property Action trashAction
     required property Action infoAction
     required property Action previewAction
-    readonly property int actionIconSize: Math.round(18 * Theme.scale)
+    readonly property int actionIconSize: Math.round(16 * Theme.scale)
 
     Layout.fillWidth: true
-    implicitHeight: 48 * Theme.scale
+    implicitHeight: 40 * Theme.scale
     color: Theme.surface
 
     RowLayout {

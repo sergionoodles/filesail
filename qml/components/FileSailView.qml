@@ -41,8 +41,8 @@ Rectangle {
         }
         return false;
     }
-    readonly property real sidebarWidth: (root.compact ? 210 : 220) * Theme.scale
-    readonly property real previewRequiredWidth: (220 + 1 + 360 + 220) * Theme.scale
+    readonly property real sidebarWidth: (root.compact ? 220 : 240) * Theme.scale
+    readonly property real previewRequiredWidth: (240 + 1 + 360 + 220) * Theme.scale
     readonly property bool previewEnabled: previewPaneEnabled && width >= previewRequiredWidth
     readonly property bool modalActive: dialogs.active
 
@@ -107,6 +107,7 @@ Rectangle {
         Sidebar {
             Layout.preferredWidth: root.sidebarWidth
             Layout.fillHeight: true
+            topSectionHeight: toolbar.navigationSectionHeight
             currentPath: session.directory.path
             projectsModel: SavedLocationsModel.projects
             bookmarksModel: SavedLocationsModel.bookmarks
@@ -179,6 +180,15 @@ Rectangle {
                 clipboardMode: session.clipboardMode
             }
         }
+    }
+
+    Rectangle {
+        anchors.left: parent.left
+        anchors.right: parent.right
+        y: Math.round(toolbar.navigationSectionHeight)
+        height: 1
+        color: Theme.divider
+        z: 1
     }
 
     NoticeBanner {

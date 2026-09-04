@@ -8,7 +8,8 @@ Text {
     property color iconColor: Theme.textMuted
     property int iconSize: Theme.iconSize
 
-    text: String.fromCharCode(LucideCodes.values[name] ?? 57559)
+    // The bundled font maps Lucide names through its GSUB ligature table.
+    text: name
     color: iconColor
     font.family: Theme.lucideFont.name
     font.pixelSize: iconSize

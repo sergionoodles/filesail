@@ -4,6 +4,7 @@
 #include <QDateTime>
 #include <QCollator>
 #include <QDir>
+#include <QElapsedTimer>
 #include <QFile>
 #include <QFileInfo>
 #include <QJsonDocument>
@@ -288,6 +289,62 @@ bool copyPosixAcls(int sourceDescriptor, const std::filesystem::path &destinatio
 
 bool removeOne(const QString &path, QString *error);
 
+struct TransferProgress {
+    FileOperations::ProgressCallback callback;
+    qint64 bytesDone = 0;
+    qint64 currentFileBytesDone = 0;
+    qint64 currentFileBytesTotal = 0;
+    qsizetype entriesDone = 0;
+    int topLevelDone = 0;
+    int topLevelTotal = 0;
+    QElapsedTimer reportTimer;
+    bool hasReported = false;
+
+    void report(const QString &phase, const QString &currentPath, bool force = false)
+    {
+        if (!callback || (!force && hasReported && reportTimer.elapsed() < 200))
+            return;
+        callback({
+            {"phase", phase},
+            {"currentPath", currentPath},
+            {"bytesDone", QString::number(bytesDone)},
+            {"currentFileBytesDone", QString::number(currentFileBytesDone)},
+            {"currentFileBytesTotal", QString::number(currentFileBytesTotal)},
+            {"entriesDone", static_cast<qint64>(entriesDone)},
+            {"topLevelDone", topLevelDone},
+            {"topLevelTotal", topLevelTotal},
+        });
+        reportTimer.restart();
+        hasReported = true;
+    }
+
+    void beginFile(const QString &path, qint64 size)
+    {
+        currentFileBytesDone = 0;
+        currentFileBytesTotal = std::max<qint64>(0, size);
+        report("transferring", path, true);
+    }
+
+    void bytesWritten(qint64 bytes, const QString &path)
+    {
+        bytesDone += bytes;
+        currentFileBytesDone += bytes;
+        report("transferring", path);
+    }
+
+    void entryCompleted(const QString &path)
+    {
+        ++entriesDone;
+        report("transferring", path, true);
+    }
+
+    void topLevelCompleted(const QString &path)
+    {
+        ++topLevelDone;
+        report("transferring", path, true);
+    }
+};
+
 // Copy contract: preserve regular files, directories and symlinks. Permissions
 // and modification times are preserved for regular files and directories.
 // Device nodes, sockets, FIFOs and other special entries are rejected instead
@@ -295,7 +352,9 @@ bool removeOne(const QString &path, QString *error);
 bool copyEntry(const std::filesystem::path &source,
                const std::filesystem::path &destination,
                QString *error,
-               bool *created = nullptr)
+               bool *created = nullptr,
+               TransferProgress *progress = nullptr,
+               const QString &logicalSource = {})
 {
     if (created)
         *created = false;
@@ -324,6 +383,8 @@ bool copyEntry(const std::filesystem::path &source,
         }
         if (created)
             *created = true;
+        if (progress)
+            progress->entryCompleted(logicalSource);
         return true;
     }
 
@@ -368,6 +429,9 @@ bool copyEntry(const std::filesystem::path &source,
         if (created)
             *created = true;
 
+        if (progress)
+            progress->beginFile(logicalSource, opened.st_size);
+
         QByteArray buffer(256 * 1024, Qt::Uninitialized);
         while (true) {
             const qint64 bytesRead = sourceFile.read(buffer.data(), buffer.size());
@@ -390,6 +454,8 @@ bool copyEntry(const std::filesystem::path &source,
                 }
                 offset += bytesWritten;
             }
+            if (progress)
+                progress->bytesWritten(bytesRead, logicalSource);
         }
         if (!destinationFile.flush()) {
             *error = QStringLiteral("Could not flush destination file: %1")
@@ -397,8 +463,11 @@ bool copyEntry(const std::filesystem::path &source,
             return false;
         }
         destinationFile.close();
-        return setCopiedMetadata(source, destination, status, error)
+        const bool metadataCopied = setCopiedMetadata(source, destination, status, error)
             && copyPosixAcls(sourceDescriptor.get(), destination, false, error);
+        if (metadataCopied && progress)
+            progress->entryCompleted(logicalSource);
+        return metadataCopied;
     }
 
     if (S_ISDIR(initialStatus.st_mode)) {
@@ -423,6 +492,9 @@ bool copyEntry(const std::filesystem::path &source,
         if (created)
             *created = true;
 
+        if (progress)
+            progress->report("transferring", logicalSource, true);
+
         const QByteArray openedSourceName = QByteArray("/proc/self/fd/")
             + QByteArray::number(sourceDescriptor.get());
         const std::filesystem::path openedSource(openedSourceName.constData());
@@ -430,7 +502,13 @@ bool copyEntry(const std::filesystem::path &source,
         const std::filesystem::directory_iterator end;
         while (!ec && iterator != end) {
             const auto childDestination = destination / iterator->path().filename();
-            if (!copyEntry(iterator->path(), childDestination, error))
+            // Do not turn an unrepresentable filename into a potentially
+            // colliding display path. The copy itself remains supported, but
+            // progress falls back to the nearest safe logical ancestor.
+            const QString childName = isRoundTrippableFileSystemPath(iterator->path().filename())
+                ? qtPath(iterator->path().filename()) : QString();
+            const QString childLogicalSource = QDir(logicalSource).filePath(childName);
+            if (!copyEntry(iterator->path(), childDestination, error, nullptr, progress, childLogicalSource))
                 return false;
             iterator.increment(ec);
         }
@@ -439,8 +517,11 @@ bool copyEntry(const std::filesystem::path &source,
                          .arg(QString::fromStdString(ec.message()));
             return false;
         }
-        return setCopiedMetadata(source, destination, status, error)
+        const bool metadataCopied = setCopiedMetadata(source, destination, status, error)
             && copyPosixAcls(sourceDescriptor.get(), destination, true, error);
+        if (metadataCopied && progress)
+            progress->entryCompleted(logicalSource);
+        return metadataCopied;
     }
 
     *error = QStringLiteral("Unsupported filesystem entry: %1").arg(qtPath(source));
@@ -489,7 +570,8 @@ bool isSameOrDescendant(const QString &source, const QString &destination)
         || normalizedDestination.startsWith(sourcePrefix);
 }
 
-bool copyOne(const QString &source, const QString &destination, QString *error)
+bool copyOne(const QString &source, const QString &destination, QString *error,
+             TransferProgress *progress = nullptr, const QString &logicalSource = {})
 {
     if (entryExists(destination)) {
         *error = QStringLiteral("Destination already exists: %1").arg(destination);
@@ -502,7 +584,8 @@ bool copyOne(const QString &source, const QString &destination, QString *error)
             .arg(QUuid::createUuid().toString(QUuid::WithoutBraces)));
     const ActiveStage activeStage(stage);
     bool stageCreated = false;
-    if (!copyEntry(fileSystemPath(source), fileSystemPath(stage), error, &stageCreated)) {
+    if (!copyEntry(fileSystemPath(source), fileSystemPath(stage), error, &stageCreated,
+                   progress, logicalSource)) {
         QString cleanupError;
         if (stageCreated && !removeOne(stage, &cleanupError)) {
             *error += QStringLiteral("; staging cleanup failed at %1: %2")
@@ -511,6 +594,8 @@ bool copyOne(const QString &source, const QString &destination, QString *error)
         return false;
     }
 
+    if (progress)
+        progress->report("committing", logicalSource, true);
     const RenameResult result = renameNoReplace(stage, destination, error);
     if (result == RenameResult::Renamed)
         return true;
@@ -540,12 +625,17 @@ bool removeOne(const QString &path, QString *error)
 }
 
 bool moveOne(const QString &source, const QString &destination, QString *error,
-             bool *destinationCommitted)
+             bool *destinationCommitted, TransferProgress *progress = nullptr,
+             const QString &logicalSource = {})
 {
     *destinationCommitted = false;
+    if (progress)
+        progress->report("committing", logicalSource, true);
     const RenameResult result = renameNoReplace(source, destination, error);
     if (result == RenameResult::Renamed) {
         *destinationCommitted = true;
+        if (progress)
+            progress->entryCompleted(logicalSource);
         return true;
     }
     if (result == RenameResult::AlreadyExists) {
@@ -570,7 +660,7 @@ bool moveOne(const QString &source, const QString &destination, QString *error,
     if (!lstatPath(fileSystemPath(stagedSource), &stagedStatus, error))
         return false;
 
-    if (!copyOne(stagedSource, destination, error)) {
+    if (!copyOne(stagedSource, destination, error, progress, logicalSource)) {
         QString rollbackError;
         if (renameNoReplace(stagedSource, source, &rollbackError) != RenameResult::Renamed) {
             *error += QStringLiteral("; source remains staged at %1: %2")
@@ -579,6 +669,8 @@ bool moveOne(const QString &source, const QString &destination, QString *error,
         return false;
     }
     *destinationCommitted = true;
+    if (progress)
+        progress->report("cleaningUp", logicalSource, true);
     struct stat currentStagedStatus {};
     if (!lstatPath(fileSystemPath(stagedSource), &currentStagedStatus, error)
         || !sameFile(stagedStatus, currentStagedStatus)) {
@@ -594,7 +686,9 @@ bool moveOne(const QString &source, const QString &destination, QString *error,
     return true;
 }
 
-QJsonObject transferPaths(const QJsonObject &params, bool move)
+QJsonObject transferPaths(const QJsonObject &params, bool move,
+                          const CancellationToken &token,
+                          const FileOperations::ProgressCallback &progressCallback)
 {
     QString error;
     QString targetDirectory = requiredPath(params, "targetDirectory", &error);
@@ -613,6 +707,10 @@ QJsonObject transferPaths(const QJsonObject &params, bool move)
         return failure("No source paths supplied");
 
     QJsonArray completed;
+    TransferProgress progress;
+    progress.callback = progressCallback;
+    progress.topLevelTotal = paths.size();
+    progress.report("preparing", {}, true);
     for (const QJsonValue &value : paths) {
         error.clear();
         const QString source = validateLocalPath(value, "source path", &error);
@@ -620,6 +718,10 @@ QJsonObject transferPaths(const QJsonObject &params, bool move)
             return failure(error, {{"completed", completed}});
         if (!entryExists(source))
             return failure(QStringLiteral("Path does not exist: %1").arg(source), {{"completed", completed}});
+
+        if (cancellationRequested(token))
+            return failure("Operation canceled", {{"completed", completed}});
+        progress.report("preparing", source, true);
 
         const QString destination = destinationFor(source, targetDirectory);
         std::error_code statusError;
@@ -633,8 +735,9 @@ QJsonObject transferPaths(const QJsonObject &params, bool move)
             return failure(QStringLiteral("Cannot transfer a folder into itself: %1").arg(source),
                            {{"completed", completed}});
         bool destinationCommitted = false;
-        const bool ok = move ? moveOne(source, destination, &error, &destinationCommitted)
-                             : copyOne(source, destination, &error);
+        const bool ok = move ? moveOne(source, destination, &error, &destinationCommitted,
+                                       &progress, source)
+                             : copyOne(source, destination, &error, &progress, source);
         if (!ok) {
             QJsonObject details{{"completed", completed}};
             if (move && destinationCommitted) {
@@ -647,6 +750,7 @@ QJsonObject transferPaths(const QJsonObject &params, bool move)
             return failure(QStringLiteral("%1: %2").arg(source, error), details);
         }
         completed.append(destination);
+        progress.topLevelCompleted(source);
     }
     return success({{"paths", completed}});
 }
@@ -880,14 +984,16 @@ QJsonObject trashPaths(const QJsonObject &params)
     return success({{"paths", trashed}});
 }
 
-QJsonObject copyPaths(const QJsonObject &params)
+QJsonObject copyPaths(const QJsonObject &params, const CancellationToken &token,
+                      const ProgressCallback &progress)
 {
-    return transferPaths(params, false);
+    return transferPaths(params, false, token, progress);
 }
 
-QJsonObject movePaths(const QJsonObject &params)
+QJsonObject movePaths(const QJsonObject &params, const CancellationToken &token,
+                      const ProgressCallback &progress)
 {
-    return transferPaths(params, true);
+    return transferPaths(params, true, token, progress);
 }
 
 QJsonObject setExecutable(const QJsonObject &params)

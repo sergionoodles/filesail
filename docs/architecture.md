@@ -18,7 +18,8 @@ depend on a particular host.
 ## Backend protocol
 
 `filesail-backend --serve` is a long-lived Qt Core helper. It accepts one compact
-JSON request per stdin line and emits one response per stdout line. The process
+JSON request per stdin line and emits one compact protocol message per stdout
+line. The process
 boundary has two advantages:
 
 1. The same backend is available to standalone Quickshell and embedded shell
@@ -33,10 +34,20 @@ explicit, reference-counted directory subscriptions; `QFileSystemWatcher`
 events are emitted immediately and each directory model debounces its own
 refreshes.
 
+Serialized mutations are registered in a backend-owned FIFO. The backend emits
+additive `operationChanged` events for queued/running state and copy/move
+progress, and `operations.list` returns the current mutation snapshot. These
+events are non-terminal; the original request response remains the sole source
+of success, failure, and partial-transfer results. Progress reports logical
+source paths, completed entries, top-level item counts, aggregate bytes written,
+and current-file byte counters. Aggregate directory totals are intentionally
+not pre-scanned, so directory transfers may report indeterminate progress.
+
 Filesystem work runs outside the protocol event loop. Directory queries use a
-small read pool, while mutating operations use a single-worker queue so their
-ordering remains deterministic. Request IDs are also operation IDs, leaving a
-compatible seam for later progress and cancellation events.
+small read pool, while mutating operations use the explicit single-worker FIFO
+so their ordering remains deterministic. Request IDs are also operation IDs,
+and mutation cancellation remains a future extension with explicit staging
+boundary semantics.
 
 Copies are staged on the destination filesystem and committed with atomic
 no-replace semantics. Copy and cross-device move preserve regular files,

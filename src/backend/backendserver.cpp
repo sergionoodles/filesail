@@ -10,13 +10,18 @@
 #include <QFileInfo>
 #include <QFileSystemWatcher>
 #include <QFutureWatcher>
+#include <QJsonArray>
 #include <QJsonDocument>
 #include <QJsonObject>
+#include <QMetaObject>
 #include <QSocketNotifier>
 #include <QTimer>
+#include <QUuid>
 #include <QUrl>
+#include <QVector>
 #include <QtConcurrentRun>
 
+#include <algorithm>
 #include <cerrno>
 #include <exception>
 #include <unistd.h>
@@ -71,6 +76,7 @@ QString watchPath(const QJsonObject &params, bool mustExist, QString *error)
 
 BackendServer::BackendServer(QObject *parent)
     : QObject(parent)
+    , m_backendInstance(QUuid::createUuid().toString(QUuid::WithoutBraces))
 {
     m_readPool.setMaxThreadCount(2);
     m_mutationPool.setMaxThreadCount(1);
@@ -203,22 +209,26 @@ void BackendServer::handleRequest(const QByteArray &line)
         enqueueOperation(id, m_readPool, [](const CancellationToken &) { return SavedLocations::list(); }, false);
     } else if (method == "locations.add") {
         ensureSavedLocationsWatch();
-        enqueueOperation(id, m_mutationPool, [params](const CancellationToken &) { return SavedLocations::add(params); }, false);
+        enqueueMutation(id, method, params, [params](const CancellationToken &, const ProgressCallback &) { return SavedLocations::add(params); });
     } else if (method == "locations.remove") {
         ensureSavedLocationsWatch();
-        enqueueOperation(id, m_mutationPool, [params](const CancellationToken &) { return SavedLocations::remove(params); }, false);
+        enqueueMutation(id, method, params, [params](const CancellationToken &, const ProgressCallback &) { return SavedLocations::remove(params); });
     } else if (method == "mkdir") {
-        enqueueOperation(id, m_mutationPool, [params](const CancellationToken &) { return FileOperations::createDirectory(params); }, false);
+        enqueueMutation(id, method, params, [params](const CancellationToken &, const ProgressCallback &) { return FileOperations::createDirectory(params); });
     } else if (method == "rename") {
-        enqueueOperation(id, m_mutationPool, [params](const CancellationToken &) { return FileOperations::renamePath(params); }, false);
+        enqueueMutation(id, method, params, [params](const CancellationToken &, const ProgressCallback &) { return FileOperations::renamePath(params); });
     } else if (method == "trash") {
-        enqueueOperation(id, m_mutationPool, [params](const CancellationToken &) { return FileOperations::trashPaths(params); }, false);
+        enqueueMutation(id, method, params, [params](const CancellationToken &, const ProgressCallback &) { return FileOperations::trashPaths(params); });
     } else if (method == "copy") {
-        enqueueOperation(id, m_mutationPool, [params](const CancellationToken &) { return FileOperations::copyPaths(params); }, false);
+        enqueueMutation(id, method, params, [params](const CancellationToken &token, const ProgressCallback &progress) {
+            return FileOperations::copyPaths(params, token, progress);
+        });
     } else if (method == "move") {
-        enqueueOperation(id, m_mutationPool, [params](const CancellationToken &) { return FileOperations::movePaths(params); }, false);
+        enqueueMutation(id, method, params, [params](const CancellationToken &token, const ProgressCallback &progress) {
+            return FileOperations::movePaths(params, token, progress);
+        });
     } else if (method == "setExecutable") {
-        enqueueOperation(id, m_mutationPool, [params](const CancellationToken &) { return FileOperations::setExecutable(params); }, false);
+        enqueueMutation(id, method, params, [params](const CancellationToken &, const ProgressCallback &) { return FileOperations::setExecutable(params); });
     } else if (method == "open") {
         enqueueOperation(id, m_readPool, [params](const CancellationToken &) { return FileOperations::openPath(params); }, false);
     } else if (method == "terminal") {
@@ -252,6 +262,10 @@ void BackendServer::handleRequest(const QByteArray &line)
             schedulePreviewServiceIdle();
             if (m_inputClosed && m_activeJobs == 0) QCoreApplication::quit();
         });
+    } else if (method == "operations.list") {
+        QJsonObject result = listOperations();
+        result.insert("id", id);
+        writeResponse(result);
     } else if (method == "textPreview") {
         ensurePreviewService();
         enqueueOperation(id, m_readPool, [this, params](const CancellationToken &token) { return m_previewService->text(params, token); }, true, true);
@@ -262,14 +276,16 @@ void BackendServer::handleRequest(const QByteArray &line)
         const int requestId = params.value("requestId").toInt(-1);
         if (const auto token = m_cancellationTokens.value(requestId)) {
             token->store(true, std::memory_order_relaxed);
-            m_previewService->cancelThumbnail(requestId);
+            if (m_previewJobs.contains(requestId) && m_previewService)
+                m_previewService->cancelThumbnail(requestId);
         }
         writeResponse({{"id", id}, {"ok", true}});
     } else if (method == "cancel") {
         const int requestId = params.value("requestId").toInt(-1);
         if (const auto token = m_cancellationTokens.value(requestId)) {
             token->store(true, std::memory_order_relaxed);
-            m_previewService->cancelThumbnail(requestId);
+            if (m_previewJobs.contains(requestId) && m_previewService)
+                m_previewService->cancelThumbnail(requestId);
         }
         writeResponse({{"id", id}, {"ok", true}});
     } else {
@@ -296,6 +312,144 @@ void BackendServer::writeResponse(const QJsonObject &response)
     m_output.write(QJsonDocument(response).toJson(QJsonDocument::Compact));
     m_output.write("\n");
     m_output.flush();
+}
+
+void BackendServer::enqueueMutation(int id, const QString &method, const QJsonObject &params,
+                                    Operation operation)
+{
+    constexpr qsizetype maximumMutationJobs = 32;
+    if (m_activeJobs >= maximumActiveJobs || m_mutationJobs.size() >= maximumMutationJobs) {
+        QJsonObject result = failure("Backend mutation queue is full");
+        result.insert("id", id);
+        writeResponse(result);
+        return;
+    }
+    if (m_mutationJobs.contains(id)) {
+        QJsonObject result = failure("Duplicate backend operation id");
+        result.insert("id", id);
+        writeResponse(result);
+        return;
+    }
+
+    MutationJob job;
+    job.id = id;
+    job.method = method;
+    job.params = params;
+    job.queueSequence = m_nextOperationSequence++;
+    job.operation = std::move(operation);
+    m_mutationJobs.insert(id, std::move(job));
+    m_mutationQueue.enqueue(id);
+    ++m_activeJobs;
+    emitOperationChanged(id);
+    startNextMutation();
+}
+
+void BackendServer::startNextMutation()
+{
+    if (m_mutationRunning || m_mutationQueue.isEmpty())
+        return;
+
+    const int id = m_mutationQueue.dequeue();
+    auto iterator = m_mutationJobs.find(id);
+    if (iterator == m_mutationJobs.end()) {
+        startNextMutation();
+        return;
+    }
+
+    iterator->state = QStringLiteral("running");
+    iterator->progress = QJsonObject{{"phase", "preparing"}};
+    emitOperationChanged(id);
+    m_mutationRunning = true;
+
+    const Operation operation = iterator->operation;
+    const ProgressCallback progress = [this, id](const QJsonObject &update) {
+        // File operations run on the worker pool. All protocol writes and
+        // operation registry mutations remain on the backend event thread.
+        QMetaObject::invokeMethod(this, [this, id, update] {
+            auto iterator = m_mutationJobs.find(id);
+            if (iterator == m_mutationJobs.end() || iterator->state != "running")
+                return;
+            for (auto updateIterator = update.constBegin(); updateIterator != update.constEnd(); ++updateIterator)
+                iterator->progress.insert(updateIterator.key(), updateIterator.value());
+            emitOperationChanged(id);
+        }, Qt::QueuedConnection);
+    };
+
+    auto *watcher = new QFutureWatcher<QJsonObject>(this);
+    connect(watcher, &QFutureWatcher<QJsonObject>::finished, this, [this, watcher, id] {
+        QJsonObject result = watcher->result();
+        result.insert("id", id);
+        writeResponse(result);
+        watcher->deleteLater();
+
+        m_mutationJobs.remove(id);
+        m_mutationRunning = false;
+        --m_activeJobs;
+        startNextMutation();
+        if (m_inputClosed && m_activeJobs == 0)
+            QCoreApplication::quit();
+    });
+    watcher->setFuture(QtConcurrent::run(&m_mutationPool, [operation, progress] {
+        try {
+            const CancellationToken token;
+            return operation(token, progress);
+        } catch (const std::exception &exception) {
+            return failure(QStringLiteral("Backend operation failed: %1")
+                               .arg(QString::fromLocal8Bit(exception.what())));
+        } catch (...) {
+            return failure("Backend operation failed unexpectedly");
+        }
+    }));
+}
+
+QJsonObject BackendServer::operationSnapshot(const MutationJob &job) const
+{
+    QJsonObject operation{
+        {"id", job.id},
+        {"method", job.method},
+        {"state", job.state},
+        {"queueSequence", static_cast<qint64>(job.queueSequence)},
+        {"progress", job.progress},
+    };
+    if (job.params.value("paths").isArray())
+        operation.insert("paths", job.params.value("paths"));
+    if (job.params.value("targetDirectory").isString())
+        operation.insert("targetDirectory", job.params.value("targetDirectory"));
+    return operation;
+}
+
+void BackendServer::emitOperationChanged(int id)
+{
+    const auto iterator = m_mutationJobs.constFind(id);
+    if (iterator == m_mutationJobs.constEnd())
+        return;
+    writeResponse({
+        {"event", "operationChanged"},
+        {"backendInstance", m_backendInstance},
+        {"eventSequence", static_cast<qint64>(++m_eventSequence)},
+        {"operation", operationSnapshot(iterator.value())},
+    });
+}
+
+QJsonObject BackendServer::listOperations() const
+{
+    QVector<const MutationJob *> jobs;
+    jobs.reserve(m_mutationJobs.size());
+    for (const MutationJob &job : m_mutationJobs)
+        jobs.append(&job);
+    std::sort(jobs.begin(), jobs.end(), [](const MutationJob *left, const MutationJob *right) {
+        return left->queueSequence < right->queueSequence;
+    });
+
+    QJsonArray operations;
+    for (const MutationJob *job : jobs)
+        operations.append(operationSnapshot(*job));
+    return {
+        {"ok", true},
+        {"backendInstance", m_backendInstance},
+        {"eventSequence", static_cast<qint64>(m_eventSequence)},
+        {"operations", operations},
+    };
 }
 
 void BackendServer::ensureSavedLocationsWatch()

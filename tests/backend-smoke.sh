@@ -92,12 +92,13 @@ mkdir -p -- "$test_dir/source/child"
 # removals are intentionally idempotent.
 locations="$(printf '{"id":24,"method":"locations.list","params":{}}\n{"id":25,"method":"locations.add","params":{"collection":"projects","path":"%s"}}\n{"id":26,"method":"locations.add","params":{"collection":"projects","path":"%s"}}\n{"id":27,"method":"locations.remove","params":{"collection":"projects","id":"11111111-1111-4111-8111-111111111111"}}\n' "$test_dir" "$test_dir" | "$backend" --serve)"
 jq -s -e '
-    length == 4
-    and all(.[]; .ok == true and (.locations.version == 1))
-    and (.[0].locations.projects | length == 0)
-    and (.[1].locations.projects | length == 1)
-    and (.[2].locations.projects | length == 1)
-    and (.[3].locations.projects | length == 1)
+    map(select(.event? == null)) as $responses
+    | ($responses | length == 4)
+    and ($responses | all(.[]; .ok == true and (.locations.version == 1)))
+    and ($responses[0].locations.projects | length == 0)
+    and ($responses[1].locations.projects | length == 1)
+    and ($responses[2].locations.projects | length == 1)
+    and ($responses[3].locations.projects | length == 1)
 ' <<<"$locations" >/dev/null
 
 # Context is opt-in and is derived from safe direct entries regardless of the
@@ -127,6 +128,33 @@ for _ in {1..20}; do
     sleep 0.1
 done
 [[ $(<"$terminal_output") == "$test_dir" ]]
+
+# Mutation activity is reported as ordered backend events while the original
+# request still receives its normal terminal response. The second copy stays
+# queued behind the first because mutations are dispatched FIFO.
+mkdir -p -- "$test_dir/action-source-a/nested" "$test_dir/action-source-b" "$test_dir/action-destination"
+dd if=/dev/zero of="$test_dir/action-source-a/nested/payload" bs=1M count=8 status=none
+printf 'queued copy' > "$test_dir/action-source-b/payload"
+action_output="$({
+    printf '{"id":60,"method":"copy","params":{"paths":["%s/action-source-a"],"targetDirectory":"%s/action-destination"}}\n' "$test_dir" "$test_dir"
+    printf '{"id":61,"method":"copy","params":{"paths":["%s/action-source-b"],"targetDirectory":"%s/action-destination"}}\n' "$test_dir" "$test_dir"
+    printf '%s\n' '{"id":62,"method":"operations.list","params":{}}'
+} | "$backend" --serve)"
+jq -s -e --arg source "$test_dir/action-source-a/nested/payload" '
+    ([.[] | select(.event == "operationChanged" and .operation.id == 60)] | length >= 2)
+    and ([.[] | select(.event == "operationChanged" and .operation.id == 60) | .operation.state] | index("queued") != null)
+    and ([.[] | select(.event == "operationChanged" and .operation.id == 60) | .operation.state] as $states | ($states | index("queued")) < ($states | index("running")))
+    and ([.[] | select(.event == "operationChanged" and .operation.id == 61) | .operation.state] | index("queued") != null)
+    and ([.[] | select(.id == 62)][0] | .ok == true and (.operations | map(.id) == [60, 61]) and (.operations | map(.state) == ["running", "queued"]))
+    and ([.[] | select(.event == "operationChanged" and .operation.id == 60 and .operation.progress.currentPath == $source)] | length > 0)
+    and ([.[] | select(.event == "operationChanged" and .operation.id == 60 and (((.operation.progress.bytesDone // "0") | tonumber) > 0))] | length > 0)
+    and ([.[] | select(.event == "operationChanged" and ((.operation.progress.currentPath // "") | contains("/proc/self/fd/")))] | length == 0)
+    and ([.[] | select(.id == 60)] | length == 1 and .[0].ok == true)
+    and ([.[] | select(.id == 61)] | length == 1 and .[0].ok == true)
+    and (([.[] | select((.event == "operationChanged" and .operation.id == 60) or (.id == 60))] | .[-1] | has("id")) == true)
+' <<<"$action_output" >/dev/null
+[[ -f "$test_dir/action-destination/action-source-a/nested/payload" ]]
+[[ -f "$test_dir/action-destination/action-source-b/payload" ]]
 
 descendant_request="$(printf '{"id":10,"method":"copy","params":{"paths":["%s/source"],"targetDirectory":"%s/source/child"}}\n' "$test_dir" "$test_dir")"
 descendant="$(printf '%s\n' "$descendant_request" | "$backend" --serve)"

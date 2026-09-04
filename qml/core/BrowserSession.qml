@@ -172,6 +172,23 @@ QtObject {
         setSelection(paths, false, focusedPath || paths[0] || "");
     }
 
+    function setSort(field, isDescending) {
+        const normalized = ["name", "size", "modified"].indexOf(field) >= 0 ? field : "name";
+        directoryModel.sortBy = normalized;
+        directoryModel.descending = isDescending === true;
+        Settings.setSortBy(normalized);
+        Settings.setDescending(isDescending === true);
+    }
+
+    function toggleSort(field) {
+        setSort(field, directoryModel.sortBy === field ? !directoryModel.descending : false);
+    }
+
+    function setFoldersFirst(value) {
+        directoryModel.foldersFirst = value === true;
+        Settings.setFoldersFirst(value === true);
+    }
+
     // Directory order is the only stable order shared by list and grid views.
     // Entries are retained by reference from the current immutable snapshot.
     function updateSelectedEntries() {

@@ -17,6 +17,9 @@ QtObject {
     property bool previewPaneEnabled: false
     property bool showHidden: false
     property string viewMode: "list"
+    property string sortBy: "name"
+    property bool descending: false
+    property bool foldersFirst: true
     property bool loaded: false
     property bool saveQueued: false
     property var changedBeforeLoad: ({})
@@ -46,6 +49,31 @@ QtObject {
         queueSave();
     }
 
+    function setSortBy(field) {
+        const normalized = ["name", "size", "modified"].indexOf(field) >= 0 ? field : "name";
+        if (sortBy === normalized)
+            return;
+        sortBy = normalized;
+        markChangedBeforeLoad("sortBy");
+        queueSave();
+    }
+
+    function setDescending(value) {
+        if (descending === value)
+            return;
+        descending = value;
+        markChangedBeforeLoad("descending");
+        queueSave();
+    }
+
+    function setFoldersFirst(value) {
+        if (foldersFirst === value)
+            return;
+        foldersFirst = value;
+        markChangedBeforeLoad("foldersFirst");
+        queueSave();
+    }
+
     function markChangedBeforeLoad(key) {
         if (loaded)
             return;
@@ -61,6 +89,13 @@ QtObject {
             showHidden = preferencesAdapter.showHidden === true;
         if (!changedBeforeLoad.viewMode)
             viewMode = preferencesAdapter.viewMode === "grid" ? "grid" : "list";
+        if (!changedBeforeLoad.sortBy)
+            sortBy = ["name", "size", "modified"].indexOf(preferencesAdapter.sortBy) >= 0
+                ? preferencesAdapter.sortBy : "name";
+        if (!changedBeforeLoad.descending)
+            descending = preferencesAdapter.descending === true;
+        if (!changedBeforeLoad.foldersFirst)
+            foldersFirst = preferencesAdapter.foldersFirst !== false;
         loaded = true;
         if (saveQueued)
             save();
@@ -79,6 +114,9 @@ QtObject {
         preferencesAdapter.previewPaneEnabled = previewPaneEnabled;
         preferencesAdapter.showHidden = showHidden;
         preferencesAdapter.viewMode = viewMode;
+        preferencesAdapter.sortBy = sortBy;
+        preferencesAdapter.descending = descending;
+        preferencesAdapter.foldersFirst = foldersFirst;
         preferencesFile.writeAdapter();
     }
 
@@ -103,10 +141,13 @@ QtObject {
 
         adapter: JsonAdapter {
             id: preferencesAdapter
-            property int version: 1
+            property int version: 2
             property bool previewPaneEnabled: false
             property bool showHidden: false
             property string viewMode: "list"
+            property string sortBy: "name"
+            property bool descending: false
+            property bool foldersFirst: true
         }
 
         onLoaded: root.applyLoadedValues()

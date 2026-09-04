@@ -28,9 +28,114 @@ ColumnLayout {
             anchors.leftMargin: Theme.spaceL + 34 * Theme.scale
             anchors.rightMargin: Theme.spaceL
             spacing: Theme.spaceM
-            Text { Layout.fillWidth: true; text: "NAME"; color: Theme.textMuted; font.pixelSize: Theme.fontSmall - 1; font.weight: Font.DemiBold }
-            Text { Layout.preferredWidth: 116 * Theme.scale; text: "MODIFIED"; color: Theme.textMuted; font.pixelSize: Theme.fontSmall - 1; font.weight: Font.DemiBold }
-            Text { Layout.preferredWidth: 72 * Theme.scale; horizontalAlignment: Text.AlignRight; text: "SIZE"; color: Theme.textMuted; font.pixelSize: Theme.fontSmall - 1; font.weight: Font.DemiBold }
+
+            Item {
+                Layout.fillWidth: true
+                Layout.fillHeight: true
+                implicitHeight: 30 * Theme.scale
+
+                Row {
+                    anchors.left: parent.left
+                    anchors.verticalCenter: parent.verticalCenter
+                    spacing: Theme.spaceXs
+
+                    Text {
+                        text: qsTr("NAME")
+                        color: nameHeaderMouse.containsMouse ? Theme.text : Theme.textMuted
+                        font.pixelSize: Theme.fontSmall - 1
+                        font.weight: Font.DemiBold
+                    }
+                    LucideIcon {
+                        visible: root.session.directory.sortBy === "name"
+                        name: root.session.directory.descending ? "chevron-down" : "chevron-up"
+                        iconSize: Theme.fontSmall
+                        iconColor: Theme.primary
+                        anchors.verticalCenter: parent.verticalCenter
+                    }
+                }
+
+                MouseArea {
+                    id: nameHeaderMouse
+                    anchors.fill: parent
+                    hoverEnabled: true
+                    cursorShape: Qt.PointingHandCursor
+                    Accessible.name: qsTr("Sort by name")
+                    Accessible.role: Accessible.Button
+                    onClicked: root.session.toggleSort("name")
+                }
+            }
+
+            Item {
+                Layout.preferredWidth: 116 * Theme.scale
+                Layout.fillHeight: true
+                implicitHeight: 30 * Theme.scale
+
+                Row {
+                    anchors.left: parent.left
+                    anchors.verticalCenter: parent.verticalCenter
+                    spacing: Theme.spaceXs
+
+                    Text {
+                        text: qsTr("MODIFIED")
+                        color: modifiedHeaderMouse.containsMouse ? Theme.text : Theme.textMuted
+                        font.pixelSize: Theme.fontSmall - 1
+                        font.weight: Font.DemiBold
+                    }
+                    LucideIcon {
+                        visible: root.session.directory.sortBy === "modified"
+                        name: root.session.directory.descending ? "chevron-down" : "chevron-up"
+                        iconSize: Theme.fontSmall
+                        iconColor: Theme.primary
+                        anchors.verticalCenter: parent.verticalCenter
+                    }
+                }
+
+                MouseArea {
+                    id: modifiedHeaderMouse
+                    anchors.fill: parent
+                    hoverEnabled: true
+                    cursorShape: Qt.PointingHandCursor
+                    Accessible.name: qsTr("Sort by modification date")
+                    Accessible.role: Accessible.Button
+                    onClicked: root.session.toggleSort("modified")
+                }
+            }
+
+            Item {
+                Layout.preferredWidth: 72 * Theme.scale
+                Layout.fillHeight: true
+                implicitHeight: 30 * Theme.scale
+
+                Row {
+                    anchors.right: parent.right
+                    anchors.verticalCenter: parent.verticalCenter
+                    spacing: Theme.spaceXs
+
+                    LucideIcon {
+                        visible: root.session.directory.sortBy === "size"
+                        name: root.session.directory.descending ? "chevron-down" : "chevron-up"
+                        iconSize: Theme.fontSmall
+                        iconColor: Theme.primary
+                        anchors.verticalCenter: parent.verticalCenter
+                    }
+                    Text {
+                        text: qsTr("SIZE")
+                        color: sizeHeaderMouse.containsMouse ? Theme.text : Theme.textMuted
+                        font.pixelSize: Theme.fontSmall - 1
+                        font.weight: Font.DemiBold
+                    }
+                }
+
+                MouseArea {
+                    id: sizeHeaderMouse
+                    anchors.fill: parent
+                    hoverEnabled: true
+                    cursorShape: Qt.PointingHandCursor
+                    Accessible.name: qsTr("Sort by size")
+                    Accessible.role: Accessible.Button
+                    onClicked: root.session.toggleSort("size")
+                }
+            }
         }
     }
 

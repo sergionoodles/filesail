@@ -27,6 +27,48 @@ QtObject {
         checked: Settings.showHidden
         onTriggered: Settings.setShowHidden(!Settings.showHidden)
     }
+    property Action sortByNameAction: Action {
+        text: qsTr("Name")
+        checkable: true
+        checked: root.session.directory.sortBy === "name"
+        enabled: !root.modalActive
+        onTriggered: root.session.setSort("name", root.session.directory.descending)
+    }
+    property Action sortBySizeAction: Action {
+        text: qsTr("Size")
+        checkable: true
+        checked: root.session.directory.sortBy === "size"
+        enabled: !root.modalActive
+        onTriggered: root.session.setSort("size", root.session.directory.descending)
+    }
+    property Action sortByModifiedAction: Action {
+        text: qsTr("Modification date")
+        checkable: true
+        checked: root.session.directory.sortBy === "modified"
+        enabled: !root.modalActive
+        onTriggered: root.session.setSort("modified", root.session.directory.descending)
+    }
+    property Action sortAscendingAction: Action {
+        text: qsTr("Ascending")
+        checkable: true
+        checked: !root.session.directory.descending
+        enabled: !root.modalActive
+        onTriggered: root.session.setSort(root.session.directory.sortBy, false)
+    }
+    property Action sortDescendingAction: Action {
+        text: qsTr("Descending")
+        checkable: true
+        checked: root.session.directory.descending
+        enabled: !root.modalActive
+        onTriggered: root.session.setSort(root.session.directory.sortBy, true)
+    }
+    property Action foldersFirstAction: Action {
+        text: qsTr("Always show folders first")
+        checkable: true
+        checked: root.session.directory.foldersFirst
+        enabled: !root.modalActive
+        onTriggered: root.session.setFoldersFirst(!root.session.directory.foldersFirst)
+    }
     property Action copyAction: Action { text: qsTr("Copy"); shortcut: "Ctrl+C"; enabled: !root.modalActive && root.session.selectedCount > 0; onTriggered: root.session.copySelection("copy") }
     property Action moveAction: Action { text: qsTr("Move"); shortcut: "Ctrl+X"; enabled: !root.modalActive && root.session.selectedCount > 0; onTriggered: root.session.copySelection("move") }
     property Action pasteAction: Action { text: qsTr("Paste"); shortcut: "Ctrl+V"; enabled: !root.modalActive && root.session.clipboardPaths.length > 0; onTriggered: root.session.paste() }

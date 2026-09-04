@@ -16,6 +16,12 @@ Rectangle {
     required property Action listViewAction
     required property Action gridViewAction
     required property Action hiddenFilesAction
+    required property Action sortByNameAction
+    required property Action sortBySizeAction
+    required property Action sortByModifiedAction
+    required property Action sortAscendingAction
+    required property Action sortDescendingAction
+    required property Action foldersFirstAction
     required property Action aboutAction
     readonly property int actionIconSize: Math.round(18 * Theme.scale)
 
@@ -111,6 +117,62 @@ Rectangle {
             checked: root.hiddenFilesAction.checked
             enabled: root.hiddenFilesAction.enabled
             onTriggered: root.hiddenFilesAction.trigger()
+        }
+        Menu {
+            title: qsTr("Sort by")
+            enabled: root.sortByNameAction.enabled
+            delegate: ThemedMenuItem {}
+
+            ThemedMenuItem {
+                text: root.sortByNameAction.text
+                checkable: true
+                checked: root.sortByNameAction.checked
+                enabled: root.sortByNameAction.enabled
+                onTriggered: root.sortByNameAction.trigger()
+            }
+            ThemedMenuItem {
+                text: root.sortBySizeAction.text
+                checkable: true
+                checked: root.sortBySizeAction.checked
+                enabled: root.sortBySizeAction.enabled
+                onTriggered: root.sortBySizeAction.trigger()
+            }
+            ThemedMenuItem {
+                text: root.sortByModifiedAction.text
+                checkable: true
+                checked: root.sortByModifiedAction.checked
+                enabled: root.sortByModifiedAction.enabled
+                onTriggered: root.sortByModifiedAction.trigger()
+            }
+            MenuSeparator {
+                padding: Theme.spaceS
+                contentItem: Rectangle { implicitHeight: 1; color: Theme.divider }
+            }
+            ThemedMenuItem {
+                text: root.sortAscendingAction.text
+                checkable: true
+                checked: root.sortAscendingAction.checked
+                enabled: root.sortAscendingAction.enabled
+                onTriggered: root.sortAscendingAction.trigger()
+            }
+            ThemedMenuItem {
+                text: root.sortDescendingAction.text
+                checkable: true
+                checked: root.sortDescendingAction.checked
+                enabled: root.sortDescendingAction.enabled
+                onTriggered: root.sortDescendingAction.trigger()
+            }
+            MenuSeparator {
+                padding: Theme.spaceS
+                contentItem: Rectangle { implicitHeight: 1; color: Theme.divider }
+            }
+            ThemedMenuItem {
+                text: root.foldersFirstAction.text
+                checkable: true
+                checked: root.foldersFirstAction.checked
+                enabled: root.foldersFirstAction.enabled
+                onTriggered: root.foldersFirstAction.trigger()
+            }
         }
         MenuSeparator {
             padding: Theme.spaceS

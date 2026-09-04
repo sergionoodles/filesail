@@ -23,6 +23,12 @@ ColumnLayout {
     required property Action listViewAction
     required property Action gridViewAction
     required property Action hiddenFilesAction
+    required property Action sortByNameAction
+    required property Action sortBySizeAction
+    required property Action sortByModifiedAction
+    required property Action sortAscendingAction
+    required property Action sortDescendingAction
+    required property Action foldersFirstAction
     required property Action previewAction
     required property Action aboutAction
 
@@ -46,6 +52,12 @@ ColumnLayout {
         listViewAction: root.listViewAction
         gridViewAction: root.gridViewAction
         hiddenFilesAction: root.hiddenFilesAction
+        sortByNameAction: root.sortByNameAction
+        sortBySizeAction: root.sortBySizeAction
+        sortByModifiedAction: root.sortByModifiedAction
+        sortAscendingAction: root.sortAscendingAction
+        sortDescendingAction: root.sortDescendingAction
+        foldersFirstAction: root.foldersFirstAction
         aboutAction: root.aboutAction
         onNavigate: path => root.navigate(path)
     }

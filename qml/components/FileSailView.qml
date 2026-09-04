@@ -140,6 +140,12 @@ Rectangle {
                 listViewAction: actions.listViewAction
                 gridViewAction: actions.gridViewAction
                 hiddenFilesAction: actions.hiddenFilesAction
+                sortByNameAction: actions.sortByNameAction
+                sortBySizeAction: actions.sortBySizeAction
+                sortByModifiedAction: actions.sortByModifiedAction
+                sortAscendingAction: actions.sortAscendingAction
+                sortDescendingAction: actions.sortDescendingAction
+                foldersFirstAction: actions.foldersFirstAction
                 previewAction: actions.previewAction
                 aboutAction: actions.aboutAction
                 onNavigate: path => root.navigate(path)

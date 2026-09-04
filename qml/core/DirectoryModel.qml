@@ -10,8 +10,9 @@ QtObject {
     property string parentPath: "/"
     property bool showHidden: Settings.showHidden
     property string filter: ""
-    property string sortBy: "name"
-    property bool descending: false
+    property string sortBy: Settings.sortBy
+    property bool descending: Settings.descending
+    property bool foldersFirst: Settings.foldersFirst
     property bool loading: false
     property string error: ""
     property int activeRequest: -1
@@ -42,20 +43,21 @@ QtObject {
         const query = filter.trim();
         const visible = query.length === 0 ? sourceEntries.slice() : sourceEntries.filter(entry =>
             entry.name.toLowerCase().indexOf(query.toLowerCase()) >= 0);
-        if (sortBy === "name" && !descending) {
-            entries = visible;
-            revision++;
-            return;
-        }
         visible.sort((left, right) => {
-            if (left.isDirectory !== right.isDirectory)
+            if (foldersFirst && left.isDirectory !== right.isDirectory)
                 return left.isDirectory ? -1 : 1;
             let comparison = 0;
-            if (sortBy === "size") comparison = left.size - right.size;
-            else if (sortBy === "modified") comparison = String(left.modified).localeCompare(String(right.modified));
-            else if (sortBy === "type") comparison = (left.isDirectory ? "" : String(left.name).split(".").pop())
-                .localeCompare(right.isDirectory ? "" : String(right.name).split(".").pop());
-            if (comparison === 0) comparison = String(left.name).localeCompare(String(right.name));
+            if (sortBy === "size")
+                comparison = left.size - right.size;
+            else if (sortBy === "modified")
+                comparison = String(left.modified).localeCompare(String(right.modified));
+            else if (sortBy === "type")
+                comparison = (left.isDirectory ? "" : String(left.name).split(".").pop())
+                    .localeCompare(right.isDirectory ? "" : String(right.name).split(".").pop());
+            else
+                comparison = String(left.name).localeCompare(String(right.name));
+            if (comparison === 0 && sortBy !== "name")
+                comparison = String(left.name).localeCompare(String(right.name));
             return descending ? -comparison : comparison;
         });
         entries = visible;
@@ -181,6 +183,7 @@ QtObject {
     onFilterChanged: filterDelay.restart()
     onSortByChanged: applyView()
     onDescendingChanged: applyView()
+    onFoldersFirstChanged: applyView()
 
     Component.onCompleted: refresh("navigation")
     Component.onDestruction: {

@@ -25,7 +25,7 @@ ColumnLayout {
 
         RowLayout {
             anchors.fill: parent
-            anchors.leftMargin: Theme.spaceL + 34 * Theme.scale
+            anchors.leftMargin: Theme.spaceL
             anchors.rightMargin: Theme.spaceL
             spacing: Theme.spaceM
 

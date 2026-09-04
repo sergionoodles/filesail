@@ -36,6 +36,10 @@ Rectangle {
                     : root.activeSection === "projects" ? projectsPage : bookmarksPage
             }
         }
+        OperationQueue {
+            Layout.fillWidth: true
+            onNavigate: path => root.navigate(path)
+        }
     }
 
     Component {

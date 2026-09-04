@@ -413,6 +413,10 @@ QJsonObject BackendServer::operationSnapshot(const MutationJob &job) const
     };
     if (job.params.value("paths").isArray())
         operation.insert("paths", job.params.value("paths"));
+    if (job.params.value("path").isString())
+        operation.insert("path", job.params.value("path"));
+    if (job.params.value("parent").isString())
+        operation.insert("parent", job.params.value("parent"));
     if (job.params.value("targetDirectory").isString())
         operation.insert("targetDirectory", job.params.value("targetDirectory"));
     return operation;

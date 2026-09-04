@@ -136,6 +136,14 @@ The launcher activates the existing standalone host when one is running, so
 separate compositor-managed windows share one Quickshell engine and backend.
 Use `--new-instance` temporarily when testing an isolated duplicate host.
 
+To slow transfers down while evaluating the activity queue, set the optional
+development-only delay before launching FileSail. The delay is applied after
+each transfer chunk and is measured in milliseconds:
+
+```sh
+FILESAIL_DEV_TRANSFER_DELAY_MS=150 ./scripts/run.sh --new-instance
+```
+
 ## Install into Noctalia 4
 
 ```sh

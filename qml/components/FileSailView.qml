@@ -41,7 +41,8 @@ Rectangle {
         }
         return false;
     }
-    readonly property real previewRequiredWidth: (190 + 1 + 360 + 220) * Theme.scale
+    readonly property real sidebarWidth: (root.compact ? 210 : 220) * Theme.scale
+    readonly property real previewRequiredWidth: (220 + 1 + 360 + 220) * Theme.scale
     readonly property bool previewEnabled: previewPaneEnabled && width >= previewRequiredWidth
     readonly property bool modalActive: dialogs.active
 
@@ -104,7 +105,7 @@ Rectangle {
         spacing: 0
 
         Sidebar {
-            Layout.preferredWidth: root.compact ? 174 * Theme.scale : 190 * Theme.scale
+            Layout.preferredWidth: root.sidebarWidth
             Layout.fillHeight: true
             currentPath: session.directory.path
             projectsModel: SavedLocationsModel.projects

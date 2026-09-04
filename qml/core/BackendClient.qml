@@ -24,6 +24,10 @@ QtObject {
     property bool idleHold: false
     property int idleGracePeriod: 1500
     property bool restartRequested: false
+    property var operations: []
+    property string operationsBackendInstance: ""
+    property int operationEventSequence: 0
+    property int operationsRequestId: -1
     readonly property int pendingCount: pendingRevision >= 0 ? Object.keys(pendingRequests).length : 0
     readonly property bool shouldRun: (sessionLeases > 0 || operationLeases > 0
         || pendingCount > 0 || idleHold || restartRequested)
@@ -36,6 +40,65 @@ QtObject {
         return method === "mkdir" || method === "rename" || method === "trash"
             || method === "copy" || method === "move" || method === "setExecutable"
             || method === "locations.add" || method === "locations.remove";
+    }
+
+    function setOperations(nextOperations) {
+        operations = nextOperations.slice();
+    }
+
+    function replaceOperation(operation) {
+        const nextOperations = operations.slice();
+        const index = nextOperations.findIndex(item => Number(item.id) === Number(operation.id));
+        if (index >= 0)
+            nextOperations[index] = operation;
+        else
+            nextOperations.push(operation);
+        nextOperations.sort((left, right) => Number(left.queueSequence) - Number(right.queueSequence));
+        setOperations(nextOperations);
+    }
+
+    function removeOperation(id) {
+        const nextOperations = operations.filter(operation => Number(operation.id) !== Number(id));
+        if (nextOperations.length !== operations.length)
+            setOperations(nextOperations);
+    }
+
+    function applyOperationEvent(message) {
+        const backendInstance = String(message.backendInstance ?? "");
+        const eventSequence = Number(message.eventSequence ?? 0);
+        if (backendInstance && operationsBackendInstance && backendInstance !== operationsBackendInstance) {
+            setOperations([]);
+            operationEventSequence = 0;
+        }
+        if (backendInstance)
+            operationsBackendInstance = backendInstance;
+        if (eventSequence > 0 && eventSequence <= operationEventSequence)
+            return;
+        const operation = message.operation;
+        if (!operation || operation.id === undefined)
+            return;
+        operationEventSequence = Math.max(operationEventSequence, eventSequence);
+        replaceOperation(operation);
+    }
+
+    function refreshOperations() {
+        if (operationsRequestId >= 0 && pendingRequests[operationsRequestId])
+            return operationsRequestId;
+        operationsRequestId = request("operations.list", {}, result => {
+            operationsRequestId = -1;
+            const backendInstance = String(result.backendInstance ?? "");
+            const eventSequence = Number(result.eventSequence ?? 0);
+            if (backendInstance && operationsBackendInstance && backendInstance !== operationsBackendInstance) {
+                operationEventSequence = 0;
+            }
+            if (backendInstance)
+                operationsBackendInstance = backendInstance;
+            if (backendInstance === operationsBackendInstance && eventSequence < operationEventSequence)
+                return;
+            operationEventSequence = eventSequence;
+            setOperations(Array.isArray(result.operations) ? result.operations : []);
+        }, () => operationsRequestId = -1, 5000);
+        return operationsRequestId;
     }
 
     function acquireSession() {
@@ -147,6 +210,8 @@ QtObject {
             return;
         }
         forget(id);
+        if (root.isMutation(pending.method))
+            root.removeOperation(id);
         Logger.debug("backend", `← ${id} ${pending.method} ok=${!!message.ok}`);
         if (message.ok) {
             if (pending.onSuccess)
@@ -193,6 +258,10 @@ QtObject {
             }
         }
         pendingRevision++;
+        operationsRequestId = -1;
+        setOperations([]);
+        operationsBackendInstance = "";
+        operationEventSequence = 0;
         rejectingRequests = false;
         scheduleIdleShutdown();
     }
@@ -285,9 +354,11 @@ QtObject {
                     root.rejectAll(root.lastError);
                     return;
                 }
-                if (message.event)
+                if (message.event) {
+                    if (message.event === "operationChanged")
+                        root.applyOperationEvent(message);
                     root.eventReceived(message.event, message);
-                else
+                } else
                     root.complete(message);
             }
         }
@@ -301,6 +372,7 @@ QtObject {
             root.lastError = "";
             Logger.info("backend", `started ${root.backendCommand}`);
             root.flush();
+            root.refreshOperations();
         }
 
         onExited: exitCode => {

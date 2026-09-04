@@ -9,6 +9,7 @@ BreadcrumbBar 1.0 BreadcrumbBar.qml
 Sidebar 1.0 Sidebar.qml
 SidebarTabButton 1.0 SidebarTabButton.qml
 SidebarLocationList 1.0 SidebarLocationList.qml
+OperationQueue 1.0 OperationQueue.qml
 ContextBadge 1.0 ContextBadge.qml
 FolderContextBar 1.0 FolderContextBar.qml
 ModalPrompt 1.0 ModalPrompt.qml

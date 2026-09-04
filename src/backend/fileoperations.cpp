@@ -13,6 +13,7 @@
 #include <QProcess>
 #include <QSet>
 #include <QStandardPaths>
+#include <QThread>
 #include <QUuid>
 #include <QUrl>
 #include <QVector>
@@ -36,6 +37,16 @@ namespace {
 
 QMutex activeStagesMutex;
 QSet<QString> activeStages;
+
+int developmentTransferDelayMs()
+{
+    static const int delayMs = [] {
+        bool valid = false;
+        const int configured = qEnvironmentVariableIntValue("FILESAIL_DEV_TRANSFER_DELAY_MS", &valid);
+        return valid ? qBound(0, configured, 10000) : 0;
+    }();
+    return delayMs;
+}
 
 class ActiveStage
 {
@@ -456,6 +467,8 @@ bool copyEntry(const std::filesystem::path &source,
             }
             if (progress)
                 progress->bytesWritten(bytesRead, logicalSource);
+            if (const int delayMs = developmentTransferDelayMs(); delayMs > 0)
+                QThread::msleep(static_cast<unsigned long>(delayMs));
         }
         if (!destinationFile.flush()) {
             *error = QStringLiteral("Could not flush destination file: %1")

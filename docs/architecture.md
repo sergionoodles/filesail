@@ -64,9 +64,12 @@ without treating the move as complete.
 - `shell.qml` is the standalone host. Its `WindowRegistry` creates independent
   normal `FloatingWindow` xdg-toplevels, so Niri and Hyprland can tile each
   browser normally while all windows share one QML engine and backend.
-- `integrations/noctalia` is a thin Noctalia 4.7.7 adapter. Noctalia owns the
-  layer surface, focus, attachment, blur, animation, and IPC; FileSail only
-  supplies panel content and a bar trigger.
+- `integrations/noctalia` is a thin host adapter. The standalone host follows
+  Noctalia 5 app theming: a user template writes `~/.config/filesail/theme.json`
+  whenever the palette changes, and `NoctaliaConfigThemeProvider` maps that
+  file into `Theme`. Noctalia 4 `colors.json` remains a fallback. The optional
+  panel/bar package is still a Noctalia 4 QML plugin; Noctalia owns the layer
+  surface, focus, attachment, blur, animation, and IPC.
 
 The standalone launcher uses Quickshell's per-user IPC endpoint (`filesail.v1`
 target, protocol version `1`) to route `open(path)` requests to the existing

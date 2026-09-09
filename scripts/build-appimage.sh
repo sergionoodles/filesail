@@ -163,6 +163,7 @@ mkdir -p -- "$qml_sources_dir/integrations/noctalia"
 cp -a -- "$project_dir/qml" "$qml_sources_dir/"
 cp -a -- "$project_dir/shell.qml" "$qml_sources_dir/"
 cp -a -- "$project_dir/integrations/noctalia/NoctaliaConfigThemeProvider.qml" \
+    "$project_dir/integrations/noctalia/theme-template.json" \
     "$qml_sources_dir/integrations/noctalia/"
 
 rm -rf -- "$appdir"

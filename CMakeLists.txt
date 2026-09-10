@@ -111,7 +111,20 @@ install(FILES logo.png
     RENAME filesail.png)
 
 enable_testing()
+add_test(
+    NAME launcher-smoke
+    COMMAND bash ${CMAKE_CURRENT_SOURCE_DIR}/tests/launcher-smoke.sh
+        ${CMAKE_CURRENT_SOURCE_DIR}/scripts/run.sh
+        ${CMAKE_CURRENT_BINARY_DIR}/filesail
+)
 if(FILESAIL_BUILD_DBUS)
+    add_executable(filesail-uriresolver-test
+        tests/uriresolver-test.cpp
+        src/filemanager1/uriresolver.cpp
+    )
+    target_include_directories(filesail-uriresolver-test PRIVATE src/filemanager1)
+    target_link_libraries(filesail-uriresolver-test PRIVATE Qt6::Core)
+    add_test(NAME filemanager1-uriresolver COMMAND filesail-uriresolver-test)
     add_test(
         NAME filemanager1-smoke
         COMMAND ${CMAKE_CURRENT_SOURCE_DIR}/tests/filemanager1-smoke.sh

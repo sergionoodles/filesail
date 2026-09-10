@@ -14,6 +14,7 @@
 #include <QMimeDatabase>
 #include <QSet>
 #include <QStandardPaths>
+#include <QStringDecoder>
 #include <QTimer>
 #include <QUrl>
 #include <archive.h>
@@ -57,12 +58,17 @@ QString PreviewService::localRegularFile(const QJsonObject &params, QString *err
     QString path = raw;
     if (raw.startsWith("file:")) {
         const QUrl url(raw, QUrl::StrictMode);
-        if (!url.isValid() || !url.isLocalFile() || !url.query().isEmpty() || !url.fragment().isEmpty()) {
+        if (!url.isValid() || !url.isLocalFile()
+            || (!url.host().isEmpty() && url.host() != "localhost")
+            || !url.userInfo().isEmpty() || !url.query().isEmpty() || !url.fragment().isEmpty()) {
             *error = "path must be an absolute local path"; return {};
         }
         path = url.toLocalFile();
     }
-    if (!QDir::isAbsolutePath(path)) { *error = "path must be an absolute local path"; return {}; }
+    if (path.isEmpty() || path.contains(QChar::Null) || !QDir::isAbsolutePath(path)
+        || QFile::decodeName(QFile::encodeName(path)) != path) {
+        *error = "path must be an absolute local path"; return {};
+    }
     const QFileInfo info(QDir::cleanPath(path));
     if (!info.exists() || !info.isFile() || !info.isReadable()) {
         *error = "preview requires a readable regular file"; return {};
@@ -222,8 +228,12 @@ QJsonObject PreviewService::text(const QJsonObject &params, const CancellationTo
     const bool moreBytes = !file.atEnd();
     if (cancellationRequested(token)) return {};
     if (bytes.contains('\0')) return {{"ok", true}, {"kind", "unsupported"}, {"reason", "binary"}};
-    const QString decoded = QString::fromUtf8(bytes);
-    if (decoded.contains(QChar::ReplacementCharacter) && !bytes.isEmpty() && !moreBytes)
+    // A literal U+FFFD is valid content. Track decoding errors separately, and
+    // allow an incomplete trailing sequence only when the read was bounded.
+    QStringDecoder decoder(QStringDecoder::Utf8,
+                           moreBytes ? QStringDecoder::Flag::Default : QStringDecoder::Flag::Stateless);
+    const QString decoded = decoder(bytes);
+    if (decoder.hasError())
         return {{"ok", true}, {"kind", "unsupported"}, {"reason", "encoding"}};
     const bool characterTruncated = decoded.size() > maximumCharacters || moreBytes;
     QString source = decoded.left(maximumCharacters);

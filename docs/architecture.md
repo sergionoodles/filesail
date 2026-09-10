@@ -7,9 +7,9 @@ particular compositor or shell.
 
 `qml/components/FileSailView.qml` owns the browser layout, selection, list/grid
 switching, navigation, and commands. It is a content item: it does not create a
-window and does not import Noctalia, Niri, or Hyprland APIs. A reserved
-`SplitView` loader is the future preview pane; previews can be added without
-turning the application into a tabbed interface.
+window and does not import Noctalia, Niri, or Hyprland APIs. The optional second
+pane hosts `PreviewPanel`, which selects image, visual thumbnail, text, archive,
+or metadata providers according to the selection. It is reserved for previews.
 
 `qml/core/Theme.qml` is the stable token contract. Theme providers and shell
 adapters may map live host tokens into that contract without making shared UI
@@ -33,6 +33,14 @@ entries include symbolic `permissions`, effective `isExecutable` state, and a
 explicit, reference-counted directory subscriptions; `QFileSystemWatcher`
 events are emitted immediately and each directory model debounces its own
 refreshes.
+
+`previewCapabilities`, `thumbnailBatch`, `textPreview`, and `archivePreview`
+serve the preview providers. `PreviewService` is created on demand and released
+after its jobs finish and an idle timeout expires. Text and archive reads run
+on the read pool with bounded output; thumbnails use the session's external
+thumbnailer and cache. `cancelPreview` and `cancel` cancel eligible read and
+preview requests. `locations.list`, `locations.add`, and `locations.remove`
+manage atomic saved-location snapshots independently of the host.
 
 Serialized mutations are registered in a backend-owned FIFO. The backend emits
 additive `operationChanged` events for queued/running state and copy/move
@@ -108,6 +116,7 @@ the checkout when needed. Noctalia development remains supported by
 - Mutating filesystem operations run outside the UI process and are serialized
   on a worker queue; directory queries remain responsive while they run.
 - `xdg-open` handles defaults; an explicit “Open with…” chooser comes next.
-- The preview pane contract exists, but no preview provider ships yet.
-- New tiled windows replace tabs. The development launcher already allows
-  duplicate standalone Quickshell instances.
+- Previews include images, external visual thumbnails, bounded UTF-8 text,
+  archive listings, and file metadata. Syntax highlighting remains deferred.
+- New tiled windows replace tabs. Launchers reuse the existing host by default;
+  `--new-instance` remains a diagnostic escape hatch.

@@ -50,6 +50,41 @@ jq -e '.id == 28 and .ok == true and (.flavors | index("normal"))' <<<"$preview_
 preview_relative="$(printf '%s\n' '{"id":29,"method":"textPreview","params":{"path":"relative.txt"}}' | "$backend" --serve)"
 jq -e '.id == 29 and .ok == false and (.error | type == "string")' <<<"$preview_relative" >/dev/null
 
+# URI decoding must not turn rejected authorities or encoded NULs into local
+# files. Exercise the shared preview validator through all three entry points.
+printf 'preview safety' > "$test_dir/preview-target"
+for preview_path in "file://${test_dir#/}/preview-target" "file://user@${test_dir#/}/preview-target" "file://$test_dir/preview-target%00ignored"; do
+    for method in textPreview archivePreview; do
+        preview_invalid="$(jq -nc --arg method "$method" --arg path "$preview_path" \
+            '{id: 33, method: $method, params: {path: $path}}' | "$backend" --serve)"
+        jq -e '.id == 33 and .ok == false and (.error | type == "string")' <<<"$preview_invalid" >/dev/null
+    done
+    thumbnail_invalid="$(jq -nc --arg path "$preview_path" \
+        '{id: 34, method: "thumbnailBatch", params: {items: [{path: $path}]}}' | "$backend" --serve)"
+    jq -e '.id == 34 and .ok == true and (.items | length == 1) and .items[0].status == "unsupported"' <<<"$thumbnail_invalid" >/dev/null
+done
+preview_url="$(jq -nc --arg path "file://$test_dir/preview-target" \
+    '{id: 35, method: "textPreview", params: {path: $path}}' | "$backend" --serve)"
+jq -e '.id == 35 and .ok == true and .html == "<pre>preview safety</pre>"' <<<"$preview_url" >/dev/null
+
+# U+FFFD is valid UTF-8 content. Invalid bytes are rejected even when the file
+# exceeds the read limit; a multibyte sequence split at that limit is valid.
+printf '\357\277\275 <safe> & text' > "$test_dir/valid-utf8"
+printf '\377' > "$test_dir/invalid-utf8"
+{ printf '\377'; head -c 300000 /dev/zero | tr '\0' a; } > "$test_dir/invalid-long-utf8"
+{ head -c 262144 /dev/zero | tr '\0' a; printf '\342\202\254'; } > "$test_dir/split-utf8"
+for fixture in valid-utf8 invalid-utf8 invalid-long-utf8 split-utf8; do
+    encoding_preview="$(jq -nc --arg path "$test_dir/$fixture" \
+        '{id: 36, method: "textPreview", params: {path: $path}}' | "$backend" --serve)"
+    if [[ "$fixture" == invalid-* ]]; then
+        jq -e '.id == 36 and .ok == true and .kind == "unsupported" and .reason == "encoding"' <<<"$encoding_preview" >/dev/null
+    elif [[ "$fixture" == valid-utf8 ]]; then
+        jq -e '.id == 36 and .ok == true and .kind == "text" and .html == "<pre>� &lt;safe&gt; &amp; text</pre>"' <<<"$encoding_preview" >/dev/null
+    else
+        jq -e '.id == 36 and .ok == true and .kind == "text" and .truncated == true' <<<"$encoding_preview" >/dev/null
+    fi
+done
+
 # Preview content limits are exact at the boundary. A terminal newline does
 # not manufacture an extra empty line.
 for line_count in 499 500 501; do
@@ -116,7 +151,7 @@ jq -e '
     and ([.context.signals[] | select(.id == "claude")] | length == 0)
 ' <<<"$context_listing" >/dev/null
 no_context_listing="$(printf '{"id":23,"method":"list","params":{"path":"%s"}}\n' "$test_dir" | "$backend" --serve)"
-jq -e '.id == 23 and .ok == true and has("context") | not' <<<"$no_context_listing" >/dev/null
+jq -e '.id == 23 and .ok == true and (has("context") | not)' <<<"$no_context_listing" >/dev/null
 terminal_output="$test_dir/terminal-working-directory"
 terminal_script="$test_dir/test-terminal"
 printf '%s\n' '#!/usr/bin/env bash' 'printf "%s" "$PWD" > "$FILESAIL_TERMINAL_OUTPUT"' > "$terminal_script"

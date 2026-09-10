@@ -44,7 +44,7 @@ export QS_APP_ID="dev.filesail.FileSail"
 # Quickshell hides console.info/log at its default warning level. Enable QML
 # info (and debug when requested) so FileSail's Logger reaches the console.
 if [[ "$force_new_instance" == true ]]; then
-    qs_args=(--allow-duplicate -p "$project_dir")
+    qs_args=(-p "$project_dir")
     case "${FILESAIL_LOG:-info}" in
         debug) qs_args+=(--log-rules "qml.debug=true;qml.info=true") ;;
         info) qs_args+=(--log-rules "qml.info=true") ;;
@@ -52,7 +52,16 @@ if [[ "$force_new_instance" == true ]]; then
     exec qs "${qs_args[@]}"
 fi
 
-runtime_dir="${XDG_RUNTIME_DIR:-/tmp}"
+runtime_dir="${XDG_RUNTIME_DIR:-}"
+if [[ -z "$runtime_dir" ]]; then
+    runtime_dir="${TMPDIR:-/tmp}/filesail-runtime-${UID}"
+    mkdir -m 700 -- "$runtime_dir" 2>/dev/null || true
+    if [[ -L "$runtime_dir" || ! -d "$runtime_dir" || ! -O "$runtime_dir" \
+        || $(stat -c '%a' -- "$runtime_dir") != 700 ]]; then
+        printf 'filesail: unsafe runtime directory: %s\n' "$runtime_dir" >&2
+        exit 1
+    fi
+fi
 activation_lock="$runtime_dir/filesail-${UID}.lock"
 exec {activation_lock_fd}>"$activation_lock"
 flock -x "$activation_lock_fd"

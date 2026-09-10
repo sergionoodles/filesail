@@ -39,7 +39,6 @@ QtObject {
         model.clear();
 
         appendPlace(qsTr("Home"), "user-home", homePath, "place");
-        appendPlace(qsTr("Desktop"), "user-desktop", writablePath(StandardPaths.DesktopLocation), "place");
         appendPlace(qsTr("Documents"), "folder-documents", writablePath(StandardPaths.DocumentsLocation), "place");
         appendPlace(qsTr("Downloads"), "folder-download", writablePath(StandardPaths.DownloadLocation), "place");
         appendPlace(qsTr("Pictures"), "folder-pictures", writablePath(StandardPaths.PicturesLocation), "place");

@@ -11,7 +11,10 @@ MenuItem {
     leftPadding: Theme.spaceL
     rightPadding: Theme.spaceL
     spacing: Theme.spaceM
-    implicitHeight: 32 * Theme.scale
+    // Menu lays out declared children even when their visible binding is false.
+    // Collapsing hidden items prevents context-dependent menus from retaining
+    // blank rows when an action does not apply to the current target.
+    implicitHeight: visible ? 32 * Theme.scale : 0
     font.pixelSize: Theme.fontBody
 
     contentItem: RowLayout {

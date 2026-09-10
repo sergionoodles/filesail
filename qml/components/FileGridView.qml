@@ -9,6 +9,7 @@ GridView {
     required property var session
     property var marqueeBaseSelection: []
     property bool marqueeAdditive: false
+    signal contextMenuRequested(var entry, real x, real y)
 
     function focusView() {
         gridView.forceActiveFocus();
@@ -192,6 +193,14 @@ GridView {
             gridView.session.clearSelection();
         } else if (event.key === Qt.Key_A && control) {
             gridView.session.selectAllVisible();
+        } else if (event.key === Qt.Key_Menu || (event.key === Qt.Key_F10 && (modifiers & Qt.ShiftModifier) !== 0)) {
+            const entry = gridView.entryAt(target);
+            if (entry) {
+                const point = gridView.mapToItem(gridView, gridView.width / 2, gridView.height / 2);
+                gridView.contextMenuRequested(entry, point.x, point.y);
+            } else {
+                gridView.contextMenuRequested(null, gridView.width / 2, gridView.height / 2);
+            }
         } else {
             handled = false;
         }
@@ -236,5 +245,17 @@ GridView {
         }
         GridView.onPooled: gridVisual.releaseConsumer()
         GridView.onReused: gridVisual.acquireConsumer()
+
+        MouseArea {
+            anchors.fill: parent
+            acceptedButtons: Qt.RightButton
+            onClicked: mouse => {
+                gridView.forceActiveFocus();
+                if (!gridView.session.selectedPaths[gridDelegate.path])
+                    gridView.session.selectEntry(gridDelegate.path, 0);
+                const point = gridDelegate.mapToItem(gridView, mouse.x, mouse.y);
+                gridView.contextMenuRequested(gridDelegate.modelData, point.x, point.y);
+            }
+        }
     }
 }

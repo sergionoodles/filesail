@@ -2,73 +2,51 @@ import QtQuick
 import Quickshell
 import Quickshell.Io
 
-// Maps Noctalia's published palette into FileSail's host-neutral Theme.
-//
-// Noctalia 5 no longer writes colors.json. The standalone host registers a
-// user template so Noctalia renders ~/.config/filesail/theme.json on every
-// palette change, then FileView-watches that file. Metrics come from the
-// v5 TOML config. Noctalia 4's colors.json / settings.json remain a fallback.
+// Noctalia owns palette resolution (including wallpaper, scheduled mode and
+// custom schemes). Consume its public app template output, never its caches.
 QtObject {
     id: root
 
     property var theme: null
-    property var colors: ({
-        primary: "#7aa2f7", primaryText: "#16161e", surface: "#1a1b26",
-        surfaceVariant: "#24283b", text: "#c0caf5", textMuted: "#9aa5ce",
-        outline: "#353d57", error: "#f7768e", errorText: "#16161e"
-    })
-    property var metrics: ({ appearance: "dark", scale: 1, radiusRatio: 1, animationFast: 150 })
-
+    property var colors: ({})
+    property var metrics: ({})
     property bool liveThemeLoaded: false
-    property bool liveThemeChecked: false
-    property bool bundledTemplateChecked: false
     property bool v5ConfigSeen: false
-    property bool templateEntryPresent: false
+    property bool bundledTemplateChecked: false
     property bool templateEntryChecked: false
-    property bool templateDirReady: false
-    property bool templateInstallStarted: false
+    property bool templateEntryPresent: false
+    property bool templateReady: false
+    property bool setupStarted: false
+    property bool refreshPending: true
+    property int refreshAttempts: 0
+    property string effectiveConfig: ""
+    property string lastWarning: ""
+    readonly property bool templateEnabled: root.tomlValue(root.effectiveConfig, "theme.templates.user.filesail", "input_path") !== undefined
+                                          && root.tomlValue(root.effectiveConfig, "theme.templates.user.filesail", "enabled") !== false
 
     readonly property string homeDir: String(Quickshell.env("HOME") ?? "")
-    readonly property string filesailConfigDir: {
-        const xdgConfig = String(Quickshell.env("XDG_CONFIG_HOME") ?? "");
-        return (xdgConfig.length > 0 ? xdgConfig : root.homeDir + "/.config") + "/filesail";
-    }
-    readonly property string configDir: {
-        const legacy = String(Quickshell.env("NOCTALIA_CONFIG_DIR") ?? "");
-        if (legacy.length > 0)
-            return legacy.replace(/\/$/, "");
-        return root.noctaliaHome("NOCTALIA_CONFIG_HOME", "XDG_CONFIG_HOME", root.homeDir + "/.config");
-    }
-    readonly property string stateDir: {
-        return root.noctaliaHome("NOCTALIA_STATE_HOME", "XDG_STATE_HOME", root.homeDir + "/.local/state");
-    }
+    readonly property string filesailConfigDir: (String(Quickshell.env("XDG_CONFIG_HOME") || root.homeDir + "/.config")) + "/filesail"
+    readonly property string configDir: root.noctaliaHome("NOCTALIA_CONFIG_HOME", "XDG_CONFIG_HOME", root.homeDir + "/.config")
+    readonly property string legacyConfigDir: String(Quickshell.env("NOCTALIA_CONFIG_DIR") || root.configDir).replace(/\/$/, "")
+    readonly property string stateDir: root.noctaliaHome("NOCTALIA_STATE_HOME", "XDG_STATE_HOME", root.homeDir + "/.local/state")
     readonly property string liveThemePath: root.filesailConfigDir + "/theme.json"
-    readonly property string templateSourcePath: root.configDir + "/templates/filesail.json"
-    readonly property string templateEntryPath: root.configDir + "/filesail.toml"
     readonly property string templateEntrySource: [
-        "# Written by FileSail so the standalone window follows the Noctalia palette.",
-        "# Set enabled = false to stop generating ~/.config/filesail/theme.json.",
+        "# FileSail's Noctalia app-theme bridge. Set enabled = false to opt out.",
         "[theme.templates.user.filesail]",
-        "input_path  = \"templates/filesail.json\"",
-        "output_path = \"$XDG_CONFIG_HOME/filesail/theme.json\"",
+        'input_path = "templates/filesail.json"',
+        'output_path = "$XDG_CONFIG_HOME/filesail/theme.json"',
         ""
     ].join("\n")
 
     function noctaliaHome(overrideName, xdgName, fallbackHome) {
-        const override = String(Quickshell.env(overrideName) ?? "");
-        if (override.length > 0)
-            return override.replace(/\/$/, "") + "/noctalia";
-        const xdg = String(Quickshell.env(xdgName) ?? "");
-        if (xdg.length > 0)
-            return xdg.replace(/\/$/, "") + "/noctalia";
-        return fallbackHome + "/noctalia";
+        return String(Quickshell.env(overrideName) || Quickshell.env(xdgName) || fallbackHome).replace(/\/$/, "") + "/noctalia";
     }
 
-    function fileUrlPath(url) {
-        const text = String(url ?? "");
-        if (text.startsWith("file://"))
-            return decodeURIComponent(text.slice(7));
-        return text;
+    function warn(message) {
+        if (message !== root.lastWarning) {
+            root.lastWarning = message;
+            console.warn("FileSail theme: " + message);
+        }
     }
 
     function boundedNumber(value, fallback, minimum, maximum) {
@@ -90,8 +68,12 @@ QtObject {
         if (trimmed.length === 0 || trimmed.startsWith("#"))
             return undefined;
         const quote = trimmed[0];
-        if (quote === "\"" || quote === "'") {
-            const end = trimmed.indexOf(quote, 1);
+        if (quote === "\"") {
+            const quoted = trimmed.match(/^"(?:\\.|[^"\\])*"/);
+            return quoted ? JSON.parse(quoted[0]) : undefined;
+        }
+        if (quote === "'") {
+            const end = trimmed.indexOf("'", 1);
             if (end > 0)
                 return trimmed.slice(1, end);
         }
@@ -105,14 +87,16 @@ QtObject {
     }
 
     function tomlValue(text, table, key) {
+        // Only read scalar fields from `noctalia config export full`, whose
+        // formatting is canonical. Noctalia handles TOML syntax and merging.
         if (typeof text !== "string" || text.length === 0)
             return undefined;
         const tableRe = new RegExp("(?:^|\\n)\\s*\\[" + escapeRegExp(table) + "\\]\\s*(?:\\n|$)");
-        const start = text.search(tableRe);
-        if (start < 0)
+        const header = tableRe.exec(text);
+        if (!header)
             return undefined;
-        const fromTable = text.slice(start);
-        const next = fromTable.search(/\n\s*\[[^\]]+\]/);
+        const fromTable = text.slice(header.index + header[0].length);
+        const next = fromTable.search(/(?:^|\n)\s*\[[^\]]+\]/);
         const body = next >= 0 ? fromTable.slice(0, next) : fromTable;
         const keyRe = new RegExp("(?:^|\\n)\\s*" + escapeRegExp(key) + "\\s*=\\s*([^\\n]+)");
         const match = body.match(keyRe);
@@ -127,45 +111,79 @@ QtObject {
         }
     }
 
-    function noteV5Config() {
-        if (root.v5ConfigSeen)
-            return;
-        root.v5ConfigSeen = true;
-        if (!root.templateDirProcess.running)
-            root.templateDirProcess.running = true;
-        root.maybeInstallTemplate();
-    }
-
     function maybeInstallTemplate() {
-        if (root.templateInstallStarted
-            || !root.v5ConfigSeen
-            || !root.templateEntryChecked
-            || !root.liveThemeChecked
-            || !root.bundledTemplateChecked
-            || !root.templateDirReady)
+        if (root.setupStarted || !root.v5ConfigSeen || !root.bundledTemplateChecked || !root.templateEntryChecked)
             return;
-        root.templateInstallStarted = true;
-        root.writeTemplateFiles();
-    }
-
-    function writeTemplateFiles() {
-        const source = root.fileText(root.bundledTemplateFile);
-        if (source.length === 0)
-            return;
-        if (root.fileText(root.templateSourceFile) !== source)
-            root.templateSourceFile.setText(source);
-
-        if (!root.templateEntryPresent) {
-            root.templateEntryFile.setText(root.templateEntrySource);
-            root.applyTemplatesProcess.running = true;
+        root.setupStarted = true;
+        // A declarative registration may point directly at the packaged
+        // template. It needs no writes to Noctalia's config directory.
+        if (!root.templateEntryPresent && root.tomlValue(root.effectiveConfig, "theme.templates.user.filesail", "input_path") !== undefined) {
+            root.templateReady = true;
+            root.maybeRefresh();
             return;
         }
+        root.templateDirProcess.running = true;
+    }
 
-        const entryText = root.fileText(root.templateEntryFile);
-        if (/enabled\s*=\s*false/.test(entryText))
+    function setupFailed() {
+        root.setupStarted = false;
+        root.warn("Cannot install the Noctalia template. Check write access to " + root.configDir);
+    }
+
+    function writeTemplateSource() {
+        const source = root.fileText(root.bundledTemplateFile);
+        if (!source) {
+            root.warn("The bundled Noctalia theme template is missing.");
             return;
-        if (!root.liveThemeLoaded)
-            root.applyTemplatesProcess.running = true;
+        }
+        if (root.fileText(root.templateSourceFile) === source)
+            root.writeTemplateEntry();
+        else
+            root.templateSourceFile.setText(source);
+    }
+
+    function writeTemplateEntry() {
+        // Existing entries belong to the user, including explicit opt-outs.
+        if (root.templateEntryPresent || root.tomlValue(root.effectiveConfig, "theme.templates.user.filesail", "input_path") !== undefined)
+            root.finishSetup();
+        else
+            root.templateEntryFile.setText(root.templateEntrySource);
+    }
+
+    function finishSetup() {
+        root.templateReady = true;
+        root.exportConfigProcess.running = true;
+    }
+
+    function acceptConfig(text) {
+        if (!text.trim())
+            return;
+        root.v5ConfigSeen = true;
+        const wasEnabled = root.templateEnabled;
+        root.effectiveConfig = text;
+        if (!wasEnabled && root.templateEnabled) {
+            root.refreshPending = true;
+            root.refreshAttempts = 0;
+        }
+        // Rebuild from the effective snapshot: removing an override must reset
+        // it, and includes / GUI overrides must have Noctalia's precedence.
+        const next = root.metricsFromToml(text);
+        if (root.liveThemeLoaded)
+            next.appearance = root.metrics.appearance;
+        root.metrics = next;
+        root.maybeInstallTemplate();
+        root.maybeRefresh();
+    }
+
+    function maybeRefresh() {
+        if (!root.templateReady || !root.refreshPending || root.reloadConfigProcess.running || root.applyTemplatesProcess.running)
+            return;
+        if (!root.templateEnabled) {
+            root.warn("The filesail template is disabled or excluded from Noctalia's effective config. Check [include] and [theme.templates.user.filesail].");
+            return;
+        }
+        root.refreshAttempts += 1;
+        root.reloadConfigProcess.running = true;
     }
 
     function colorMapFromObject(data, keys) {
@@ -192,10 +210,11 @@ QtObject {
                 text: "text", textMuted: "textMuted",
                 outline: "outline", error: "error", errorText: "errorText"
             });
-            if (!next)
+            if (!next || (data.appearance !== "dark" && data.appearance !== "light"))
                 return;
             root.colors = next;
             root.liveThemeLoaded = true;
+            Qt.callLater(() => { if (root.theme) root.theme.animatePalette = true; });
             if (data.appearance === "dark" || data.appearance === "light") {
                 const metrics = Object.assign({}, root.metrics);
                 metrics.appearance = data.appearance;
@@ -207,7 +226,7 @@ QtObject {
     }
 
     function loadLegacyColors() {
-        if (root.liveThemeLoaded)
+        if (root.liveThemeLoaded || root.v5ConfigSeen)
             return;
         try {
             const text = root.legacyColorsFile.text();
@@ -249,20 +268,6 @@ QtObject {
         return next;
     }
 
-    function loadV5Metrics() {
-        const next = Object.assign(
-            {},
-            root.metricsFromToml(root.fileText(root.configTomlFile)),
-            root.metricsFromToml(root.fileText(root.settingsTomlFile))
-        );
-        if (Object.keys(next).length === 0)
-            return;
-        const merged = Object.assign({}, root.metrics, next);
-        if (root.liveThemeLoaded)
-            merged.appearance = root.metrics.appearance;
-        root.metrics = merged;
-    }
-
     function loadLegacyMetrics() {
         if (root.v5ConfigSeen)
             return;
@@ -285,72 +290,113 @@ QtObject {
         }
     }
 
-    function scheduleReload() { root.reloadTimer.restart(); }
-
     function reloadWatchedFiles() {
         root.liveThemeFile.reload();
-        root.settingsTomlFile.reload();
-        root.configTomlFile.reload();
-        root.legacyColorsFile.reload();
-        root.legacySettingsFile.reload();
+        if (!root.v5ConfigSeen) {
+            root.legacyColorsFile.reload();
+            root.legacySettingsFile.reload();
+        }
+        if (!root.exportConfigProcess.running)
+            root.exportConfigProcess.running = true;
     }
 
     property Timer reloadTimer: Timer {
-        interval: 200
+        interval: 100
         onTriggered: root.reloadWatchedFiles()
+    }
+
+    // Also repairs a missed watch (missing parent, atomic replacement) and
+    // discovers changes in included TOML files without reimplementing TOML.
+    // Back off when Noctalia is absent or its initial palette is not ready.
+    property Timer recoveryTimer: Timer {
+        interval: !root.v5ConfigSeen || root.refreshAttempts >= 3 ? 30000 : 5000
+        running: true
+        repeat: true
+        onTriggered: root.reloadWatchedFiles()
+    }
+
+    property Process exportConfigProcess: Process {
+        command: ["noctalia", "config", "export", "full"]
+        running: true
+        property string output: ""
+        stdout: StdioCollector { onStreamFinished: root.exportConfigProcess.output = text }
+        stderr: StdioCollector {}
+        onExited: exitCode => {
+            if (exitCode === 0)
+                root.acceptConfig(output);
+            output = "";
+        }
     }
 
     property Process templateDirProcess: Process {
         command: ["mkdir", "-p", root.configDir + "/templates", root.filesailConfigDir]
-        running: false
         onExited: exitCode => {
-            root.templateDirReady = exitCode === 0;
-            root.maybeInstallTemplate();
+            if (exitCode === 0)
+                root.writeTemplateSource();
+            else
+                root.setupFailed();
+        }
+    }
+
+    property Process reloadConfigProcess: Process {
+        command: ["noctalia", "msg", "config-reload"]
+        stdout: StdioCollector {}
+        stderr: StdioCollector {}
+        onExited: exitCode => {
+            if (exitCode === 0)
+                root.applyTemplatesProcess.running = true;
+            else
+                root.warn("Waiting for Noctalia to reload the FileSail template registration.");
         }
     }
 
     property Process applyTemplatesProcess: Process {
         command: ["noctalia", "msg", "templates-apply"]
-        running: false
-        onExited: exitCode => root.liveThemeFile.reload()
+        stdout: StdioCollector {}
+        stderr: StdioCollector {}
+        onExited: exitCode => {
+            if (exitCode !== 0) {
+                root.warn("Waiting for Noctalia's resolved palette; theme sync will retry.");
+            } else {
+                root.refreshPending = false;
+                root.refreshAttempts = 0;
+            }
+            root.liveThemeFile.reload();
+        }
     }
 
     property FileView bundledTemplateFile: FileView {
-        path: root.fileUrlPath(Qt.resolvedUrl("theme-template.json"))
+        path: decodeURIComponent(String(Qt.resolvedUrl("theme-template.json")).replace(/^file:\/\//, ""))
         preload: true
         printErrors: false
-        onLoaded: {
-            root.bundledTemplateChecked = true;
-            root.maybeInstallTemplate();
-        }
-        onLoadFailed: {
-            root.bundledTemplateChecked = true;
-            root.maybeInstallTemplate();
-        }
+        onLoaded: { root.bundledTemplateChecked = true; root.maybeInstallTemplate(); }
+        onLoadFailed: root.warn("Cannot read the bundled Noctalia template.")
     }
 
     property FileView templateSourceFile: FileView {
-        path: root.templateSourcePath
-        preload: false
+        path: root.configDir + "/templates/filesail.json"
         printErrors: false
         atomicWrites: true
+        onSaved: root.writeTemplateEntry()
+        onSaveFailed: root.setupFailed()
     }
 
     property FileView templateEntryFile: FileView {
-        path: root.templateEntryPath
+        path: root.configDir + "/filesail.toml"
         preload: true
         printErrors: false
         atomicWrites: true
-        onLoaded: {
-            root.templateEntryPresent = true;
-            root.templateEntryChecked = true;
-            root.maybeInstallTemplate();
+        onLoaded: { root.templateEntryPresent = true; root.templateEntryChecked = true; root.maybeInstallTemplate(); }
+        onLoadFailed: error => {
+            if (error === FileViewError.FileNotFound) {
+                root.templateEntryChecked = true;
+                root.maybeInstallTemplate();
+            } else {
+                root.warn("Cannot read " + path + "; leaving it unchanged.");
+            }
         }
-        onLoadFailed: {
-            root.templateEntryPresent = false;
-            root.templateEntryChecked = true;
-            root.maybeInstallTemplate();
-        }
+        onSaved: { root.templateEntryPresent = true; root.finishSetup(); }
+        onSaveFailed: root.setupFailed()
     }
 
     property FileView liveThemeFile: FileView {
@@ -358,85 +404,59 @@ QtObject {
         preload: true
         watchChanges: true
         printErrors: false
-        onLoaded: {
-            root.loadLiveTheme();
-            root.liveThemeChecked = true;
-            root.maybeInstallTemplate();
-        }
-        onFileChanged: root.scheduleReload()
-        onLoadFailed: {
-            root.liveThemeChecked = true;
-            root.maybeInstallTemplate();
-        }
-    }
-
-    property FileView settingsTomlFile: FileView {
-        path: root.stateDir + "/settings.toml"
-        preload: true
-        watchChanges: true
-        printErrors: false
-        onLoaded: {
-            root.noteV5Config();
-            root.loadV5Metrics();
-        }
-        onFileChanged: root.scheduleReload()
-    }
-
-    property FileView configTomlFile: FileView {
-        path: root.configDir + "/config.toml"
-        preload: true
-        watchChanges: true
-        printErrors: false
-        onLoaded: {
-            root.noteV5Config();
-            root.loadV5Metrics();
-        }
-        onFileChanged: root.scheduleReload()
+        onLoaded: root.loadLiveTheme()
+        onFileChanged: root.reloadTimer.restart()
+        onLoadFailed: root.refreshPending = true
     }
 
     property FileView legacyColorsFile: FileView {
-        path: root.configDir + "/colors.json"
+        path: root.legacyConfigDir + "/colors.json"
         preload: true
         watchChanges: true
         printErrors: false
         onLoaded: root.loadLegacyColors()
-        onFileChanged: root.scheduleReload()
+        onFileChanged: root.reloadTimer.restart()
     }
 
     property FileView legacySettingsFile: FileView {
-        path: root.configDir + "/settings.json"
+        path: root.legacyConfigDir + "/settings.json"
         preload: true
         watchChanges: true
         printErrors: false
         onLoaded: root.loadLegacyMetrics()
-        onFileChanged: root.scheduleReload()
+        onFileChanged: root.reloadTimer.restart()
     }
 
-    // Atomic replacements change the directory entry. Watch the parent so a
-    // FileView on the old inode still sees the new file.
     property FileView filesailDirectoryWatcher: FileView {
         path: root.filesailConfigDir
         watchChanges: true
         printErrors: false
-        onFileChanged: root.scheduleReload()
+        onFileChanged: root.reloadTimer.restart()
+    }
+
+    property FileView configDirectoryWatcher: FileView {
+        path: root.configDir
+        watchChanges: true
+        printErrors: false
+        onFileChanged: root.reloadTimer.restart()
     }
 
     property FileView stateDirectoryWatcher: FileView {
         path: root.stateDir
         watchChanges: true
         printErrors: false
-        onFileChanged: root.scheduleReload()
+        onFileChanged: root.reloadTimer.restart()
     }
 
-    property Binding primaryBinding: Binding { target: root.theme; property: "primary"; value: root.colors.primary; when: root.theme && root.colors.primary !== undefined }
-    property Binding primaryTextBinding: Binding { target: root.theme; property: "primaryText"; value: root.colors.primaryText; when: root.theme && root.colors.primaryText !== undefined }
-    property Binding surfaceBinding: Binding { target: root.theme; property: "surface"; value: root.colors.surface; when: root.theme && root.colors.surface !== undefined }
-    property Binding surfaceVariantBinding: Binding { target: root.theme; property: "surfaceVariant"; value: root.colors.surfaceVariant; when: root.theme && root.colors.surfaceVariant !== undefined }
-    property Binding textBinding: Binding { target: root.theme; property: "text"; value: root.colors.text; when: root.theme && root.colors.text !== undefined }
-    property Binding textMutedBinding: Binding { target: root.theme; property: "textMuted"; value: root.colors.textMuted; when: root.theme && root.colors.textMuted !== undefined }
-    property Binding outlineBinding: Binding { target: root.theme; property: "outline"; value: root.colors.outline; when: root.theme && root.colors.outline !== undefined }
-    property Binding errorBinding: Binding { target: root.theme; property: "error"; value: root.colors.error; when: root.theme && root.colors.error !== undefined }
-    property Binding errorTextBinding: Binding { target: root.theme; property: "errorText"; value: root.colors.errorText; when: root.theme && root.colors.errorText !== undefined }
+    property Binding primaryBinding: Binding { target: root.theme; property: "primary"; value: root.colors.primary ?? "transparent"; when: root.theme && root.colors.primary !== undefined }
+    property Binding primaryTextBinding: Binding { target: root.theme; property: "primaryText"; value: root.colors.primaryText ?? "transparent"; when: root.theme && root.colors.primaryText !== undefined }
+    property Binding surfaceBinding: Binding { target: root.theme; property: "surface"; value: root.colors.surface ?? "transparent"; when: root.theme && root.colors.surface !== undefined }
+    property Binding surfaceVariantBinding: Binding { target: root.theme; property: "surfaceVariant"; value: root.colors.surfaceVariant ?? "transparent"; when: root.theme && root.colors.surfaceVariant !== undefined }
+    property Binding textBinding: Binding { target: root.theme; property: "text"; value: root.colors.text ?? "transparent"; when: root.theme && root.colors.text !== undefined }
+    property Binding textMutedBinding: Binding { target: root.theme; property: "textMuted"; value: root.colors.textMuted ?? "transparent"; when: root.theme && root.colors.textMuted !== undefined }
+    property Binding outlineBinding: Binding { target: root.theme; property: "outline"; value: root.colors.outline ?? "transparent"; when: root.theme && root.colors.outline !== undefined }
+    property Binding errorBinding: Binding { target: root.theme; property: "error"; value: root.colors.error ?? "transparent"; when: root.theme && root.colors.error !== undefined }
+    property Binding errorTextBinding: Binding { target: root.theme; property: "errorText"; value: root.colors.errorText ?? "transparent"; when: root.theme && root.colors.errorText !== undefined }
     property Binding appearanceBinding: Binding { target: root.theme; property: "appearance"; value: root.metrics.appearance; when: root.theme && root.metrics.appearance !== undefined }
     property Binding scaleBinding: Binding { target: root.theme; property: "scale"; value: root.metrics.scale; when: root.theme && root.metrics.scale !== undefined }
     property Binding radiusRatioBinding: Binding { target: root.theme; property: "radiusRatio"; value: root.metrics.radiusRatio; when: root.theme && root.metrics.radiusRatio !== undefined }

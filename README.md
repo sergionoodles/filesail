@@ -145,6 +145,35 @@ each transfer chunk and is measured in milliseconds:
 FILESAIL_DEV_TRANSFER_DELAY_MS=150 ./scripts/run.sh --new-instance
 ```
 
+## Follow the Noctalia theme
+
+Standalone FileSail automatically registers a Noctalia 5 user template on first
+launch. Noctalia renders its resolved app palette to
+`~/.config/filesail/theme.json`; open FileSail windows follow changes without a
+restart, including wallpaper palettes and light/dark mode. Color transitions
+respect Noctalia's animation setting. UI scaling follows its effective config,
+including profiles and GUI overrides. Paths honor XDG and Noctalia home overrides.
+
+The integration creates `~/.config/noctalia/filesail.toml` and
+`~/.config/noctalia/templates/filesail.json`. Existing template registrations
+are preserved. If your config uses `[include] autoload = false`, include
+`filesail.toml` explicitly. For read-only configurations, declare the
+`[theme.templates.user.filesail]` entry yourself with the bundled
+`integrations/noctalia/theme-template.json` as `input_path` and
+`$XDG_CONFIG_HOME/filesail/theme.json` as `output_path`.
+
+Set `enabled = false` on that template to stop automatic generation. FileSail
+keeps the last valid palette if Noctalia is unavailable or a write is incomplete.
+Noctalia 4's published JSON palette remains supported; without a host palette,
+FileSail uses Qt's system palette.
+
+The integration follows Noctalia's **app** mode (`theme.mode`). A separate
+`theme.shell_mode` override affects only Noctalia's shell, as specified by its
+[app-theming contract](https://docs.noctalia.dev/noctalia/theming/app-theming/).
+
+The isolated `theme-smoke` CTest runs when Python 3 and Quickshell are available.
+It can also be run directly with `python3 tests/theme-smoke.py /path/to/qs`.
+
 ## Install into Noctalia 4
 
 ```sh

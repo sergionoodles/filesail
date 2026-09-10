@@ -3,6 +3,7 @@ import QtQuick.Controls
 import QtQuick.Layouts
 import Quickshell
 import "../core"
+import "." as FileSailComponents
 
 Rectangle {
     id: root
@@ -159,10 +160,17 @@ Rectangle {
                 orientation: Qt.Horizontal
 
                 FileBrowserPane {
+                    id: browserPane
                     SplitView.fillWidth: true
                     SplitView.minimumWidth: 360 * Theme.scale
                     session: session
                     viewMode: root.viewMode
+                    onContextMenuRequested: (entry, background, x, y) => {
+                        if (entry && !session.selectedPaths[entry.path])
+                            session.selectEntry(entry.path, 0);
+                        const point = browserPane.mapToItem(root, x, y);
+                        contextMenu.openAt(point.x, point.y, entry, background);
+                    }
                 }
                 PreviewPane {
                     previewEnabled: root.previewEnabled
@@ -198,5 +206,12 @@ Rectangle {
     BrowserDialogs {
         id: dialogs
         session: session
+    }
+
+    FileSailComponents.ContextMenu {
+        id: contextMenu
+        session: session
+        actions: actions
+        onClosed: browserPane.forceActiveFocus()
     }
 }

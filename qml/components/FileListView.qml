@@ -11,6 +11,7 @@ ColumnLayout {
     property var model: null
     property var marqueeBaseSelection: []
     property bool marqueeAdditive: false
+    signal contextMenuRequested(var entry, real x, real y)
 
     function focusView() {
         listView.forceActiveFocus();
@@ -270,6 +271,14 @@ ColumnLayout {
                 root.session.clearSelection();
             } else if (event.key === Qt.Key_A && control) {
                 root.session.selectAllVisible();
+            } else if (event.key === Qt.Key_Menu || (event.key === Qt.Key_F10 && (modifiers & Qt.ShiftModifier) !== 0)) {
+                const entry = listView.entryAt(target);
+                if (entry) {
+                    const point = listView.mapToItem(root, listView.width / 2, Math.max(0, (target * 42 * Theme.scale) - listView.contentY + 20 * Theme.scale));
+                    root.contextMenuRequested(entry, point.x, point.y);
+                } else {
+                    root.contextMenuRequested(null, root.width / 2, root.height / 2);
+                }
             } else {
                 handled = false;
             }
@@ -334,9 +343,19 @@ ColumnLayout {
                 acceptedButtons: Qt.LeftButton | Qt.RightButton
                 onClicked: mouse => {
                     listView.forceActiveFocus();
-                    root.session.selectEntry(listDelegate.path, mouse.modifiers);
+                    if (mouse.button === Qt.RightButton) {
+                        if (!root.session.selectedPaths[listDelegate.path])
+                            root.session.selectEntry(listDelegate.path, 0);
+                        const point = listDelegate.mapToItem(root, mouse.x, mouse.y);
+                        root.contextMenuRequested(listDelegate.modelData, point.x, point.y);
+                    } else {
+                        root.session.selectEntry(listDelegate.path, mouse.modifiers);
+                    }
                 }
-                onDoubleClicked: root.session.openEntry(listDelegate.path, listDelegate.isDirectory)
+                onDoubleClicked: mouse => {
+                    if (mouse.button === Qt.LeftButton)
+                        root.session.openEntry(listDelegate.path, listDelegate.isDirectory);
+                }
             }
             ListView.onPooled: listVisual.releaseConsumer()
             ListView.onReused: listVisual.acquireConsumer()

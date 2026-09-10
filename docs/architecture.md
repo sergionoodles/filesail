@@ -75,7 +75,14 @@ without treating the move as complete.
 - `integrations/noctalia` is a thin host adapter. The standalone host follows
   Noctalia 5 app theming: a user template writes `~/.config/filesail/theme.json`
   whenever the palette changes, and `NoctaliaConfigThemeProvider` maps that
-  file into `Theme`. Noctalia 4 `colors.json` remains a fallback. The optional
+  file into `Theme`. Registration waits for both atomic writes, reloads Noctalia's
+  config, then requests a render; failures retry with backoff. File watches plus
+  a recovery timer handle late startup, missing output, and atomic replacement.
+  Only complete, valid palettes replace the last good snapshot. Metrics come
+  from `noctalia config export full`, so includes, defaults, and GUI overrides
+  use Noctalia's own precedence. Shared color transitions respect animation
+  settings. Qt's system palette supplies defaults until a host palette arrives.
+  Noctalia 4 `colors.json` remains a fallback. The optional
   panel/bar package is still a Noctalia 4 QML plugin; Noctalia owns the layer
   surface, focus, attachment, blur, animation, and IPC.
 

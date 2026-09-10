@@ -7,13 +7,15 @@ QtObject {
 
     // Host-neutral semantic defaults. Host adapters may bind these properties to
     // their own theme provider; this type deliberately performs no I/O.
-    property color primary: "#7aa2f7"
-    property color primaryText: "#16161e"
-    property color surface: "#1a1b26"
-    property color surfaceVariant: "#24283b"
-    property color text: "#c0caf5"
-    property color textMuted: "#9aa5ce"
-    property color outline: "#353d57"
+    property SystemPalette desktopPalette: SystemPalette { colorGroup: SystemPalette.Active }
+    property SystemPalette disabledPalette: SystemPalette { colorGroup: SystemPalette.Disabled }
+    property color primary: desktopPalette.highlight
+    property color primaryText: desktopPalette.highlightedText
+    property color surface: desktopPalette.window
+    property color surfaceVariant: desktopPalette.alternateBase
+    property color text: desktopPalette.windowText
+    property color textMuted: disabledPalette.windowText
+    property color outline: desktopPalette.mid
     property color error: "#f7768e"
     // Derived semantic colors keep component styling host-neutral and uniform.
     readonly property color selectionFill: Qt.alpha(primary, 0.18)
@@ -23,7 +25,47 @@ QtObject {
     property color errorText: "#16161e"
     // A host may bind this to its appearance setting. Preview providers use it
     // only to select generated syntax colours; they never load host resources.
-    property string appearance: "dark"
+    property string appearance: surface.hslLightness < 0.5 ? "dark" : "light"
+
+    // One transition per semantic token keeps all surfaces in step. Providers
+    // enable transitions after the first valid palette to avoid a startup flash.
+    property bool animatePalette: false
+    Behavior on primary {
+        enabled: root.animatePalette && root.animationFast > 0
+        ColorAnimation { duration: root.animationFast; easing.type: Easing.InOutQuad }
+    }
+    Behavior on primaryText {
+        enabled: root.animatePalette && root.animationFast > 0
+        ColorAnimation { duration: root.animationFast; easing.type: Easing.InOutQuad }
+    }
+    Behavior on surface {
+        enabled: root.animatePalette && root.animationFast > 0
+        ColorAnimation { duration: root.animationFast; easing.type: Easing.InOutQuad }
+    }
+    Behavior on surfaceVariant {
+        enabled: root.animatePalette && root.animationFast > 0
+        ColorAnimation { duration: root.animationFast; easing.type: Easing.InOutQuad }
+    }
+    Behavior on text {
+        enabled: root.animatePalette && root.animationFast > 0
+        ColorAnimation { duration: root.animationFast; easing.type: Easing.InOutQuad }
+    }
+    Behavior on textMuted {
+        enabled: root.animatePalette && root.animationFast > 0
+        ColorAnimation { duration: root.animationFast; easing.type: Easing.InOutQuad }
+    }
+    Behavior on outline {
+        enabled: root.animatePalette && root.animationFast > 0
+        ColorAnimation { duration: root.animationFast; easing.type: Easing.InOutQuad }
+    }
+    Behavior on error {
+        enabled: root.animatePalette && root.animationFast > 0
+        ColorAnimation { duration: root.animationFast; easing.type: Easing.InOutQuad }
+    }
+    Behavior on errorText {
+        enabled: root.animatePalette && root.animationFast > 0
+        ColorAnimation { duration: root.animationFast; easing.type: Easing.InOutQuad }
+    }
 
     property real scale: 1.0
     property real radiusRatio: 1.0

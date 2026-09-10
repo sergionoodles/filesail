@@ -111,6 +111,14 @@ install(FILES logo.png
     RENAME filesail.png)
 
 enable_testing()
+find_program(FILESAIL_QUICKSHELL NAMES qs quickshell)
+find_package(Python3 QUIET COMPONENTS Interpreter)
+if(FILESAIL_QUICKSHELL AND Python3_Interpreter_FOUND)
+    add_test(NAME theme-smoke
+        COMMAND ${Python3_EXECUTABLE} ${CMAKE_CURRENT_SOURCE_DIR}/tests/theme-smoke.py
+            ${FILESAIL_QUICKSHELL})
+    set_tests_properties(theme-smoke PROPERTIES TIMEOUT 90)
+endif()
 add_test(
     NAME launcher-smoke
     COMMAND bash ${CMAKE_CURRENT_SOURCE_DIR}/tests/launcher-smoke.sh

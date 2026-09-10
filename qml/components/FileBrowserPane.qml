@@ -6,6 +6,7 @@ Item {
 
     required property var session
     property string viewMode: "list"
+    signal contextMenuRequested(var entry, bool background, real x, real y)
 
     function focusActiveView() {
         const activeLoader = root.viewMode === "list" ? listLoader : gridLoader;
@@ -19,7 +20,18 @@ Item {
         anchors.fill: parent
         color: Theme.surface
 
-        MouseArea { anchors.fill: parent; onClicked: root.session.clearSelection() }
+        MouseArea {
+            anchors.fill: parent
+            acceptedButtons: Qt.LeftButton | Qt.RightButton
+            onClicked: mouse => {
+                if (mouse.button === Qt.RightButton) {
+                    root.session.clearSelection();
+                    root.contextMenuRequested(null, true, mouse.x, mouse.y);
+                } else {
+                    root.session.clearSelection();
+                }
+            }
+        }
 
         Loader {
             id: listLoader
@@ -28,6 +40,10 @@ Item {
             sourceComponent: FileListView {
                 session: root.session
                 model: root.session.directory.entries
+                onContextMenuRequested: (entry, x, y) => {
+                    const point = listLoader.item.mapToItem(root, x, y);
+                    root.contextMenuRequested(entry, false, point.x, point.y);
+                }
             }
         }
 
@@ -39,6 +55,10 @@ Item {
             sourceComponent: FileGridView {
                 session: root.session
                 model: root.session.directory.entries
+                onContextMenuRequested: (entry, x, y) => {
+                    const point = gridLoader.item.mapToItem(root, x, y);
+                    root.contextMenuRequested(entry, false, point.x, point.y);
+                }
             }
         }
 

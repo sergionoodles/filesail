@@ -14,7 +14,8 @@ optional second pane is reserved for previews.
 - `src/backend`: long-lived Qt Core helper using newline-delimited JSON over
   stdin/stdout. Keep native code outside the shell process.
 - `shell.qml`: standalone tiled `FloatingWindow` host.
-- `integrations/noctalia`: thin Noctalia panel/bar adapter only.
+- `integrations/noctalia`: Noctalia 5 Luau bar launcher and standalone
+  app-theme bridge only.
 - See `docs/architecture.md` before changing layer boundaries.
 
 ## Non-negotiable behavior
@@ -52,7 +53,7 @@ Run checks appropriate to the change:
 cmake --build build
 ctest --test-dir build --output-on-failure
 qmllint -I /usr/lib/qt6/qml -I qml qml/core/*.qml qml/components/*.qml shell.qml
-qmllint -I /usr/lib/qt6/qml -I /etc/xdg/quickshell/noctalia-shell -I qml integrations/noctalia/*.qml
+qmllint -I /usr/lib/qt6/qml -I qml integrations/noctalia/*.qml
 ```
 
 For QML runtime changes, confirm a bounded standalone launch reaches
@@ -65,5 +66,5 @@ requests, destructive operations, transfer edge cases, and new methods.
 ## Near-term roadmap
 
 Prioritize restore-from-Trash, Open With, transfer progress/conflicts, removable
-volumes, and preview providers. Keep these additions compatible with both the
-standalone host and Noctalia panel.
+volumes, and preview providers. Keep these additions compatible with the
+standalone host launched directly or through Noctalia.

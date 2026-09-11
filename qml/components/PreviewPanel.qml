@@ -14,6 +14,12 @@ Rectangle {
     readonly property bool visual: primary && (primary.mimeType.indexOf("video/") === 0 || primary.mimeType === "application/pdf")
     readonly property bool text: primary && (primary.mimeType.indexOf("text/") === 0 || primary.name.match(/\.(md|markdown|mdown|cpp|c|h|qml|js|ts|json|py|sh)$/i))
     readonly property bool archive: primary && primary.name.match(/\.(zip|tar|tgz|gz|xz|zst|7z|rar|cpio|iso)$/i)
+    readonly property string previewReadiness: providerLoader.status !== Loader.Ready || !providerLoader.item
+        ? "loading" : (typeof providerLoader.item.previewReadiness === "string"
+            ? providerLoader.item.previewReadiness : "ready")
+    readonly property string previewError: providerLoader.item
+            && typeof providerLoader.item.previewError === "string"
+        ? providerLoader.item.previewError : ""
     Loader {
         id: providerLoader
         anchors.fill: parent

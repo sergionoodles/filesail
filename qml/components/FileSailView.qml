@@ -36,7 +36,7 @@ Rectangle {
         // directory entries rather than relying on the primary selection so a
         // mixed selection also collapses the otherwise empty preview pane.
         const selected = session.selectedPaths;
-        for (const entry of session.directory.entries) {
+        for (const entry of session.directory.sourceEntries) {
             if (selected[entry.path] && entry.isDirectory)
                 return true;
         }
@@ -46,6 +46,21 @@ Rectangle {
     readonly property real previewRequiredWidth: (240 + 1 + 360 + 220) * Theme.scale
     readonly property bool previewEnabled: previewPaneEnabled && width >= previewRequiredWidth
     readonly property bool modalActive: dialogs.active
+    readonly property alias browserSession: session
+    readonly property bool controlPreviewActualVisible: root.previewEnabled
+    readonly property string controlPreviewReadiness: previewPane.providerReadiness
+    readonly property string controlPreviewError: previewPane.providerError
+    readonly property string controlPreviewUnavailableReason: {
+        if (!root.previewPaneEnabled)
+            return "not_requested";
+        if (root.width < root.previewRequiredWidth)
+            return "insufficient_width";
+        if (session.selectedCount === 0)
+            return "no_selection";
+        if (root.selectionIncludesDirectory)
+            return "unsupported_selection";
+        return "";
+    }
 
     signal newWindowRequested(string path)
 
@@ -173,6 +188,7 @@ Rectangle {
                     }
                 }
                 PreviewPane {
+                    id: previewPane
                     previewEnabled: root.previewEnabled
                     previewSource: root.previewSource
                     previewComponent: root.previewComponent

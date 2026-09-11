@@ -26,25 +26,31 @@ QtObject {
 
     signal noticeRequested(string message, bool error)
     signal largeDirectoryWarningRequested(string path, int entryCountAtLeast)
+    signal interaction(string kind, string origin)
 
-    function navigate(path) {
-        navigationController.navigate(path);
+    function navigate(path, origin) {
+        navigationController.navigate(path, origin);
     }
+
+    function goBack(origin) { navigationController.back(origin); }
+    function goForward(origin) { navigationController.forward(origin); }
+    function goUp(origin) { navigationController.up(origin); }
 
     function loadLargeDirectory(path) {
         directoryModel.loadLargeDirectory(path);
     }
 
-    function clearSelection() {
+    function clearSelection(origin) {
         selectedPaths = ({});
         primarySelectionPath = "";
         selectionAnchorPath = "";
         updateSelectedEntries();
+        interaction("selection", String(origin ?? "user"));
     }
 
     function resetFocus() {
         focusedPath = directoryModel.entries.length > 0 ? directoryModel.entries[0].path : "";
-        clearSelection();
+        clearSelection("internal");
     }
 
     function removeFromSelection(paths) {
@@ -88,7 +94,7 @@ QtObject {
         return -1;
     }
 
-    function setSelection(paths, additive, anchorPath, basePaths) {
+    function setSelection(paths, additive, anchorPath, basePaths, origin) {
         const next = additive
             ? Object.assign({}, basePaths ? basePaths.reduce((result, path) => {
                 result[path] = true;
@@ -106,6 +112,7 @@ QtObject {
             selectionAnchorPath = visibleAnchor;
         }
         updateSelectedEntries();
+        interaction("selection", String(origin ?? "user"));
     }
 
     function selectRange(anchorPath, targetPath, additive) {
@@ -145,6 +152,7 @@ QtObject {
             primarySelectionPath = next[path] ? path : Object.keys(next)[0] ?? "";
             selectionAnchorPath = path;
             updateSelectedEntries();
+            interaction("selection", "user");
             return;
         }
         setSelection([path], false, path);
@@ -325,7 +333,8 @@ QtObject {
     property NavigationController navigationObject: NavigationController {
         id: navigationController
         initialPath: root.initialPath
-        onNavigationRequested: (path, historyTarget) => {
+        onNavigationRequested: (path, historyTarget, origin) => {
+            root.interaction("navigation", origin);
             root.pendingHistoryTarget = historyTarget;
             directoryModel.setPath(path);
         }
@@ -336,7 +345,7 @@ QtObject {
         path: root.initialPath
         onLoaded: (path, navigation) => {
             if (!root.initialSelectionApplied && root.initialSelectionPaths.length > 0) {
-                root.setSelection(root.initialSelectionPaths, false, root.initialSelectionPaths[0]);
+                root.setSelection(root.initialSelectionPaths, false, root.initialSelectionPaths[0], undefined, "internal");
                 root.initialSelectionApplied = true;
             }
             if (navigation) {

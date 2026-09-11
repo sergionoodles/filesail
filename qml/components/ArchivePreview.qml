@@ -8,14 +8,19 @@ Item {
     property var entries: []
     property string statusText: qsTr("Loading archive…")
     property int requestId: -1
+    property string previewReadiness: "loading"
+    property string previewError: ""
     Component.onCompleted: {
         Logger.debug("preview", `archive ${entry.path}`);
         requestId = BackendClient.requestArchivePreview(entry.path, result => {
             entries = result.entries ?? [];
             statusText = result.truncated ? qsTr("Archive listing truncated") : result.format ?? "Archive";
+            previewReadiness = "ready";
         }, message => {
             Logger.warn("preview", `archive failed: ${message}`);
             statusText = message;
+            previewError = message;
+            previewReadiness = "error";
         });
     }
     Component.onDestruction: { if (requestId >= 0) BackendClient.cancelPreview(requestId); }

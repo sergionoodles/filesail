@@ -1,11 +1,11 @@
 pkgname=filesail-noctalia
 pkgver="$(bash "$startdir/../../scripts/read-version.sh")"
 pkgrel=1
-pkgdesc='Noctalia panel and bar integration for FileSail'
+pkgdesc='Noctalia 5 bar integration for FileSail'
 arch=('x86_64')
 url='https://github.com/sergionoodles/filesail'
 license=('MIT')
-depends=('filesail' 'noctalia-shell')
+depends=('filesail' 'noctalia')
 makedepends=('git')
 # This follows main until the first release tag exists. Pin this to a release
 # tag or commit before publishing a stable AUR revision.
@@ -14,23 +14,14 @@ sha256sums=('SKIP')
 
 package() {
     local plugin_root="$pkgdir/usr/share/filesail/noctalia-plugin"
-    local manifest="$srcdir/filesail-generated/manifest.json"
-    "$srcdir/filesail/scripts/generate-manifest.sh" "$manifest"
-    install -d "$plugin_root/integrations/noctalia"
+    local manifest="$srcdir/filesail-generated/plugin.toml"
+    "$srcdir/filesail/scripts/generate-noctalia-plugin.sh" "$manifest"
+    install -d "$plugin_root"
 
     install -Dm644 "$manifest" \
-        "$plugin_root/manifest.json"
-    install -Dm644 "$srcdir/filesail/integrations/noctalia/BarWidget.qml" \
-        "$plugin_root/integrations/noctalia/BarWidget.qml"
-    install -Dm644 "$srcdir/filesail/integrations/noctalia/Panel.qml" \
-        "$plugin_root/integrations/noctalia/Panel.qml"
-    install -Dm644 "$srcdir/filesail/integrations/noctalia/NoctaliaThemeProvider.qml" \
-        "$plugin_root/integrations/noctalia/NoctaliaThemeProvider.qml"
-
-    # Panel.qml imports ../../qml and BarWidget.qml loads ../../logo.png. Keep
-    # the plugin payload separate while sharing the filesail package's assets.
-    ln -s ../qml "$plugin_root/qml"
-    ln -s ../logo.png "$plugin_root/logo.png"
+        "$plugin_root/plugin.toml"
+    install -Dm644 "$srcdir/filesail/integrations/noctalia/widget.luau" \
+        "$plugin_root/widget.luau"
 
     install -Dm755 "$srcdir/filesail/scripts/install-noctalia-package.sh" \
         "$pkgdir/usr/bin/filesail-noctalia-install"

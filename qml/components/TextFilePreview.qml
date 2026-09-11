@@ -9,6 +9,8 @@ Item {
     property string html: ""
     property string statusText: qsTr("Loading preview…")
     property int requestId: -1
+    property string previewReadiness: "loading"
+    property string previewError: ""
     function load() {
         Logger.debug("preview", `text ${entry.path}`);
         requestId = BackendClient.requestTextPreview(entry.path, Theme.appearance, result => {
@@ -16,9 +18,12 @@ Item {
             html = result.html ?? "";
             statusText = result.kind === "unsupported" ? qsTr("This file cannot be shown as text.")
                 : (result.truncated ? qsTr("Preview truncated") : result.language ?? "Plain Text");
+            previewReadiness = result.kind === "unsupported" ? "unsupported" : "ready";
         }, message => {
             Logger.warn("preview", `text failed: ${message}`);
             statusText = message;
+            previewError = message;
+            previewReadiness = "error";
         });
     }
     Component.onCompleted: load()

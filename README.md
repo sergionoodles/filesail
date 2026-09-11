@@ -15,14 +15,16 @@ The current MVP scaffold includes:
 - XDG default-application opening;
 - an optional preview pane for images, thumbnails, text, archives, and metadata;
 - persistent display preferences in `~/.config/filesail/config.json`;
-- a normal tiled window and a native Noctalia plugin panel using the same UI.
+- a normal tiled window and a Noctalia 5 bar launcher;
+- a stateless `filesail-cli` for discovering and controlling live browser windows.
 
 ## Dependencies
 
 FileSail runs on Linux under a Wayland compositor. The standalone host requires
-Quickshell (`qs` or `quickshell`), a working D-Bus session, and `xdg-utils` for
-opening files and folders with the desktop defaults. Thumbnail previews require
-a thumbnailer service such as Tumbler, but FileSail can run without one.
+Quickshell 0.3.1 or newer (`qs` or `quickshell`), a working D-Bus session, and
+`xdg-utils` for opening files and folders with the desktop defaults. Thumbnail
+previews require a thumbnailer service such as Tumbler, but FileSail can run
+without one.
 
 To build from source, install:
 
@@ -47,15 +49,25 @@ cmake --build build
 ctest --test-dir build --output-on-failure
 ```
 
+To package the current checkout, including uncommitted changes, use:
+
+```sh
+./scripts/makepkg_local.sh --install
+```
+
+Without `--install`, the helper only builds the package. It uses a temporary
+source snapshot and leaves the repository `PKGBUILD` unchanged.
+
 ## Install the standalone host
 
 ```sh
 cmake --install build
 ```
 
-This installs the `filesail` launcher, backend, desktop entry, QML tree, and
-Noctalia adapter using CMake's configured install prefix. The checkout remains
-usable for Noctalia plugin development through `scripts/install-noctalia.sh`.
+This installs the `filesail` launcher, `filesail-cli`, backend, desktop entry,
+QML tree, and Noctalia app-theme bridge using CMake's configured install prefix.
+The checkout remains usable for Noctalia plugin development through
+`scripts/install-noctalia.sh`.
 
 The optional `org.freedesktop.FileManager1` integration is not included in the
 standard package or AppImage. Arch users can opt in by building the separate
@@ -84,7 +96,7 @@ makepkg -si
 ```
 
 The package build also uses CMake, Git, and `pkgconf`; `jq` is used by the
-package checks. To add the Noctalia 4 panel and bar integration after installing
+package checks. To add the Noctalia 5 bar integration after installing
 FileSail, build the optional package in `integrations/noctalia`:
 
 ```sh
@@ -92,7 +104,8 @@ cd integrations/noctalia
 makepkg -si
 ```
 
-The Noctalia package depends on both `filesail` and `noctalia-shell`.
+The Noctalia package depends on both `filesail` and Noctalia 5. Its plugin uses
+API level 24, introduced with Noctalia 5.0.0-beta.9.
 
 ## Install the AppImage
 
@@ -137,6 +150,29 @@ The launcher activates the existing standalone host when one is running, so
 separate compositor-managed windows share one Quickshell engine and backend.
 Use `--new-instance` temporarily when testing an isolated duplicate host.
 
+## Control FileSail from an agent or terminal
+
+`filesail-cli` discovers live standalone browser sessions and
+prints one compact JSON document to stdout. Commands wait for their real
+terminal result by default; use `--no-wait` and retain the returned request ID
+when asynchronous handoff is preferable.
+
+```sh
+filesail-cli windows list
+filesail-cli windows ensure
+filesail-cli navigate --location downloads
+filesail-cli --window WINDOW_ID state
+filesail-cli --window WINDOW_ID entries --limit 100
+filesail-cli --window WINDOW_ID select --path /absolute/path/to/report.pdf
+filesail-cli --window WINDOW_ID preview show
+```
+
+Omitting `--window` is allowed only when exactly one browser is eligible.
+Inspection never launches FileSail; `windows ensure`, `windows create`, and an
+untargeted `navigate` may create a standalone window. Named locations use Qt's
+XDG standard-location resolution. See [the CLI contract](docs/control-cli.md)
+for schemas, preference scope, event cursors, and error handling.
+
 To slow transfers down while evaluating the activity queue, set the optional
 development-only delay before launching FileSail. The delay is applied after
 each transfer chunk and is measured in milliseconds:
@@ -164,8 +200,7 @@ are preserved. If your config uses `[include] autoload = false`, include
 
 Set `enabled = false` on that template to stop automatic generation. FileSail
 keeps the last valid palette if Noctalia is unavailable or a write is incomplete.
-Noctalia 4's published JSON palette remains supported; without a host palette,
-FileSail uses Qt's system palette.
+Without a host palette, FileSail uses Qt's system palette.
 
 The integration follows Noctalia's **app** mode (`theme.mode`). A separate
 `theme.shell_mode` override affects only Noctalia's shell, as specified by its
@@ -174,22 +209,28 @@ The integration follows Noctalia's **app** mode (`theme.mode`). A separate
 The isolated `theme-smoke` CTest runs when Python 3 and Quickshell are available.
 It can also be run directly with `python3 tests/theme-smoke.py /path/to/qs`.
 
-## Install into Noctalia 4
+## Install into Noctalia 5
 
 ```sh
 ./scripts/install-noctalia.sh
 ```
 
-Enable FileSail under **Settings → Plugins**, then add the FileSail widget to the
-bar. The panel can also be controlled through Noctalia IPC:
+Enable `sergionoodles/filesail` under **Settings → Plugins**, then add its
+`launcher` widget to the bar. Clicking it opens FileSail as a normal tiled
+window. Noctalia 5 no longer embeds third-party QML panels; its native plugin
+runtime launches the shared FileSail host instead.
+
+The widget can also open FileSail, optionally at a path, through Noctalia IPC:
 
 ```sh
-qs -c noctalia-shell ipc call plugin togglePanel filesail
+noctalia msg plugin sergionoodles/filesail:launcher focused open "$HOME/Downloads"
 ```
 
-The installer symlinks this checkout for plugin development and copies only the
-backend executable to `~/.local/bin`. Ensure that directory is on the PATH of
-the running Noctalia service.
+The installer symlinks the adapter into
+`$XDG_DATA_HOME/noctalia/plugins/filesail` (honoring `NOCTALIA_DATA_HOME`) and
+makes the development launcher available and copies the backend and control CLI
+executables to `~/.local/bin`. Ensure that directory is on the PATH of the
+running Noctalia process.
 
 ## Next milestone
 
@@ -205,5 +246,5 @@ trade-offs.
 ## Release version
 
 The application version is defined once in [`VERSION`](VERSION). CMake, the
-Noctalia manifest, AppImage packaging, Arch packaging, and release validation
-derive their versions from that file.
+Noctalia 5 plugin manifest, AppImage packaging, Arch packaging, and release
+validation derive their versions from that file.

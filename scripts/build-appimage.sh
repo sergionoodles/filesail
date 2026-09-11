@@ -187,13 +187,6 @@ for library in "$qt_lib_dir"/libQt6WlShellIntegration.so.6*; do
     fi
 done
 
-# The AppImage is the standalone host. Keep the Noctalia-only panel adapter out
-# of its QML scan; it imports qs.Commons and qs.Services.UI from Noctalia.
-rm -f -- \
-    "$appdir/usr/share/filesail/integrations/noctalia/BarWidget.qml" \
-    "$appdir/usr/share/filesail/integrations/noctalia/Panel.qml" \
-    "$appdir/usr/share/filesail/integrations/noctalia/NoctaliaThemeProvider.qml"
-
 # The standalone launcher uses the bundled runtime when APPDIR is set. The
 # Quickshell modules are statically linked into qs, but their qmldir/QML files
 # are still needed for imports such as Quickshell.Io and Quickshell.Widgets.
@@ -218,6 +211,7 @@ rm -f -- "$output_file"
         --appdir "$appdir" \
         --executable "$appdir/usr/bin/qs" \
         --executable "$appdir/usr/bin/filesail-backend" \
+        --executable "$appdir/usr/bin/filesail-cli" \
         --plugin qt
 
     # The Qt deployment plugin only preserves a subset of plugin directories.

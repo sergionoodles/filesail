@@ -1,7 +1,8 @@
 #!/usr/bin/env bash
 set -euo pipefail
 
-project_dir="$(cd -- "$(dirname -- "${BASH_SOURCE[0]}")/.." && pwd)"
+script_path="$(readlink -f -- "${BASH_SOURCE[0]}")"
+project_dir="$(cd -- "$(dirname -- "$script_path")/.." && pwd)"
 backend="${FILESAIL_BACKEND:-$project_dir/build/filesail-backend}"
 
 if [[ ! -x "$backend" ]]; then
@@ -13,6 +14,7 @@ export FILESAIL_BACKEND="$backend"
 requested_path="${FILESAIL_PATH:-$HOME}"
 selection_json="${FILESAIL_SELECTION_JSON:-[]}";
 force_new_instance=false
+ensure_window=false
 while (($#)); do
     case "$1" in
         --path)
@@ -28,6 +30,7 @@ while (($#)); do
             ;;
         --help|-h) printf '%s\n' 'Usage: filesail [--path PATH] [PATH]' 'Options: --new-instance (temporary duplicate-host escape hatch)' 'Environment: FILESAIL_LOG=error|warn|info|debug (default: info)'; exit 0 ;;
         --new-instance|--allow-duplicate) force_new_instance=true; shift ;;
+        --ensure-window) ensure_window=true; shift ;;
         -*) printf 'filesail: unknown option: %s\\n' "$1" >&2; exit 2 ;;
         *) requested_path="$1"; shift ;;
     esac
@@ -71,7 +74,10 @@ ipc_call() {
 }
 
 if ipc_call ping 1 >/dev/null 2>&1; then
-    if ! ipc_call show "$requested_path" "$selection_json" 1 >/dev/null 2>&1; then
+    activation_method=show
+    activation_args=("$requested_path" "$selection_json" 1)
+    if [[ "$ensure_window" == true ]]; then activation_method=ensure; activation_args=("$requested_path" 1); fi
+    if ! ipc_call "$activation_method" "${activation_args[@]}" >/dev/null 2>&1; then
         printf '%s\n' 'filesail: existing host rejected the activation request' >&2
         exit 1
     fi
@@ -92,7 +98,10 @@ host_pid=$!
 for _ in {1..40}; do
     if ipc_call ping 1 >/dev/null 2>&1; then
         if kill -0 "$host_pid" 2>/dev/null; then exit 0; fi
-        if ipc_call show "$requested_path" "$selection_json" 1 >/dev/null 2>&1; then exit 0; fi
+        activation_method=show
+        activation_args=("$requested_path" "$selection_json" 1)
+        if [[ "$ensure_window" == true ]]; then activation_method=ensure; activation_args=("$requested_path" 1); fi
+        if ipc_call "$activation_method" "${activation_args[@]}" >/dev/null 2>&1; then exit 0; fi
         break
     fi
     if ! kill -0 "$host_pid" 2>/dev/null; then break; fi

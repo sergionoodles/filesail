@@ -35,7 +35,6 @@ import json, os, pathlib, sys
 r = pathlib.Path(os.environ['THEME_TEST_ROOT'])
 args = sys.argv[1:]
 if args == ['config', 'export', 'full']:
-    if (r / 'legacy').exists(): sys.exit(1)
     print((r / 'effective.toml').read_text())
     entry = r / 'config/noctalia/filesail.toml'
     if entry.exists() and not (r / 'excluded').exists(): print(entry.read_text())
@@ -187,16 +186,6 @@ def disabled(host):
     host.wait(lambda s: s['loaded'], 'template re-enabled during session')
 
 
-def legacy(host):
-    (host.root / 'legacy').touch()
-    keys = ['mPrimary', 'mOnPrimary', 'mSurface', 'mSurfaceVariant', 'mOnSurface', 'mOnSurfaceVariant', 'mOutline', 'mError', 'mOnError']
-    write_json(host.root / 'config/noctalia/colors.json', dict(zip(keys, list(PALETTE.values())[:9])))
-    write_json(host.root / 'config/noctalia/settings.json', {'general': {'scaleRatio': 1.5}, 'colorSchemes': {'darkMode': False}})
-    host.start()
-    host.wait(lambda s: s['primary'] == PALETTE['primary'] and s['scale'] == 1.5 and s['appearance'] == 'light', 'Noctalia 4 fallback')
-    assert not (host.root / 'config/noctalia/filesail.toml').exists()
-
-
 def declarative_disabled(host):
     # Noctalia may resolve this from an included, immutable profile. FileSail
     # must not shadow its opt-out by creating a new filesail.toml next to it.
@@ -210,7 +199,7 @@ def declarative_disabled(host):
 
 
 for name, test in [('live updates and validation', live), ('late shell and stale cache', recovery),
-                   ('opt-out and re-enable', disabled), ('Noctalia 4 compatibility', legacy),
+                   ('opt-out and re-enable', disabled),
                    ('declarative registration preserved', declarative_disabled)]:
     scenario(name, test)
 

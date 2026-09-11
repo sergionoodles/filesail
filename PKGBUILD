@@ -35,11 +35,6 @@ check() {
 package() {
     DESTDIR="$pkgdir" cmake --install "$srcdir/filesail-build"
 
-    # The standalone host needs the config-file theme provider, while the
-    # Noctalia manifest and entry points belong to filesail-noctalia.
-    rm -f \
-        "$pkgdir/usr/share/filesail/manifest.json" \
-        "$pkgdir/usr/share/filesail/integrations/noctalia/BarWidget.qml" \
-        "$pkgdir/usr/share/filesail/integrations/noctalia/Panel.qml" \
-        "$pkgdir/usr/share/filesail/integrations/noctalia/NoctaliaThemeProvider.qml"
+    # The optional Noctalia 5 plugin is packaged separately; this package keeps
+    # only the standalone host's app-theme bridge.
 }

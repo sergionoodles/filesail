@@ -8,7 +8,8 @@ Provide one consistent, selection-aware context menu system across FileSail's
 details view, icon grid, and other surfaces that represent filesystem locations.
 Users should recognize the same labels, ordering, appearance, and behavior
 whether they invoke a menu on a file, folder, multiple items, or browser background.
-The standalone window and Noctalia panel must share the implementation.
+The standalone window owns the implementation regardless of whether it is
+launched directly or from the Noctalia bar.
 
 The complete baseline includes opening, Open With, cut/copy/paste, path copying,
 creation, rename, Trash and restore, properties, bookmarks, terminal/window
@@ -216,8 +217,8 @@ highlighting without clipped text or shifting columns.
 Own one context-menu controller per `FileSailView`, above the clipped list/grid
 content. Convert pointer coordinates from the source surface to its popup anchor;
 flip/clamp menus and submenus to available host bounds and allow scrolling when
-height is constrained. Verify popup behavior inside both a normal Wayland window
-and the Noctalia panel before committing to a popup type.
+height is constrained. Verify popup behavior inside a normal Wayland window
+before committing to a popup type.
 
 Support arrow navigation, Enter, Escape, submenu navigation, Menu/Shift+F10, and
 accessible names/roles/enabled states. Restore focus to the originating view or
@@ -316,13 +317,13 @@ Run the repository checks after implementation:
 cmake --build build
 ctest --test-dir build --output-on-failure
 qmllint -I /usr/lib/qt6/qml -I qml qml/core/*.qml qml/components/*.qml shell.qml
-qmllint -I /usr/lib/qt6/qml -I /etc/xdg/quickshell/noctalia-shell -I qml integrations/noctalia/*.qml
+qmllint -I /usr/lib/qt6/qml -I qml integrations/noctalia/*.qml
 ```
 
 Perform a bounded isolated standalone launch and confirm `Configuration Loaded`;
 this briefly creates a Wayland window. Stop every test instance afterward.
-Manually verify the standalone host and Noctalia panel, list/grid parity, compact
-windows, scaled displays, all popup edges, submenus, keyboard-only operation,
+Manually verify direct and Noctalia-launched standalone windows, list/grid
+parity, compact windows, scaled displays, all popup edges, submenus, keyboard-only operation,
 text-field menus, and cross-window/desktop clipboard interoperability. Record
 unavailable host environments as validation gaps rather than claimed passes.
 

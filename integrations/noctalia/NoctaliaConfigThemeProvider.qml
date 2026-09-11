@@ -11,7 +11,7 @@ QtObject {
     property var colors: ({})
     property var metrics: ({})
     property bool liveThemeLoaded: false
-    property bool v5ConfigSeen: false
+    property bool configSeen: false
     property bool bundledTemplateChecked: false
     property bool templateEntryChecked: false
     property bool templateEntryPresent: false
@@ -27,7 +27,6 @@ QtObject {
     readonly property string homeDir: String(Quickshell.env("HOME") ?? "")
     readonly property string filesailConfigDir: (String(Quickshell.env("XDG_CONFIG_HOME") || root.homeDir + "/.config")) + "/filesail"
     readonly property string configDir: root.noctaliaHome("NOCTALIA_CONFIG_HOME", "XDG_CONFIG_HOME", root.homeDir + "/.config")
-    readonly property string legacyConfigDir: String(Quickshell.env("NOCTALIA_CONFIG_DIR") || root.configDir).replace(/\/$/, "")
     readonly property string stateDir: root.noctaliaHome("NOCTALIA_STATE_HOME", "XDG_STATE_HOME", root.homeDir + "/.local/state")
     readonly property string liveThemePath: root.filesailConfigDir + "/theme.json"
     readonly property string templateEntrySource: [
@@ -112,7 +111,7 @@ QtObject {
     }
 
     function maybeInstallTemplate() {
-        if (root.setupStarted || !root.v5ConfigSeen || !root.bundledTemplateChecked || !root.templateEntryChecked)
+        if (root.setupStarted || !root.configSeen || !root.bundledTemplateChecked || !root.templateEntryChecked)
             return;
         root.setupStarted = true;
         // A declarative registration may point directly at the packaged
@@ -158,7 +157,7 @@ QtObject {
     function acceptConfig(text) {
         if (!text.trim())
             return;
-        root.v5ConfigSeen = true;
+        root.configSeen = true;
         const wasEnabled = root.templateEnabled;
         root.effectiveConfig = text;
         if (!wasEnabled && root.templateEnabled) {
@@ -225,27 +224,6 @@ QtObject {
         }
     }
 
-    function loadLegacyColors() {
-        if (root.liveThemeLoaded || root.v5ConfigSeen)
-            return;
-        try {
-            const text = root.legacyColorsFile.text();
-            if (text.length > 256 * 1024)
-                return;
-            const data = JSON.parse(text);
-            const next = root.colorMapFromObject(data, {
-                primary: "mPrimary", primaryText: "mOnPrimary",
-                surface: "mSurface", surfaceVariant: "mSurfaceVariant",
-                text: "mOnSurface", textMuted: "mOnSurfaceVariant",
-                outline: "mOutline", error: "mError", errorText: "mOnError"
-            });
-            if (next)
-                root.colors = next;
-        } catch (error) {
-            // A config write can be observed mid-write; retain the last valid theme.
-        }
-    }
-
     function metricsFromToml(text) {
         if (typeof text !== "string" || text.length === 0)
             return ({});
@@ -268,34 +246,8 @@ QtObject {
         return next;
     }
 
-    function loadLegacyMetrics() {
-        if (root.v5ConfigSeen)
-            return;
-        try {
-            const text = root.legacySettingsFile.text();
-            if (text.length > 256 * 1024)
-                return;
-            const data = JSON.parse(text);
-            const general = data.general ?? {};
-            const disabled = Boolean(general.animationDisabled);
-            const speed = root.boundedNumber(general.animationSpeed, 1, 0.1, 10);
-            root.metrics = {
-                appearance: data.colorSchemes?.darkMode === false ? "light" : "dark",
-                scale: root.boundedNumber(general.scaleRatio, 1, 0.5, 3),
-                radiusRatio: root.boundedNumber(general.radiusRatio, 1, 0.25, 4),
-                animationFast: disabled ? 0 : Math.round(150 / speed)
-            };
-        } catch (error) {
-            // Preserve the host-neutral defaults until a valid settings file exists.
-        }
-    }
-
     function reloadWatchedFiles() {
         root.liveThemeFile.reload();
-        if (!root.v5ConfigSeen) {
-            root.legacyColorsFile.reload();
-            root.legacySettingsFile.reload();
-        }
         if (!root.exportConfigProcess.running)
             root.exportConfigProcess.running = true;
     }
@@ -309,7 +261,7 @@ QtObject {
     // discovers changes in included TOML files without reimplementing TOML.
     // Back off when Noctalia is absent or its initial palette is not ready.
     property Timer recoveryTimer: Timer {
-        interval: !root.v5ConfigSeen || root.refreshAttempts >= 3 ? 30000 : 5000
+        interval: !root.configSeen || root.refreshAttempts >= 3 ? 30000 : 5000
         running: true
         repeat: true
         onTriggered: root.reloadWatchedFiles()
@@ -407,24 +359,6 @@ QtObject {
         onLoaded: root.loadLiveTheme()
         onFileChanged: root.reloadTimer.restart()
         onLoadFailed: root.refreshPending = true
-    }
-
-    property FileView legacyColorsFile: FileView {
-        path: root.legacyConfigDir + "/colors.json"
-        preload: true
-        watchChanges: true
-        printErrors: false
-        onLoaded: root.loadLegacyColors()
-        onFileChanged: root.reloadTimer.restart()
-    }
-
-    property FileView legacySettingsFile: FileView {
-        path: root.legacyConfigDir + "/settings.json"
-        preload: true
-        watchChanges: true
-        printErrors: false
-        onLoaded: root.loadLegacyMetrics()
-        onFileChanged: root.reloadTimer.restart()
     }
 
     property FileView filesailDirectoryWatcher: FileView {

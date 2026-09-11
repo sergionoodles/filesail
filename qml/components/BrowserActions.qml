@@ -19,9 +19,9 @@ QtObject {
     signal aboutRequested()
 
     property Action editLocationAction: Action { shortcut: "Ctrl+L"; enabled: !root.modalActive; onTriggered: root.editLocationRequested() }
-    property Action backAction: Action { text: qsTr("Back"); shortcut: "Alt+Left"; enabled: !root.modalActive && root.session.navigation.canGoBack; onTriggered: root.session.navigation.back() }
-    property Action forwardAction: Action { text: qsTr("Forward"); shortcut: "Alt+Right"; enabled: !root.modalActive && root.session.navigation.canGoForward; onTriggered: root.session.navigation.forward() }
-    property Action upAction: Action { text: qsTr("Parent folder"); shortcut: "Alt+Up"; enabled: !root.modalActive && root.session.directory.path !== "/"; onTriggered: root.session.navigation.up() }
+    property Action backAction: Action { text: qsTr("Back"); shortcut: "Alt+Left"; enabled: !root.modalActive && root.session.navigation.canGoBack; onTriggered: root.session.goBack("user") }
+    property Action forwardAction: Action { text: qsTr("Forward"); shortcut: "Alt+Right"; enabled: !root.modalActive && root.session.navigation.canGoForward; onTriggered: root.session.goForward("user") }
+    property Action upAction: Action { text: qsTr("Parent folder"); shortcut: "Alt+Up"; enabled: !root.modalActive && root.session.directory.path !== "/"; onTriggered: root.session.goUp("user") }
     property Action hiddenFilesAction: Action {
         text: qsTr("Show hidden files"); shortcut: "Ctrl+H"; enabled: !root.modalActive
         checked: Settings.showHidden

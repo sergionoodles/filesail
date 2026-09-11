@@ -1,0 +1,14 @@
+id = "sergionoodles/filesail"
+name = "FileSail"
+version = "@PROJECT_VERSION@"
+plugin_api = 24
+author = "sergionoodles"
+license = "MIT"
+dependencies = ["filesail"]
+tags = ["productivity", "utility"]
+icon = "folder"
+description = "Open the FileSail file manager from the Noctalia bar."
+
+[[widget]]
+id = "launcher"
+entry = "widget.luau"

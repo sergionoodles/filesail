@@ -270,6 +270,14 @@ QtObject {
         return request("list", params, onSuccess, onFailure);
     }
 
+    function allocateControlIdentity(onSuccess, onFailure) {
+        return request("control.identity", {}, onSuccess, onFailure, 5000);
+    }
+
+    function resolveControlLocation(location, onSuccess, onFailure) {
+        return request("control.resolveLocation", { location }, onSuccess, onFailure, 5000);
+    }
+
     function completeDirectories(parent, prefix, onSuccess, onFailure) {
         return request("completeDirectories", { parent, prefix }, onSuccess, onFailure);
     }

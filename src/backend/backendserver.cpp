@@ -14,7 +14,9 @@
 #include <QJsonDocument>
 #include <QJsonObject>
 #include <QMetaObject>
+#include <QRandomGenerator>
 #include <QSocketNotifier>
+#include <QStandardPaths>
 #include <QTimer>
 #include <QUuid>
 #include <QUrl>
@@ -23,6 +25,7 @@
 
 #include <algorithm>
 #include <cerrno>
+#include <cstring>
 #include <exception>
 #include <unistd.h>
 
@@ -34,6 +37,19 @@ constexpr int previewIdleMilliseconds = 15000;
 QJsonObject failure(const QString &message)
 {
     return {{"ok", false}, {"error", message}};
+}
+
+QString randomControlId()
+{
+    QByteArray bytes(16, Qt::Uninitialized);
+    auto *generator = QRandomGenerator::system();
+    for (qsizetype offset = 0; offset < bytes.size(); offset += 4) {
+        const quint32 value = generator->generate();
+        const qsizetype count = std::min<qsizetype>(4, bytes.size() - offset);
+        std::memcpy(bytes.data() + offset, &value, static_cast<size_t>(count));
+    }
+    return QString::fromLatin1(bytes.toBase64(QByteArray::Base64UrlEncoding
+                                               | QByteArray::OmitTrailingEquals));
 }
 
 QString watchPath(const QJsonObject &params, bool mustExist, QString *error)
@@ -71,6 +87,46 @@ QString watchPath(const QJsonObject &params, bool mustExist, QString *error)
 
     const QString canonicalPath = info.canonicalFilePath();
     return canonicalPath.isEmpty() ? path : canonicalPath;
+}
+
+QJsonObject resolveControlLocation(const QJsonObject &params)
+{
+    const QJsonValue value = params.value(QStringLiteral("location"));
+    if (!value.isString() || value.toString().isEmpty())
+        return failure(QStringLiteral("Missing or invalid location"));
+
+    const QString location = value.toString();
+    QString path;
+    if (location.startsWith(QLatin1Char('/'))) {
+        path = location;
+    } else {
+        const QString key = location.toLower();
+        static const QHash<QString, QStandardPaths::StandardLocation> locations = {
+            {QStringLiteral("home"), QStandardPaths::HomeLocation},
+            {QStringLiteral("desktop"), QStandardPaths::DesktopLocation},
+            {QStringLiteral("documents"), QStandardPaths::DocumentsLocation},
+            {QStringLiteral("downloads"), QStandardPaths::DownloadLocation},
+            {QStringLiteral("music"), QStandardPaths::MusicLocation},
+            {QStringLiteral("pictures"), QStandardPaths::PicturesLocation},
+            {QStringLiteral("videos"), QStandardPaths::MoviesLocation},
+            {QStringLiteral("templates"), QStandardPaths::TemplatesLocation},
+            {QStringLiteral("publicshare"), QStandardPaths::PublicShareLocation},
+        };
+        if (key == QStringLiteral("trash")) {
+            path = QDir(QStandardPaths::writableLocation(QStandardPaths::GenericDataLocation))
+                       .filePath(QStringLiteral("Trash/files"));
+        } else if (locations.contains(key)) {
+            path = QStandardPaths::writableLocation(locations.value(key));
+        } else {
+            return failure(QStringLiteral("Unknown standard location: %1").arg(location));
+        }
+    }
+
+    QString error;
+    const QString resolved = watchPath(QJsonObject{{QStringLiteral("path"), path}}, true, &error);
+    if (resolved.isEmpty())
+        return failure(error);
+    return {{QStringLiteral("ok"), true}, {QStringLiteral("path"), resolved}};
 }
 }
 
@@ -200,7 +256,13 @@ void BackendServer::handleRequest(const QByteArray &line)
     filesailLog(LogLevel::Debug, "backend",
                 QStringLiteral("request id=%1 method=%2").arg(id).arg(method));
 
-    if (method == "list") {
+    if (method == "control.identity") {
+        writeResponse({{"id", id}, {"ok", true}, {"value", randomControlId()}});
+    } else if (method == "control.resolveLocation") {
+        QJsonObject result = resolveControlLocation(params);
+        result.insert(QStringLiteral("id"), id);
+        writeResponse(result);
+    } else if (method == "list") {
         enqueueOperation(id, m_readPool, [params](const CancellationToken &token) { return FileOperations::listDirectory(params, token); });
     } else if (method == "completeDirectories") {
         enqueueOperation(id, m_readPool, [params](const CancellationToken &token) { return FileOperations::completeDirectories(params, token); });

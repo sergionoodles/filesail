@@ -41,6 +41,14 @@ QtObject {
         return root.show(requestedPath, "[]", version);
     }
 
+    function ensure(requestedPath, version) {
+        if (!root.acceptsVersion(version))
+            return false;
+        if (root.windowCount > 0)
+            return true;
+        return root.show(requestedPath, "[]", version);
+    }
+
     function show(requestedPath, selectionJson, version) {
         if (!root.acceptsVersion(version)) {
             Logger.warn("windows", `activation protocol mismatch: ${version}`);
@@ -61,22 +69,26 @@ QtObject {
             Logger.warn("windows", `activation rejected invalid selection: ${error}`);
             return false;
         }
+        return root.createWindow(path, selectionPaths) !== null;
+    }
+
+    function createWindow(path, selectionPaths) {
         const windowId = root.nextWindowId++;
         const window = root.windowComponent.createObject(root.owner, {
             windowId: windowId,
             initialPath: path,
-            initialSelectionPaths: selectionPaths
+            initialSelectionPaths: selectionPaths ?? []
         });
         if (!window) {
             Logger.error("windows", `could not create window ${windowId}`);
-            return false;
+            return null;
         }
         window.closeRequested.connect(() => root.close(window));
         window.newWindowRequested.connect(path => root.open(path, root.protocolVersion));
         root.windows = root.windows.concat([window]);
         Logger.info("windows", `opened ${windowId} path=${path} live=${root.windowCount}`);
         root.windowOpened(windowId, path);
-        return true;
+        return window;
     }
 
     function close(window) {

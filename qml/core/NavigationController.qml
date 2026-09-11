@@ -12,37 +12,39 @@ QtObject {
     readonly property bool canGoBack: historyIndex > 0
     readonly property bool canGoForward: historyIndex < history.length - 1
 
-    signal navigationRequested(string path, int historyTarget)
+    signal navigationRequested(string path, int historyTarget, string origin)
 
-    function navigate(path) {
-        const nextPath = String(path ?? "").trim();
+    function navigate(path, origin) {
+        // Leading and trailing spaces are legal filename bytes. Validation and
+        // canonicalization are owned by the backend.
+        const nextPath = String(path ?? "");
         if (!nextPath || nextPath === currentPath)
             return;
-        navigationRequested(nextPath, -1);
+        navigationRequested(nextPath, -1, String(origin ?? "user"));
     }
 
-    function back() {
+    function back(origin) {
         if (!canGoBack)
             return;
-        navigationRequested(history[historyIndex - 1], historyIndex - 1);
+        navigationRequested(history[historyIndex - 1], historyIndex - 1, String(origin ?? "user"));
     }
 
-    function forward() {
+    function forward(origin) {
         if (!canGoForward)
             return;
-        navigationRequested(history[historyIndex + 1], historyIndex + 1);
+        navigationRequested(history[historyIndex + 1], historyIndex + 1, String(origin ?? "user"));
     }
 
-    function up() {
+    function up(origin) {
         if (currentPath === "/")
             return;
         const parts = currentPath.split('/').filter(Boolean);
         parts.pop();
-        navigate('/' + parts.join('/'));
+        navigate('/' + parts.join('/'), origin);
     }
 
-    function home() {
-        navigate(homePath);
+    function home(origin) {
+        navigate(homePath, origin);
     }
 
     function commit(path, historyTarget) {

@@ -10,6 +10,20 @@ Item {
     property Component previewComponent: null
     property var previewContext: null
     readonly property bool hasExternalPreview: previewSource.toString().length > 0 || Boolean(previewComponent)
+    readonly property string providerReadiness: {
+        if (!previewEnabled)
+            return "unavailable";
+        const loader = hasExternalPreview ? previewLoader : builtInPreview;
+        if (loader.status !== Loader.Ready || !loader.item)
+            return "loading";
+        return typeof loader.item.previewReadiness === "string"
+            ? loader.item.previewReadiness : (hasExternalPreview ? "unknown" : "ready");
+    }
+    readonly property string providerError: {
+        const loader = hasExternalPreview ? previewLoader : builtInPreview;
+        return loader.item && typeof loader.item.previewError === "string"
+            ? loader.item.previewError : "";
+    }
 
     SplitView.preferredWidth: previewEnabled ? 300 * Theme.scale : 0
     SplitView.minimumWidth: previewEnabled ? 220 * Theme.scale : 0

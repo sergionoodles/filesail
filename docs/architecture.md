@@ -72,7 +72,8 @@ without treating the move as complete.
 - `shell.qml` is the standalone host. Its `WindowRegistry` creates independent
   normal `FloatingWindow` xdg-toplevels, so Niri and Hyprland can tile each
   browser normally while all windows share one QML engine and backend.
-- `integrations/noctalia` is a thin host adapter. The standalone host follows
+- `integrations/noctalia` contains the Noctalia 5 bar launcher and the
+  standalone host's app-theme bridge. The standalone host follows
   Noctalia 5 app theming: a user template writes `~/.config/filesail/theme.json`
   whenever the palette changes, and `NoctaliaConfigThemeProvider` maps that
   file into `Theme`. Registration waits for both atomic writes, reloads Noctalia's
@@ -82,9 +83,10 @@ without treating the move as complete.
   from `noctalia config export full`, so includes, defaults, and GUI overrides
   use Noctalia's own precedence. Shared color transitions respect animation
   settings. Qt's system palette supplies defaults until a host palette arrives.
-  Noctalia 4 `colors.json` remains a fallback. The optional
-  panel/bar package is still a Noctalia 4 QML plugin; Noctalia owns the layer
-  surface, focus, attachment, blur, animation, and IPC.
+  The optional Noctalia 5 plugin is a Luau bar entry using plugin API 24. A
+  click starts the normal FileSail launcher, so the browser remains a
+  compositor-managed window. Noctalia 5 does not load third-party QML or allow
+  its native declarative panels to embed the shared QML browser.
 
 The standalone launcher uses Quickshell's per-user IPC endpoint (`filesail.v1`
 target, protocol version `1`) to route `open(path)` requests to the existing
@@ -100,21 +102,38 @@ than a system D-Bus activation file, avoiding conflicts with file managers such
 as Nautilus. Users explicitly enable the unit when they want FileSail to own
 the name. `ShowItems` groups selections by containing directory and applies them
 after the directory snapshot loads.
+
+The standalone host exposes live browser sessions through a shared
+`ControlRouter` and thin `ControlWindowAdapter` objects. The separate
+`filesail.control.v1`
+Quickshell IPC target carries versioned JSON requests, retained results, and
+sequence-based events; it never forwards arbitrary backend or QML calls. Each
+adapter owns a backend-generated 128-bit random ID for the lifetime of its
+view. The native `filesail-cli` enumerates Quickshell instances, pins each call
+to an exact instance ID, and keeps no state between invocations. Navigation and
+selection are still executed by the target `BrowserSession`, so directory
+commit, history, filtering, and modal rules have one implementation. The
+standalone registry supplies the optional window-creation capability. The
+Noctalia 5 widget enters through the normal standalone launcher and therefore
+uses the same registry.
+
 - A future Omarchy host should map Omarchy tokens and panel lifecycle into the
   same shared UI. No compositor code belongs in the file model or operations.
 
 ## Installation
 
 The repository supports a standalone installation: `cmake --install build`
-installs `filesail-backend` and the `filesail` launcher in the configured bindir,
-and installs `shell.qml`, the QML tree, desktop entry, and the Noctalia adapter
-under `share/filesail`. The root-level `shell.qml` remains the sole standalone
+installs `filesail-backend`, `filesail-cli`, and the `filesail` launcher in the
+configured bindir, and installs `shell.qml`, the QML tree, desktop entry,
+bundled agent skill, and Noctalia app-theme bridge under `share/filesail`. The
+root-level `shell.qml` remains the sole standalone
 host; `hosts/standalone` is reserved until there is a second standalone host
 implementation. Release metadata has one source of truth in the root `VERSION`
-file; CMake derives `PROJECT_VERSION` from it and configures the installed
-manifest. The Noctalia development installer generates the same manifest in
-the checkout when needed. Noctalia development remains supported by
-`scripts/install-noctalia.sh`, which intentionally symlinks the checkout.
+file; CMake derives `PROJECT_VERSION` from it and configures the Noctalia 5
+plugin manifest used by compatibility checks. The Noctalia development
+installer generates the same versioned `plugin.toml` in the checkout when
+needed. Noctalia development remains supported by
+`scripts/install-noctalia.sh`, which intentionally symlinks the adapter.
 
 ## Deliberate MVP boundaries
 

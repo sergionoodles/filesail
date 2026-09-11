@@ -45,6 +45,12 @@ add_executable(filesail-backend
     src/backend/previewservice.h
 )
 
+add_executable(filesail-cli src/cli/main.cpp)
+target_link_libraries(filesail-cli PRIVATE Qt6::Core)
+target_compile_options(filesail-cli PRIVATE
+    $<$<CXX_COMPILER_ID:GNU,Clang>:-Wall -Wextra -Wpedantic>
+)
+
 target_link_libraries(filesail-backend PRIVATE Qt6::Core Qt6::Concurrent Qt6::DBus PkgConfig::LIBARCHIVE)
 target_include_directories(filesail-backend PRIVATE ${CMAKE_CURRENT_BINARY_DIR}/generated)
 target_compile_options(filesail-backend PRIVATE
@@ -83,24 +89,32 @@ configure_file(
     ${CMAKE_CURRENT_BINARY_DIR}/filesail
     @ONLY
 )
+file(MAKE_DIRECTORY "${CMAKE_CURRENT_BINARY_DIR}/noctalia-plugin")
 configure_file(
-    manifest.json.in
-    ${CMAKE_CURRENT_BINARY_DIR}/manifest.json
+    integrations/noctalia/plugin.toml.in
+    ${CMAKE_CURRENT_BINARY_DIR}/noctalia-plugin/plugin.toml
     @ONLY
 )
+configure_file(
+    integrations/noctalia/widget.luau
+    ${CMAKE_CURRENT_BINARY_DIR}/noctalia-plugin/widget.luau
+    COPYONLY
+)
 
-install(TARGETS filesail-backend RUNTIME DESTINATION ${CMAKE_INSTALL_BINDIR})
+install(TARGETS filesail-backend filesail-cli RUNTIME DESTINATION ${CMAKE_INSTALL_BINDIR})
 if(FILESAIL_BUILD_DBUS)
     install(TARGETS filesail-filemanager1 RUNTIME DESTINATION ${CMAKE_INSTALL_BINDIR})
     install(FILES packaging/filesail-filemanager1.service
         DESTINATION ${CMAKE_INSTALL_LIBDIR}/systemd/user)
 endif()
 install(PROGRAMS ${CMAKE_CURRENT_BINARY_DIR}/filesail DESTINATION ${CMAKE_INSTALL_BINDIR})
-install(FILES shell.qml logo.png ${CMAKE_CURRENT_BINARY_DIR}/manifest.json
+install(FILES shell.qml logo.png
     DESTINATION ${FILESAIL_INSTALL_DATA_DIR})
 install(DIRECTORY qml integrations DESTINATION ${FILESAIL_INSTALL_DATA_DIR}
     FILES_MATCHING
     PATTERN "*.qml" PATTERN "qmldir" PATTERN "*.json" PATTERN "*.ttf" PATTERN "LUCIDE-LICENSE")
+install(DIRECTORY skills DESTINATION ${FILESAIL_INSTALL_DATA_DIR}
+    FILES_MATCHING PATTERN "SKILL.md" PATTERN "*.yaml")
 install(FILES packaging/dev.filesail.FileSail.desktop
     DESTINATION ${CMAKE_INSTALL_DATADIR}/applications)
 install(FILES logo.png
@@ -112,12 +126,18 @@ install(FILES logo.png
 
 enable_testing()
 find_program(FILESAIL_QUICKSHELL NAMES qs quickshell)
+find_program(FILESAIL_NOCTALIA NAMES noctalia)
 find_package(Python3 QUIET COMPONENTS Interpreter)
 if(FILESAIL_QUICKSHELL AND Python3_Interpreter_FOUND)
     add_test(NAME theme-smoke
         COMMAND ${Python3_EXECUTABLE} ${CMAKE_CURRENT_SOURCE_DIR}/tests/theme-smoke.py
             ${FILESAIL_QUICKSHELL})
     set_tests_properties(theme-smoke PROPERTIES TIMEOUT 90)
+endif()
+if(FILESAIL_NOCTALIA)
+    add_test(NAME noctalia-plugin-lint
+        COMMAND ${FILESAIL_NOCTALIA} plugins lint
+            ${CMAKE_CURRENT_BINARY_DIR}/noctalia-plugin)
 endif()
 add_test(
     NAME launcher-smoke
@@ -144,10 +164,14 @@ add_test(
     COMMAND ${CMAKE_CURRENT_SOURCE_DIR}/tests/backend-smoke.sh $<TARGET_FILE:filesail-backend>
 )
 add_test(
-    NAME manifest-version-consistency
+    NAME cli-transport-smoke
+    COMMAND bash ${CMAKE_CURRENT_SOURCE_DIR}/tests/cli-smoke.sh $<TARGET_FILE:filesail-cli>
+)
+add_test(
+    NAME noctalia-plugin-version-consistency
     COMMAND ${CMAKE_COMMAND}
         -DVERSION_FILE=${CMAKE_CURRENT_SOURCE_DIR}/VERSION
         -DPROJECT_VERSION=${PROJECT_VERSION}
-        -DMANIFEST=${CMAKE_CURRENT_BINARY_DIR}/manifest.json
+        -DPLUGIN_MANIFEST=${CMAKE_CURRENT_BINARY_DIR}/noctalia-plugin/plugin.toml
         -P ${CMAKE_CURRENT_SOURCE_DIR}/tests/check-manifest-version.cmake
 )

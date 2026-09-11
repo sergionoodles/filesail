@@ -7,12 +7,17 @@ Item {
     id: root
     required property var entry
     readonly property bool video: entry.mimeType.indexOf("video/") === 0
+    readonly property string previewReadiness: visual.preview.state === "ready" && visual.preview.lease
+        ? "ready" : (["error", "unsupported"].indexOf(visual.preview.state) >= 0
+            ? visual.preview.state : "loading")
+    readonly property string previewError: previewReadiness === "error" ? qsTr("Preview provider failed") : ""
     ColumnLayout { anchors.fill: parent; anchors.margins: Theme.spaceM; spacing: Theme.spaceM
         Item {
             Layout.fillWidth: true
             Layout.fillHeight: true
 
             FileVisual {
+                id: visual
                 anchors.centerIn: parent
                 width: Math.min(parent.width, parent.height)
                 height: width

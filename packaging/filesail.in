@@ -30,6 +30,7 @@ export FILESAIL_BACKEND="${FILESAIL_BACKEND:-$filesail_backend_default}"
 requested_path="${FILESAIL_PATH:-$HOME}"
 selection_json="${FILESAIL_SELECTION_JSON:-[]}"
 force_new_instance=false
+ensure_window=false
 while (($#)); do
     case "$1" in
         --path)
@@ -54,6 +55,10 @@ while (($#)); do
             ;;
         --new-instance|--allow-duplicate)
             force_new_instance=true
+            shift
+            ;;
+        --ensure-window)
+            ensure_window=true
             shift
             ;;
         -*)
@@ -107,7 +112,10 @@ ipc_call() {
 # Quickshell IPC is scoped to the current user session. A short probe avoids
 # multiplying engines when the host already owns this configuration.
 if ipc_call ping 1 >/dev/null 2>&1; then
-    if ! ipc_call show "$requested_path" "$selection_json" 1 >/dev/null 2>&1; then
+    activation_method=show
+    activation_args=("$requested_path" "$selection_json" 1)
+    if [[ "$ensure_window" == true ]]; then activation_method=ensure; activation_args=("$requested_path" 1); fi
+    if ! ipc_call "$activation_method" "${activation_args[@]}" >/dev/null 2>&1; then
         printf '%s\n' 'filesail: existing host rejected the activation request' >&2
         exit 1
     fi
@@ -131,7 +139,10 @@ for _ in {1..40}; do
         if kill -0 "$host_pid" 2>/dev/null; then
             exit 0
         fi
-        if ipc_call show "$requested_path" "$selection_json" 1 >/dev/null 2>&1; then
+        activation_method=show
+        activation_args=("$requested_path" "$selection_json" 1)
+        if [[ "$ensure_window" == true ]]; then activation_method=ensure; activation_args=("$requested_path" 1); fi
+        if ipc_call "$activation_method" "${activation_args[@]}" >/dev/null 2>&1; then
             exit 0
         fi
         break

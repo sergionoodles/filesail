@@ -152,26 +152,74 @@ Use `--new-instance` temporarily when testing an isolated duplicate host.
 
 ## Control FileSail from an agent or terminal
 
-`filesail-cli` discovers live standalone browser sessions and
-prints one compact JSON document to stdout. Commands wait for their real
-terminal result by default; use `--no-wait` and retain the returned request ID
-when asynchronous handoff is preferable.
+`filesail-cli` is a stateless JSON CLI for discovering and controlling live
+standalone FileSail browser windows. It prints exactly one compact JSON
+document to stdout, writes diagnostics to stderr, and exits nonzero when the
+response has `"ok": false`.
+
+Build it from the checkout and put the executable on the agent's `PATH`:
+
+```sh
+cmake -S . -B build
+cmake --build build --target filesail-cli
+export PATH="$PWD/build:$PATH"
+```
+
+For a persistent per-user install, copy it to `~/.local/bin` (and make sure
+that directory is on the `PATH` inherited by your agent):
+
+```sh
+install -Dm755 build/filesail-cli "$HOME/.local/bin/filesail-cli"
+export PATH="$HOME/.local/bin:$PATH"
+```
+
+Start FileSail with `./scripts/run.sh` or the installed `filesail` launcher,
+then discover a window and keep using its returned opaque ID:
 
 ```sh
 filesail-cli windows list
 filesail-cli windows ensure
-filesail-cli navigate --location downloads
 filesail-cli --window WINDOW_ID state
 filesail-cli --window WINDOW_ID entries --limit 100
+filesail-cli --window WINDOW_ID navigate --location downloads
 filesail-cli --window WINDOW_ID select --path /absolute/path/to/report.pdf
 filesail-cli --window WINDOW_ID preview show
 ```
 
-Omitting `--window` is allowed only when exactly one browser is eligible.
-Inspection never launches FileSail; `windows ensure`, `windows create`, and an
-untargeted `navigate` may create a standalone window. Named locations use Qt's
-XDG standard-location resolution. See [the CLI contract](docs/control-cli.md)
-for schemas, preference scope, event cursors, and error handling.
+`windows list` and `state` are useful read-only discovery calls. Use
+`windows ensure` when one window should exist, or `windows create` when a new
+window is always required. Omitting `--window` is safe only when exactly one
+browser is eligible; otherwise the CLI returns `no_window` or
+`ambiguous_target`. Named locations such as `downloads`, `documents`, and
+`trash` use XDG resolution, while direct paths must be absolute.
+
+Commands wait for their terminal result by default. For asynchronous work,
+add `--no-wait`, save the returned request ID, and query it later:
+
+```sh
+filesail-cli --window WINDOW_ID --no-wait navigate --location downloads
+filesail-cli result REQUEST_ID
+```
+
+Use `events --since SEQUENCE` to consume changes incrementally. Selection paths
+must be absolute paths returned by `entries`; the CLI intentionally does not
+launch files, run shell commands, permanently delete files, or expose general
+filesystem mutations. See [the complete CLI contract](docs/control-cli.md)
+for command schemas, targeting, cursors, events, and error handling.
+
+### Install the agent skill
+
+The repository includes the `filesail-control` skill, which teaches an agent
+how to discover FileSail windows and use the CLI safely. Install it through
+[skills.sh](https://skills.sh) with:
+
+```sh
+npx skills add sergionoodles/filesail --skill "filesail-control"
+```
+
+Run the command in the project or agent environment where the skill should be
+available. The agent must also be able to resolve `filesail-cli` on its `PATH`
+as shown above. Use `npx skills update` later to refresh installed skills.
 
 To slow transfers down while evaluating the activity queue, set the optional
 development-only delay before launching FileSail. The delay is applied after

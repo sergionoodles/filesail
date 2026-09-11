@@ -1,5 +1,14 @@
 --!nonstrict
 
+local PANEL_ID = "sergionoodles/filesail:browser"
+
+local function openPanel(path)
+    if path ~= nil and path ~= "" then
+        noctalia.state.set("requestedPath", path)
+    end
+    noctalia.togglePanel(PANEL_ID)
+end
+
 local function openFileSail(path)
     if not noctalia.commandExists("filesail") then
         noctalia.notifyError("FileSail", "The filesail launcher is not available on PATH.")
@@ -23,11 +32,13 @@ function update()
 end
 
 function onClick()
-    openFileSail(nil)
+    openPanel(nil)
 end
 
 function onIpc(event, payload)
     if event == "open" then
+        openPanel(payload)
+    elseif event == "window" then
         openFileSail(payload)
     end
 end

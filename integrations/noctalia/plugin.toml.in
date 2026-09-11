@@ -4,11 +4,21 @@ version = "@PROJECT_VERSION@"
 plugin_api = 24
 author = "sergionoodles"
 license = "MIT"
-dependencies = ["filesail"]
+dependencies = ["filesail", "bash", "findutils", "coreutils"]
 tags = ["productivity", "utility"]
 icon = "folder"
-description = "Open the FileSail file manager from the Noctalia bar."
+description = "Browse files in a native Noctalia panel, or open the full FileSail manager."
 
 [[widget]]
 id = "launcher"
 entry = "widget.luau"
+
+[[panel]]
+id = "browser"
+entry = "panel.luau"
+width = 520
+height = 720
+placement = "attached"
+position = "auto"
+open_near_click = true
+keyboard_focus = "exclusive"

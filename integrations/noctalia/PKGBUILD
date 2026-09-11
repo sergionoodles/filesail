@@ -1,11 +1,11 @@
 pkgname=filesail-noctalia
 pkgver="$(bash "$startdir/../../scripts/read-version.sh")"
 pkgrel=1
-pkgdesc='Noctalia 5 bar integration for FileSail'
+pkgdesc='Noctalia 5 native panel and bar integration for FileSail'
 arch=('x86_64')
 url='https://github.com/sergionoodles/filesail'
 license=('MIT')
-depends=('filesail' 'noctalia')
+depends=('filesail' 'noctalia' 'bash' 'findutils' 'coreutils')
 makedepends=('git')
 # This follows main until the first release tag exists. Pin this to a release
 # tag or commit before publishing a stable AUR revision.
@@ -22,6 +22,10 @@ package() {
         "$plugin_root/plugin.toml"
     install -Dm644 "$srcdir/filesail/integrations/noctalia/widget.luau" \
         "$plugin_root/widget.luau"
+    install -Dm644 "$srcdir/filesail/integrations/noctalia/panel.luau" \
+        "$plugin_root/panel.luau"
+    install -Dm755 "$srcdir/filesail/integrations/noctalia/list-directory.sh" \
+        "$plugin_root/list-directory.sh"
 
     install -Dm755 "$srcdir/filesail/scripts/install-noctalia-package.sh" \
         "$pkgdir/usr/bin/filesail-noctalia-install"

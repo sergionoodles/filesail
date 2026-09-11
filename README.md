@@ -15,7 +15,7 @@ The current MVP scaffold includes:
 - XDG default-application opening;
 - an optional preview pane for images, thumbnails, text, archives, and metadata;
 - persistent display preferences in `~/.config/filesail/config.json`;
-- a normal tiled window and a Noctalia 5 bar launcher;
+- a normal tiled window and a Noctalia 5 native slideout panel;
 - a stateless `filesail-cli` for discovering and controlling live browser windows.
 
 ## Dependencies
@@ -264,15 +264,33 @@ It can also be run directly with `python3 tests/theme-smoke.py /path/to/qs`.
 ```
 
 Enable `sergionoodles/filesail` under **Settings → Plugins**, then add its
-`launcher` widget to the bar. Clicking it opens FileSail as a normal tiled
-window. Noctalia 5 no longer embeds third-party QML panels; its native plugin
-runtime launches the shared FileSail host instead.
+`launcher` widget to the bar. Clicking it opens FileSail's native attached
+browser panel. The panel supports breadcrumb navigation, search, refresh,
+vertical scrolling with bounded pages, opening files with the desktop default
+application, opening the current folder in a full FileSail window, and opening
+a terminal there. Noctalia 5 cannot embed third-party QML, so the panel is
+rendered with Noctalia's native declarative UI while the full manager remains
+the shared FileSail QML host.
 
 The widget can also open FileSail, optionally at a path, through Noctalia IPC:
 
 ```sh
 noctalia msg plugin sergionoodles/filesail:launcher focused open "$HOME/Downloads"
 ```
+
+The `open` IPC event opens the native panel at the requested folder. Use the
+`window` event when an external caller specifically needs a standalone FileSail
+window.
+
+To smoke-test the panel without changing the bar layout, restart Noctalia after
+installing the plugin, then run:
+
+```sh
+noctalia msg panel-open sergionoodles/filesail:browser "$HOME"
+noctalia msg panel-close sergionoodles/filesail:browser
+```
+
+For an offline check, run `noctalia plugins lint integrations/noctalia`.
 
 The installer symlinks the adapter into
 `$XDG_DATA_HOME/noctalia/plugins/filesail` (honoring `NOCTALIA_DATA_HOME`) and

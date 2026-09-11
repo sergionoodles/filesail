@@ -20,3 +20,4 @@ ln -sfn -- "$plugin_source" "$plugin_dir"
 
 printf 'Installed FileSail Noctalia plugin link: %s -> %s\n' "$plugin_dir" "$plugin_source"
 printf '%s\n' 'Enable sergionoodles/filesail in Noctalia Settings > Plugins, then add its launcher widget to the bar.'
+printf '%s\n' 'Clicking the widget opens the native browser panel; use Open full manager for the complete FileSail window.'

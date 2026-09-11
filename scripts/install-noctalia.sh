@@ -37,3 +37,4 @@ printf 'Installed backend: %s/filesail-backend\n' "$bin_dir"
 printf 'Installed control CLI: %s/filesail-cli\n' "$bin_dir"
 printf 'Launcher available: %s/filesail\n' "$bin_dir"
 printf 'Enable sergionoodles/filesail in Noctalia Settings > Plugins, then add its launcher widget to the bar.\n'
+printf 'Clicking the widget opens the native browser panel; use Open full manager for the complete FileSail window.\n'

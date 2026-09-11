@@ -72,7 +72,7 @@ without treating the move as complete.
 - `shell.qml` is the standalone host. Its `WindowRegistry` creates independent
   normal `FloatingWindow` xdg-toplevels, so Niri and Hyprland can tile each
   browser normally while all windows share one QML engine and backend.
-- `integrations/noctalia` contains the Noctalia 5 bar launcher and the
+- `integrations/noctalia` contains the Noctalia 5 bar widget/native panel and the
   standalone host's app-theme bridge. The standalone host follows
   Noctalia 5 app theming: a user template writes `~/.config/filesail/theme.json`
   whenever the palette changes, and `NoctaliaConfigThemeProvider` maps that
@@ -83,10 +83,14 @@ without treating the move as complete.
   from `noctalia config export full`, so includes, defaults, and GUI overrides
   use Noctalia's own precedence. Shared color transitions respect animation
   settings. Qt's system palette supplies defaults until a host palette arrives.
-  The optional Noctalia 5 plugin is a Luau bar entry using plugin API 24. A
-  click starts the normal FileSail launcher, so the browser remains a
-  compositor-managed window. Noctalia 5 does not load third-party QML or allow
-  its native declarative panels to embed the shared QML browser.
+  The optional Noctalia 5 plugin is a Luau bar entry and native declarative
+  panel using plugin API 24. The bar click opens an attached native browser
+  panel with breadcrumbs, search, refresh, desktop file opening, a terminal
+  action, and an explicit full-window action. A bundled helper sorts, filters,
+  and paginates directory listings outside the panel VM so large folders stay
+  within Noctalia's callback budget. The panel cannot embed the shared QML
+  browser because Noctalia 5 does not load third-party QML; its full-window
+  action launches the compositor-managed FileSail host for complete operations.
 
 The standalone launcher uses Quickshell's per-user IPC endpoint (`filesail.v1`
 target, protocol version `1`) to route `open(path)` requests to the existing
@@ -114,8 +118,9 @@ to an exact instance ID, and keeps no state between invocations. Navigation and
 selection are still executed by the target `BrowserSession`, so directory
 commit, history, filtering, and modal rules have one implementation. The
 standalone registry supplies the optional window-creation capability. The
-Noctalia 5 widget enters through the normal standalone launcher and therefore
-uses the same registry.
+Noctalia 5 widget opens the native panel by default. Its `window` IPC event
+still enters through the normal standalone launcher when an external caller
+needs a full FileSail window.
 
 - A future Omarchy host should map Omarchy tokens and panel lifecycle into the
   same shared UI. No compositor code belongs in the file model or operations.

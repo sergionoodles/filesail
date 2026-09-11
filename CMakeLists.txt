@@ -100,6 +100,16 @@ configure_file(
     ${CMAKE_CURRENT_BINARY_DIR}/noctalia-plugin/widget.luau
     COPYONLY
 )
+configure_file(
+    integrations/noctalia/panel.luau
+    ${CMAKE_CURRENT_BINARY_DIR}/noctalia-plugin/panel.luau
+    COPYONLY
+)
+configure_file(
+    integrations/noctalia/list-directory.sh
+    ${CMAKE_CURRENT_BINARY_DIR}/noctalia-plugin/list-directory.sh
+    COPYONLY
+)
 
 install(TARGETS filesail-backend filesail-cli RUNTIME DESTINATION ${CMAKE_INSTALL_BINDIR})
 if(FILESAIL_BUILD_DBUS)

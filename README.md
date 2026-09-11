@@ -266,11 +266,11 @@ It can also be run directly with `python3 tests/theme-smoke.py /path/to/qs`.
 Enable `sergionoodles/filesail` under **Settings → Plugins**, then add its
 `launcher` widget to the bar. Clicking it opens FileSail's native attached
 browser panel. The panel supports breadcrumb navigation, search, refresh,
-vertical scrolling with bounded pages, opening files with the desktop default
-application, opening the current folder in a full FileSail window, and opening
-a terminal there. Noctalia 5 cannot embed third-party QML, so the panel is
-rendered with Noctalia's native declarative UI while the full manager remains
-the shared FileSail QML host.
+vertical scrolling with automatic incremental loading, opening files with the
+desktop default application, opening the current folder in a full FileSail
+window, and opening a terminal there. Noctalia 5 cannot embed third-party QML,
+so the panel is rendered with Noctalia's native declarative UI while the full
+manager remains the shared FileSail QML host.
 
 The widget can also open FileSail, optionally at a path, through Noctalia IPC:
 

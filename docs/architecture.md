@@ -87,7 +87,7 @@ without treating the move as complete.
   panel using plugin API 24. The bar click opens an attached native browser
   panel with breadcrumbs, search, refresh, desktop file opening, a terminal
   action, and an explicit full-window action. A bundled helper sorts, filters,
-  and paginates directory listings outside the panel VM so large folders stay
+  and chunks directory listings outside the panel VM so large folders stay
   within Noctalia's callback budget. The panel cannot embed the shared QML
   browser because Noctalia 5 does not load third-party QML; its full-window
   action launches the compositor-managed FileSail host for complete operations.

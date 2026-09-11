@@ -10,10 +10,8 @@ local errorMessage = nil
 local searchRevision = 0
 local page = 1
 local totalEntries = 0
-local firstEntry = 0
-local lastEntry = 0
-local maxPage = 1
 local loading = false
+local loadingMore = false
 local directoryRequest = 0
 local render
 
@@ -53,21 +51,30 @@ local function clearSearch()
     searchRevision = searchRevision + 1
 end
 
-local function loadDirectory(path, onSuccess, requestedQuery, requestedPage)
+local function loadDirectory(path, onSuccess, requestedQuery, requestedPage, appendEntries)
     local expanded = normalizePath(path)
     local nextQuery = requestedQuery or ""
     local nextPage = requestedPage or 1
+    local append = appendEntries == true
     directoryRequest = directoryRequest + 1
     local request = directoryRequest
-    loading = true
-    errorMessage = nil
-    render()
+    loading = not append
+    loadingMore = append
+    if not append then
+        errorMessage = nil
+        render()
+    end
 
     local pluginDirectory = noctalia.pluginDir()
     if pluginDirectory == nil then
         loading = false
-        showError("Could not resolve the FileSail plugin directory.")
-        render()
+        loadingMore = false
+        if append then
+            noctalia.notifyError("FileSail", "Could not resolve the FileSail plugin directory.")
+        else
+            showError("Could not resolve the FileSail plugin directory.")
+            render()
+        end
         return false
     end
 
@@ -82,13 +89,18 @@ local function loadDirectory(path, onSuccess, requestedQuery, requestedPage)
             return
         end
         loading = false
+        loadingMore = false
         if result.exitCode ~= 0 or result.stdoutTruncated then
             local message = result.stderr
             if result.stdoutTruncated then
                 message = "This directory is too large for the panel listing."
             end
-            showError(message)
-            render()
+            if append then
+                noctalia.notifyError("FileSail", message)
+            else
+                showError(message)
+                render()
+            end
             return
         end
 
@@ -99,7 +111,9 @@ local function loadDirectory(path, onSuccess, requestedQuery, requestedPage)
         local nextTotal = tonumber(records[1] or "0") or 0
         local nextMaxPage = math.max(1, math.ceil(nextTotal / PAGE_SIZE))
         if nextPage > nextMaxPage then
-            loadDirectory(expanded, onSuccess, nextQuery, nextMaxPage)
+            if not append then
+                loadDirectory(expanded, onSuccess, nextQuery, nextMaxPage, false)
+            end
             return
         end
 
@@ -116,13 +130,16 @@ local function loadDirectory(path, onSuccess, requestedQuery, requestedPage)
             end
         end
         currentPath = expanded
-        entries = nextEntries
+        if append then
+            for _, entry in ipairs(nextEntries) do
+                table.insert(entries, entry)
+            end
+        else
+            entries = nextEntries
+        end
         query = nextQuery
         page = nextPage
         totalEntries = nextTotal
-        maxPage = nextMaxPage
-        firstEntry = nextTotal == 0 and 0 or ((nextPage - 1) * PAGE_SIZE + 1)
-        lastEntry = math.min(firstEntry + #nextEntries - 1, nextTotal)
         errorMessage = nil
         if onSuccess ~= nil then
             onSuccess()
@@ -132,8 +149,13 @@ local function loadDirectory(path, onSuccess, requestedQuery, requestedPage)
 
     if not accepted then
         loading = false
-        showError("Could not start the directory listing helper.")
-        render()
+        loadingMore = false
+        if append then
+            noctalia.notifyError("FileSail", "Could not load more files.")
+        else
+            showError("Could not start the directory listing helper.")
+            render()
+        end
         return false
     end
     return true
@@ -234,7 +256,6 @@ render = function()
     elseif errorMessage ~= nil then
         table.insert(children, ui.column({ gap = 8, padding = 12, fill = "surface_variant" }, {
             ui.label({ text = errorMessage, color = "error", maxLines = 3 }),
-            ui.button({ text = "Open full manager", glyph = "external-link", variant = "secondary", onClick = "openFullManager" }),
         }))
     else
         local rows = {}
@@ -253,22 +274,22 @@ render = function()
                 }))
             end
         end
-        table.insert(children, ui.scroll({ gap = 2, height = 500 }, rows))
-        if totalEntries > PAGE_SIZE then
-            table.insert(children, ui.row({ gap = 6, align = "center", justify = "center" }, {
-                ui.button({ glyph = "chevron-left", tooltip = "Previous page", controlSize = "sm", enabled = page > 1, onClick = "previousPage" }),
-                ui.label({ text = tostring(firstEntry) .. "–" .. tostring(lastEntry) .. " of " .. tostring(totalEntries), color = "on_surface_variant" }),
-                ui.button({ glyph = "chevron-right", tooltip = "Next page", controlSize = "sm", enabled = page < maxPage, onClick = "nextPage" }),
-            }))
-        end
+        local listColumn = ui.column({
+            key = "files-" .. currentPath .. "-" .. query,
+            gap = 2,
+            align = "stretch",
+            justify = "start",
+        }, rows)
+        table.insert(children, ui.scroll({
+            key = "scroll-" .. currentPath .. "-" .. query,
+            flexGrow = 1,
+            gap = 0,
+            align = "stretch",
+            onScroll = "onListScroll",
+        }, { listColumn }))
     end
 
-    table.insert(children, ui.row({ gap = 8, align = "center" }, {
-        ui.label({ text = "FileSail", color = "on_surface_variant", flexGrow = 1 }),
-        ui.button({ text = "Open full manager", glyph = "external-link", variant = "secondary", onClick = "openFullManager" }),
-    }))
-
-    panel.render(ui.column({ gap = 8, padding = 14, fill = true }, children))
+    panel.render(ui.column({ gap = 8, padding = 14, flexGrow = 1 }, children))
 end
 
 function onOpen(context)
@@ -283,15 +304,14 @@ function onSearchChanged(value)
     loadDirectory(currentPath, nil, value or "", 1)
 end
 
-function previousPage()
-    if page > 1 then
-        loadDirectory(currentPath, nil, query, page - 1)
+function onListScroll(offsetValue, maxOffsetValue)
+    if loading or loadingMore or #entries >= totalEntries then
+        return
     end
-end
-
-function nextPage()
-    if page < maxPage then
-        loadDirectory(currentPath, nil, query, page + 1)
+    local offset = tonumber(offsetValue) or 0
+    local maxOffset = tonumber(maxOffsetValue) or 0
+    if maxOffset <= 0 or offset >= maxOffset - 120 then
+        loadDirectory(currentPath, nil, query, page + 1, true)
     end
 end
 

@@ -25,6 +25,7 @@ Item {
             ? loader.item.previewError : "";
     }
 
+    visible: previewEnabled
     SplitView.preferredWidth: previewEnabled ? 300 * Theme.scale : 0
     SplitView.minimumWidth: previewEnabled ? 220 * Theme.scale : 0
 

@@ -13,6 +13,10 @@ OperationQueue 1.0 OperationQueue.qml
 ContextBadge 1.0 ContextBadge.qml
 FolderContextBar 1.0 FolderContextBar.qml
 ModalPrompt 1.0 ModalPrompt.qml
+ModalScaffold 1.0 ModalScaffold.qml
+ModalHeader 1.0 ModalHeader.qml
+ModalFooter 1.0 ModalFooter.qml
+ModalButton 1.0 ModalButton.qml
 AboutDialog 1.0 AboutDialog.qml
 KeybindingsDialog 1.0 KeybindingsDialog.qml
 FileInfoDialog 1.0 FileInfoDialog.qml

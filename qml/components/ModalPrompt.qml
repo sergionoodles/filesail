@@ -20,6 +20,8 @@ Item {
 
     visible: false
     z: 1000
+    Accessible.role: Accessible.Dialog
+    Accessible.name: Format.safeText(root.title)
 
     function open(initialValue, payloadSnapshot, focusToRestore) {
         value = initialValue ?? "";
@@ -44,34 +46,24 @@ Item {
         MouseArea { anchors.fill: parent } // Deliberately consumes background clicks.
     }
 
-    Rectangle {
+    ModalScaffold {
         id: dialogSurface
         width: Math.min(parent.width - Theme.spaceXl * 2, 420 * Theme.scale)
-        implicitHeight: promptLayout.implicitHeight + Theme.spaceXl * 2
+        height: implicitHeight
         anchors.centerIn: parent
-        radius: Theme.radiusL
-        color: Theme.surfaceVariant
-        border.width: 1
-        border.color: Qt.alpha(Theme.outline, 0.9)
         focus: root.visible
         Keys.onEscapePressed: { root.close(); root.rejected(); event.accepted = true; }
+        footerVisible: true
 
-        ColumnLayout {
-            id: promptLayout
-            anchors.left: parent.left
-            anchors.right: parent.right
-            anchors.verticalCenter: parent.verticalCenter
-            anchors.margins: Theme.spaceXl
+        headerContent: ModalHeader {
+            Layout.fillWidth: true
+            title: root.title
+        }
+
+        bodyContent: ColumnLayout {
+            Layout.fillWidth: true
             spacing: Theme.spaceM
 
-            Text {
-                Layout.fillWidth: true
-                text: Format.safeText(root.title)
-                textFormat: Text.PlainText
-                color: Theme.text
-                font.pixelSize: Theme.fontTitle
-                font.weight: Font.DemiBold
-            }
             Text {
                 Layout.fillWidth: true
                 visible: root.message.length > 0
@@ -90,63 +82,28 @@ Item {
                 onTextChanged: root.value = text
                 onAccepted: acceptButton.clicked()
             }
-            RowLayout {
-                Layout.alignment: Qt.AlignRight
-                spacing: Theme.spaceS
-                Button {
-                    id: cancelButton
-                    text: "Cancel"
-                    implicitHeight: Theme.buttonHeight
-                    leftPadding: Theme.buttonPaddingHorizontal
-                    rightPadding: Theme.buttonPaddingHorizontal
-                    topPadding: Theme.buttonPaddingVertical
-                    bottomPadding: Theme.buttonPaddingVertical
-                    Accessible.name: qsTr("Cancel")
-                    onClicked: { root.close(); root.rejected(); }
-                    background: Rectangle {
-                        radius: Theme.radiusS
-                        color: cancelButton.down ? Theme.controlHover : "transparent"
-                        border.width: 1
-                        border.color: Theme.outline
-                    }
-                    contentItem: Text {
-                        text: cancelButton.text
-                        textFormat: Text.PlainText
-                        color: Theme.text
-                        font.pixelSize: Theme.fontBody
-                        horizontalAlignment: Text.AlignHCenter
-                        verticalAlignment: Text.AlignVCenter
-                    }
-                }
-                Button {
-                    id: acceptButton
-                    text: root.acceptLabel
-                    implicitHeight: Theme.buttonHeight
-                    leftPadding: Theme.buttonPaddingHorizontal
-                    rightPadding: Theme.buttonPaddingHorizontal
-                    topPadding: Theme.buttonPaddingVertical
-                    bottomPadding: Theme.buttonPaddingVertical
-                    enabled: !root.inputVisible || root.value.trim().length > 0
-                    Accessible.name: root.acceptLabel
-                    onClicked: {
-                        const acceptedValue = root.value;
-                        root.close();
-                        root.accepted(acceptedValue);
-                    }
-                    background: Rectangle {
-                        radius: Theme.radiusS
-                        color: root.destructive ? Theme.error : Theme.primary
-                        opacity: acceptButton.enabled ? 1 : 0.35
-                    }
-                    contentItem: Text {
-                        text: acceptButton.text
-                        textFormat: Text.PlainText
-                        color: root.destructive ? Theme.errorText : Theme.primaryText
-                        font.pixelSize: Theme.fontBody
-                        font.weight: Font.DemiBold
-                        horizontalAlignment: Text.AlignHCenter
-                        verticalAlignment: Text.AlignVCenter
-                    }
+        }
+
+        footerContent: ModalFooter {
+            Layout.fillWidth: true
+
+            ModalButton {
+                id: cancelButton
+                text: qsTr("Cancel")
+                Accessible.name: qsTr("Cancel")
+                onClicked: { root.close(); root.rejected(); }
+            }
+            ModalButton {
+                id: acceptButton
+                text: root.acceptLabel
+                primary: true
+                destructive: root.destructive
+                enabled: !root.inputVisible || root.value.trim().length > 0
+                Accessible.name: root.acceptLabel
+                onClicked: {
+                    const acceptedValue = root.value;
+                    root.close();
+                    root.accepted(acceptedValue);
                 }
             }
         }

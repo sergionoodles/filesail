@@ -44,7 +44,10 @@ Rectangle {
     }
     readonly property real sidebarWidth: (root.compact ? 220 : 240) * Theme.scale
     readonly property real previewRequiredWidth: (240 + 1 + 360 + 220) * Theme.scale
-    readonly property bool previewEnabled: previewPaneEnabled && width >= previewRequiredWidth
+    readonly property bool previewEnabled: previewPaneEnabled
+                                           && width >= previewRequiredWidth
+                                           && session.selectedCount > 0
+                                           && !selectionIncludesDirectory
     readonly property bool modalActive: dialogs.active
     readonly property alias browserSession: session
     readonly property bool controlPreviewActualVisible: root.previewEnabled

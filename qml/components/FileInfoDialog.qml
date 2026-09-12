@@ -154,78 +154,32 @@ Item {
         }
     }
 
-    FocusScope {
+    ModalScaffold {
         id: dialogSurface
         width: Math.min(parent.width - Theme.spaceXl * 2, 460 * Theme.scale)
-        height: frame.implicitHeight
+        height: implicitHeight
         anchors.centerIn: parent
         focus: root.visible
-        activeFocusOnTab: true
+        footerVisible: true
 
-        Rectangle {
-            id: frame
-            anchors.fill: parent
-            implicitHeight: infoLayout.implicitHeight + Theme.spaceXl * 2
-            color: Theme.surfaceVariant
-            radius: Theme.radiusL
-            border.width: 1
-            border.color: Qt.alpha(Theme.outline, 0.9)
+        headerContent: ModalHeader {
+            Layout.fillWidth: true
+            leadingVisible: root.hasEntry
+            title: root.hasEntry ? String(root.entry.name ?? "") : ""
+            subtitle: root.friendlyKind
 
-            MouseArea { anchors.fill: parent }
-
-            ColumnLayout {
-                id: infoLayout
-                anchors.left: parent.left
-                anchors.right: parent.right
-                anchors.verticalCenter: parent.verticalCenter
-                anchors.margins: Theme.spaceXl
-                spacing: Theme.spaceM
-
-                RowLayout {
-                    Layout.fillWidth: true
-                    spacing: Theme.spaceL
-
-                    Loader {
-                        Layout.preferredWidth: 56 * Theme.scale
-                        Layout.preferredHeight: 56 * Theme.scale
-                        Layout.alignment: Qt.AlignTop
-                        active: root.hasEntry
-                        sourceComponent: FileVisual {
-                            entry: root.entry
-                        }
-                    }
-
-                    ColumnLayout {
-                        Layout.fillWidth: true
-                        spacing: Theme.spaceXs
-
-                        Text {
-                            Layout.fillWidth: true
-                            text: root.hasEntry ? Format.safeText(root.entry.name) : ""
-                            textFormat: Text.PlainText
-                            color: Theme.text
-                            font.pixelSize: Theme.fontTitle
-                            font.weight: Font.DemiBold
-                            wrapMode: Text.Wrap
-                            maximumLineCount: 2
-                            elide: Text.ElideRight
-                        }
-                        Text {
-                            Layout.fillWidth: true
-                            text: Format.safeText(root.friendlyKind)
-                            textFormat: Text.PlainText
-                            color: Theme.textMuted
-                            font.pixelSize: Theme.fontBody
-                            elide: Text.ElideRight
-                        }
-                    }
+            leadingContent: Loader {
+                anchors.fill: parent
+                active: root.hasEntry
+                sourceComponent: FileVisual {
+                    entry: root.entry
                 }
+            }
+        }
 
-                Rectangle {
-                    Layout.fillWidth: true
-                    implicitHeight: 1
-                    color: Qt.alpha(Theme.outline, 0.7)
-                }
+        bodyContent: ColumnLayout {
+            Layout.fillWidth: true
+            spacing: Theme.spaceM
 
                 ColumnLayout {
                     Layout.fillWidth: true
@@ -433,36 +387,15 @@ Item {
                     }
                 }
 
-                RowLayout {
-                    Layout.alignment: Qt.AlignRight
-                    spacing: Theme.spaceS
+        }
 
-                    Button {
-                        id: closeButton
-                        text: qsTr("Close")
-                        implicitHeight: Theme.buttonHeight
-                        leftPadding: Theme.buttonPaddingHorizontal
-                        rightPadding: Theme.buttonPaddingHorizontal
-                        topPadding: Theme.buttonPaddingVertical
-                        bottomPadding: Theme.buttonPaddingVertical
-                        Accessible.name: qsTr("Close file information")
-                        onClicked: root.close()
-                        background: Rectangle {
-                            radius: Theme.radiusS
-                            color: closeButton.down ? Theme.controlHover : "transparent"
-                            border.width: 1
-                            border.color: Theme.outline
-                        }
-                        contentItem: Text {
-                            text: closeButton.text
-                            textFormat: Text.PlainText
-                            color: Theme.text
-                            font.pixelSize: Theme.fontBody
-                            horizontalAlignment: Text.AlignHCenter
-                            verticalAlignment: Text.AlignVCenter
-                        }
-                    }
-                }
+        footerContent: ModalFooter {
+            Layout.fillWidth: true
+            ModalButton {
+                id: closeButton
+                text: qsTr("Close")
+                Accessible.name: qsTr("Close file information")
+                onClicked: root.close()
             }
         }
     }

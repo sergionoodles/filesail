@@ -42,125 +42,98 @@ Item {
         }
     }
 
-    FocusScope {
+    ModalScaffold {
         id: dialogSurface
         width: Math.min(parent.width - Theme.spaceXl * 2, 760 * Theme.scale)
         height: Math.min(parent.height - Theme.spaceXl * 2, 600 * Theme.scale)
         anchors.centerIn: parent
         focus: root.visible
-        activeFocusOnTab: true
+        bodyFillsHeight: true
+        footerVisible: true
 
-        Rectangle {
-            anchors.fill: parent
-            color: Theme.surface
-            border.width: 1
-            border.color: Theme.primary
+        headerContent: ModalHeader {
+            Layout.fillWidth: true
+            title: qsTr("Keyboard shortcuts")
+            trailingText: qsTr("ESC to close")
+        }
 
-            // Keep clicks inside the recap from reaching the dismissing
-            // backdrop MouseArea.
-            MouseArea { anchors.fill: parent }
+        bodyContent: ScrollView {
+            id: shortcutScroll
+            Layout.fillWidth: true
+            Layout.fillHeight: true
+            clip: true
+            ScrollBar.horizontal.policy: ScrollBar.AlwaysOff
 
-            ColumnLayout {
-                anchors.fill: parent
-                anchors.margins: Theme.spaceXl
-                spacing: Theme.spaceM
+            GridLayout {
+                width: shortcutScroll.availableWidth
+                columns: width < 520 * Theme.scale ? 1 : 2
+                columnSpacing: Theme.spaceXl * 2
+                rowSpacing: Theme.spaceXl
 
-                RowLayout {
-                    Layout.fillWidth: true
-                    spacing: Theme.spaceM
+                Repeater {
+                    model: root.groups
 
-                    Text {
-                        text: qsTr("Keyboard shortcuts")
-                        color: Theme.text
-                        font.pixelSize: Theme.fontTitle
-                        font.weight: Font.DemiBold
-                    }
-                    Item { Layout.fillWidth: true }
-                    Text {
-                        text: qsTr("ESC to close")
-                        color: Theme.textMuted
-                        font.family: "monospace"
-                        font.pixelSize: Theme.fontSmall
-                    }
-                }
+                    delegate: ColumnLayout {
+                        required property var modelData
+                        Layout.fillWidth: true
+                        Layout.alignment: Qt.AlignTop
+                        spacing: Theme.spaceS
 
-                Rectangle {
-                    Layout.fillWidth: true
-                    implicitHeight: 1
-                    color: Theme.primary
-                }
+                        Text {
+                            Layout.fillWidth: true
+                            text: modelData.title
+                            color: Theme.text
+                            font.family: "monospace"
+                            font.pixelSize: Theme.fontBody
+                            font.weight: Font.DemiBold
+                        }
 
-                ScrollView {
-                    id: shortcutScroll
-                    Layout.fillWidth: true
-                    Layout.fillHeight: true
-                    clip: true
-                    ScrollBar.horizontal.policy: ScrollBar.AlwaysOff
-
-                    GridLayout {
-                        width: shortcutScroll.availableWidth
-                        columns: width < 520 * Theme.scale ? 1 : 2
-                        columnSpacing: Theme.spaceXl * 2
-                        rowSpacing: Theme.spaceXl
+                        Rectangle {
+                            Layout.fillWidth: true
+                            implicitHeight: 1
+                            color: Theme.subtleDivider
+                        }
 
                         Repeater {
-                            model: root.groups
+                            model: modelData.entries
 
-                            delegate: ColumnLayout {
+                            delegate: RowLayout {
                                 required property var modelData
                                 Layout.fillWidth: true
-                                Layout.alignment: Qt.AlignTop
-                                spacing: Theme.spaceS
+                                spacing: Theme.spaceM
 
                                 Text {
                                     Layout.fillWidth: true
-                                    text: modelData.title
-                                    color: Theme.text
+                                    text: modelData.label
+                                    textFormat: Text.PlainText
+                                    color: Theme.textMuted
                                     font.family: "monospace"
-                                    font.pixelSize: Theme.fontBody
-                                    font.weight: Font.DemiBold
+                                    font.pixelSize: Theme.fontSmall
+                                    elide: Text.ElideRight
                                 }
-
-                                Rectangle {
-                                    Layout.fillWidth: true
-                                    implicitHeight: 1
-                                    color: Theme.subtleDivider
-                                }
-
-                                Repeater {
-                                    model: modelData.entries
-
-                                    delegate: RowLayout {
-                                        required property var modelData
-                                        Layout.fillWidth: true
-                                        spacing: Theme.spaceM
-
-                                        Text {
-                                            Layout.fillWidth: true
-                                            text: modelData.label
-                                            textFormat: Text.PlainText
-                                            color: Theme.textMuted
-                                            font.family: "monospace"
-                                            font.pixelSize: Theme.fontSmall
-                                            elide: Text.ElideRight
-                                        }
-                                        Text {
-                                            Layout.minimumWidth: 150 * Theme.scale
-                                            text: modelData.shortcut
-                                            textFormat: Text.PlainText
-                                            color: Theme.primary
-                                            font.family: "monospace"
-                                            font.pixelSize: Theme.fontSmall
-                                            horizontalAlignment: Text.AlignRight
-                                            elide: Text.ElideLeft
-                                        }
-                                    }
+                                Text {
+                                    Layout.minimumWidth: 150 * Theme.scale
+                                    text: modelData.shortcut
+                                    textFormat: Text.PlainText
+                                    color: Theme.primary
+                                    font.family: "monospace"
+                                    font.pixelSize: Theme.fontSmall
+                                    horizontalAlignment: Text.AlignRight
+                                    elide: Text.ElideLeft
                                 }
                             }
                         }
                     }
                 }
+            }
+        }
 
+        footerContent: ModalFooter {
+            Layout.fillWidth: true
+            ModalButton {
+                text: qsTr("Close")
+                Accessible.name: qsTr("Close keyboard shortcuts")
+                onClicked: root.close()
             }
         }
     }

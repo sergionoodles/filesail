@@ -21,6 +21,7 @@ QtObject {
     property int revision: 0
     property int activeDecodeBytes: 0
     property var requests: ({})
+    property var requestBatches: ({})
     readonly property int activeJobs: revision >= 0 ? Object.keys(requests).length : 0
 
     function key(entry, flavor) {
@@ -134,10 +135,20 @@ QtObject {
     function cancelUnusedRequest(requestKey) {
         const requestId = requests[requestKey];
         if (!requestId || (consumers[requestKey] ?? 0) > 0) return;
+        const batch = requestBatches[requestId] ?? [];
+        if (batch.some(key => (consumers[key] ?? 0) > 0)) return;
         BackendClient.cancel(requestId);
-        delete requests[requestKey];
-        const record = results[requestKey];
-        if (record && record.state === "loading") record.state = "queued";
+        clearRequest(requestId, batch, true);
+    }
+
+    function clearRequest(requestId, batch, resetLoading) {
+        delete requestBatches[requestId];
+        for (const requestKey of batch) {
+            if (requests[requestKey] === requestId) delete requests[requestKey];
+            const record = results[requestKey];
+            if (resetLoading && record && record.state === "loading")
+                record.state = "queued";
+        }
     }
 
     function grantLeases() {
@@ -175,13 +186,14 @@ QtObject {
                     result => completeBatch(requestId, batch, flavor, result),
                     message => failBatch(requestId, batch, message));
                 for (const item of batch) requests[item.key] = requestId;
+                requestBatches[requestId] = batch.map(item => item.key);
             }
         }
         revision++;
     }
 
     function completeBatch(requestId, batch, flavor, result) {
-        for (const item of batch) delete requests[item.key];
+        clearRequest(requestId, batch.map(item => item.key), false);
         const byPath = ({ });
         for (const item of batch) byPath[item.entry.path] = item;
         for (const item of result.items ?? []) {
@@ -199,8 +211,8 @@ QtObject {
     }
 
     function failBatch(requestId, batch, message) {
+        clearRequest(requestId, batch.map(item => item.key), false);
         for (const item of batch) {
-            delete requests[item.key];
             const record = results[item.key];
             if (record) { record.state = "error"; record.revision++; }
         }
@@ -217,8 +229,9 @@ QtObject {
         Logger.debug("preview", `view release count=${activeViews}`);
         if (activeViews !== 0) return;
         flushDelay.stop();
-            for (const requestKey of Object.keys(requests)) BackendClient.cancel(requests[requestKey]);
+        for (const requestId of Object.keys(requestBatches)) BackendClient.cancel(Number(requestId));
         results = ({ }); queued = ({ }); consumers = ({ }); consumerKeys = ({ }); requests = ({ });
+        requestBatches = ({ });
         activeDecodeBytes = 0;
         revision++;
     }

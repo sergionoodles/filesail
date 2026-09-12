@@ -10,19 +10,52 @@ Item {
     readonly property int maximumImages: 16
     readonly property var visibleEntries: entries.slice(0, maximumImages)
 
-    Loader {
-        anchors.fill: parent
-        active: root.visibleEntries.length === 1
-        sourceComponent: FileVisual {
-            anchors.centerIn: parent
-            width: Math.max(1, Math.min(parent.width, parent.height) - Theme.spaceM * 2)
-            height: width
-            entry: root.visibleEntries[0]
-            thumbnailSize: Math.max(1, Math.ceil(width * Screen.devicePixelRatio))
-            flavor: thumbnailSize <= 128 ? "normal" : thumbnailSize <= 256 ? "large" : "x-large"
-            priority: "foreground"
+    property ListModel previewEntriesModel: ListModel {
+        dynamicRoles: true
+    }
+
+    function sameEntry(left, right) {
+        return left && right
+            && left.path === right.path
+            && left.name === right.name
+            && left.size === right.size
+            && left.modified === right.modified
+            && left.mimeType === right.mimeType
+            && left.iconName === right.iconName;
+    }
+
+    function syncPreviewEntries() {
+        const wanted = root.visibleEntries;
+        const wantedPaths = new Set(wanted.map(entry => entry.path));
+
+        for (let index = previewEntriesModel.count - 1; index >= 0; --index) {
+            if (!wantedPaths.has(previewEntriesModel.get(index).entry.path))
+                previewEntriesModel.remove(index);
+        }
+
+        for (let targetIndex = 0; targetIndex < wanted.length; ++targetIndex) {
+            const wantedEntry = wanted[targetIndex];
+            let currentIndex = -1;
+            for (let index = targetIndex; index < previewEntriesModel.count; ++index) {
+                if (previewEntriesModel.get(index).entry.path === wantedEntry.path) {
+                    currentIndex = index;
+                    break;
+                }
+            }
+            if (currentIndex < 0) {
+                previewEntriesModel.insert(targetIndex, { entry: wantedEntry });
+            } else {
+                if (currentIndex !== targetIndex)
+                    previewEntriesModel.move(currentIndex, targetIndex, 1);
+                if (!sameEntry(previewEntriesModel.get(targetIndex).entry, wantedEntry))
+                    previewEntriesModel.setProperty(targetIndex, "entry", wantedEntry);
+            }
         }
     }
+
+    Component.onCompleted: syncPreviewEntries()
+    onEntriesChanged: syncPreviewEntries()
+    onSelectionRevisionChanged: syncPreviewEntries()
 
     GridView {
         id: previewGrid
@@ -33,30 +66,31 @@ Item {
         anchors.rightMargin: Theme.spaceM
         height: Math.max(1, Math.min(parent.height - Theme.spaceM * 2, contentGridHeight))
         clip: true
-        visible: root.visibleEntries.length > 1
+        visible: root.previewEntriesModel.count > 0
         boundsBehavior: Flickable.StopAtBounds
         reuseItems: true
-        model: root.visibleEntries
-        cellWidth: visibleEntries.length === 1
-            ? Math.max(1, width) : Math.max(120 * Theme.scale, width / 2)
+        model: root.previewEntriesModel
+        cellWidth: previewEntriesModel.count === 1
+            ? Math.max(1, Math.min(width, root.height - Theme.spaceM * 2))
+            : Math.max(120 * Theme.scale, width / 2)
         cellHeight: cellWidth
         readonly property int columnCount: Math.max(1, Math.floor(width / cellWidth))
-        readonly property real contentGridHeight: Math.ceil(root.visibleEntries.length / columnCount) * cellHeight
+        readonly property real contentGridHeight: Math.ceil(root.previewEntriesModel.count / columnCount) * cellHeight
 
         delegate: Item {
-            required property var modelData
+            required property var entry
             required property int index
             width: previewGrid.cellWidth
             height: previewGrid.cellHeight
-            Accessible.name: modelData.name
+            Accessible.name: entry.name
             Accessible.role: Accessible.ListItem
             FileVisual {
                 id: imageVisual
                 anchors.fill: parent
                 anchors.margins: Theme.spaceS
-                entry: modelData
-                flavor: previewGrid.cellWidth * Screen.devicePixelRatio <= 128 ? "normal"
-                    : previewGrid.cellWidth * Screen.devicePixelRatio <= 256 ? "large" : "x-large"
+                entry: parent.entry
+                thumbnailSize: 512
+                flavor: "x-large"
                 priority: "foreground"
             }
             GridView.onPooled: imageVisual.releaseConsumer()

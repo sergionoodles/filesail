@@ -17,6 +17,7 @@ QtObject {
     signal trashRequested()
     signal infoRequested()
     signal aboutRequested()
+    signal keybindingsRequested()
 
     property Action editLocationAction: Action { shortcut: "Ctrl+L"; enabled: !root.modalActive; onTriggered: root.editLocationRequested() }
     property Action backAction: Action { text: qsTr("Back"); shortcut: "Alt+Left"; enabled: !root.modalActive && root.session.navigation.canGoBack; onTriggered: root.session.goBack("user") }
@@ -91,4 +92,64 @@ QtObject {
     property Action gridViewAction: Action { text: qsTr("Grid view"); shortcut: "Ctrl+2"; checked: root.viewMode === "grid"; enabled: !root.modalActive; onTriggered: Settings.setViewMode("grid") }
     property Action previewAction: Action { text: qsTr("Preview pane"); shortcut: "Ctrl+P"; checked: root.previewPaneEnabled; enabled: !root.modalActive; onTriggered: Settings.setPreviewPaneEnabled(!Settings.previewPaneEnabled) }
     property Action aboutAction: Action { text: qsTr("About FileSail"); enabled: !root.modalActive; onTriggered: root.aboutRequested() }
+    property Action keybindingsAction: Action {
+        text: qsTr("Show keyboard shortcuts"); shortcut: "?"; enabled: !root.modalActive
+        onTriggered: root.keybindingsRequested()
+    }
+
+    function actionEntry(action) {
+        return { label: action.text, shortcut: String(action.shortcut ?? "") };
+    }
+
+    // Keep the recap tied to the registered Actions. The remaining entries are
+    // handled directly by the file views and therefore have no Action object.
+    function keybindingGroups() {
+        return [
+            {
+                title: qsTr("Navigation"),
+                entries: [
+                    actionEntry(backAction),
+                    actionEntry(forwardAction),
+                    actionEntry(upAction),
+                    actionEntry(editLocationAction),
+                    actionEntry(refreshAction),
+                    { label: qsTr("Open focused item"), shortcut: qsTr("Enter") },
+                    { label: qsTr("Move focus"), shortcut: qsTr("Arrow keys") },
+                    { label: qsTr("Jump to start / end"), shortcut: qsTr("Home / End") },
+                    { label: qsTr("Page through list"), shortcut: qsTr("Page Up / Page Down") },
+                    { label: qsTr("Go to parent folder"), shortcut: qsTr("Backspace") },
+                    { label: qsTr("Toggle focused selection"), shortcut: qsTr("Space") },
+                    { label: qsTr("Clear selection"), shortcut: qsTr("Escape") }
+                ]
+            },
+            {
+                title: qsTr("Files"),
+                entries: [
+                    actionEntry(copyAction),
+                    actionEntry(moveAction),
+                    actionEntry(pasteAction),
+                    actionEntry(selectAllAction),
+                    actionEntry(createAction),
+                    actionEntry(renameAction),
+                    actionEntry(openNewWindowAction),
+                    actionEntry(trashAction),
+                    actionEntry(infoAction)
+                ]
+            },
+            {
+                title: qsTr("View"),
+                entries: [
+                    actionEntry(hiddenFilesAction),
+                    actionEntry(listViewAction),
+                    actionEntry(gridViewAction),
+                    actionEntry(previewAction),
+                    { label: qsTr("Open context menu"), shortcut: qsTr("Menu / Shift+F10") }
+                ]
+            },
+            {
+                title: qsTr("Help"),
+                entries: [actionEntry(keybindingsAction)]
+            }
+        ];
+    }
 }

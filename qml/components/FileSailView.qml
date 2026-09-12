@@ -114,6 +114,7 @@ Rectangle {
             dialogs.openInfo(session.selectedEntries[0], toolbar);
         }
         onAboutRequested: dialogs.openAbout(toolbar)
+        onKeybindingsRequested: dialogs.openKeybindings(actions.keybindingGroups(), toolbar)
     }
 
     RowLayout {

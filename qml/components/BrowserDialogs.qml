@@ -13,9 +13,11 @@ Item {
     property string createParent: ""
     property string renameTarget: ""
     property var trashTargets: []
+    property var keybindings: []
     readonly property bool active: (promptLoader.item ? promptLoader.item.visible : false)
         || (aboutLoader.item ? aboutLoader.item.visible : false)
         || (infoLoader.item ? infoLoader.item.visible : false)
+        || (keybindingsLoader.item ? keybindingsLoader.item.visible : false)
     anchors.fill: parent
     z: 1000
 
@@ -63,6 +65,11 @@ Item {
         infoLoader.item.session = root.session;
         infoLoader.item.open(entry, focusTarget);
     }
+    function openKeybindings(groups, focusTarget) {
+        keybindings = groups ?? [];
+        keybindingsLoader.active = true;
+        keybindingsLoader.item.open(keybindings, focusTarget);
+    }
 
     Loader {
         id: promptLoader
@@ -96,5 +103,12 @@ Item {
         anchors.fill: parent
         active: false
         sourceComponent: FileInfoDialog {}
+    }
+
+    Loader {
+        id: keybindingsLoader
+        anchors.fill: parent
+        active: false
+        sourceComponent: KeybindingsDialog {}
     }
 }

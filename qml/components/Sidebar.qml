@@ -18,6 +18,20 @@ Rectangle {
     signal removeLocationRequested(string collection, string id)
     color: Qt.alpha(Theme.surfaceVariant, 0.58)
 
+    function placeIconName(iconName) {
+        switch (iconName) {
+        case "user-home": return "house";
+        case "user-desktop": return "monitor";
+        case "user-trash": return "trash-2";
+        case "folder-documents": return "file-text";
+        case "folder-download": return "folder-down";
+        case "folder-pictures": return "image";
+        case "folder-music": return "music";
+        case "folder-videos": return "video";
+        default: return "folder";
+        }
+    }
+
     ColumnLayout {
         anchors.fill: parent
         spacing: 0
@@ -88,7 +102,7 @@ Rectangle {
                     background: Rectangle { radius: Theme.radiusS; color: root.currentPath === path ? Theme.selectionFill : parent.hovered ? Theme.controlHover : "transparent" }
                     contentItem: RowLayout {
                         spacing: Theme.spaceM
-                        LucideIcon { name: placeDelegate.iconName === "user-home" ? "house" : placeDelegate.iconName === "user-desktop" ? "monitor" : placeDelegate.iconName === "user-trash" ? "trash-2" : "folder"; iconColor: root.currentPath === path ? Theme.primary : Theme.textMuted }
+                        LucideIcon { name: root.placeIconName(placeDelegate.iconName); iconColor: root.currentPath === path ? Theme.primary : Theme.textMuted }
                         Text { Layout.fillWidth: true; text: Format.safeText(label); textFormat: Text.PlainText; color: Theme.text; font.pixelSize: Theme.fontBody; elide: Text.ElideRight }
                     }
                 }

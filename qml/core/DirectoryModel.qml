@@ -23,6 +23,7 @@ QtObject {
     property string pendingWatchPath: ""
     property int pendingWatchRequest: -1
     property bool watchLeaseActive: false
+    property bool removalPaused: false
     property int revision: 0
     property string acceptedLargeDirectoryPath: ""
     property var folderContext: ({ version: 1, signals: [] })
@@ -100,6 +101,8 @@ QtObject {
     }
 
     function refresh(loadKind, allowLargeDirectory) {
+        if (removalPaused)
+            return;
         const kind = requestedPath !== path ? "navigation" : loadKind ?? "refresh";
         // Coalesce watcher, UI, and mutation refreshes. A second listing is
         // started only after the active one has published or been canceled.
@@ -148,7 +151,7 @@ QtObject {
             if (requestId !== root.activeRequest) return;
             root.activeRequest = -1;
             root.loading = false;
-            if (result?.requiresConfirmation) {
+            if (result && result.requiresConfirmation) {
                 root.requestedPath = root.path;
                 root.largeDirectoryWarning(result.path ?? root.path, Number(result.entryCountAtLeast ?? 0));
                 return;
@@ -159,6 +162,25 @@ QtObject {
             root.loadFailed(message);
         });
         activeRequest = requestId;
+    }
+
+    function pauseForRemoval() {
+        removalPaused = true;
+        watcherDelay.stop();
+        if (activeRequest >= 0) {
+            BackendClient.cancel(activeRequest);
+            activeRequest = -1;
+            loading = false;
+            refreshDirty = false;
+        }
+        unsubscribe();
+    }
+
+    function resumeAfterRemoval() {
+        if (!removalPaused) return;
+        removalPaused = false;
+        requestedPath = path;
+        refresh("refresh");
     }
 
     function loadLargeDirectory(nextPath) {

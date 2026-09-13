@@ -44,10 +44,7 @@ Rectangle {
     }
     readonly property real sidebarWidth: (root.compact ? 220 : 240) * Theme.scale
     readonly property real previewRequiredWidth: (240 + 1 + 360 + 220) * Theme.scale
-    readonly property bool previewEnabled: previewPaneEnabled
-                                           && width >= previewRequiredWidth
-                                           && session.selectedCount > 0
-                                           && !selectionIncludesDirectory
+    readonly property bool previewEnabled: previewPaneEnabled && width >= previewRequiredWidth
     readonly property bool modalActive: dialogs.active
     readonly property alias browserSession: session
     readonly property bool controlPreviewActualVisible: root.previewEnabled
@@ -78,6 +75,12 @@ Rectangle {
 
     function showNotice(message, isError) {
         noticeBanner.show(message, isError);
+    }
+
+    function requestSafeRemove(drive) {
+        dialogs.confirmSafeRemove(drive, () => VolumeModel.safeRemove(drive,
+            (error, retry) => dialogs.openVolumeError(error, retry, toolbar),
+            message => root.showNotice(message, false)), toolbar);
     }
 
     BrowserSession {
@@ -132,6 +135,15 @@ Rectangle {
             projectsModel: SavedLocationsModel.projects
             bookmarksModel: SavedLocationsModel.bookmarks
             onNavigate: path => root.navigate(path)
+            onActivateVolume: volume => VolumeModel.activate(volume, path => root.navigate(path),
+                (nextVolume, navigateCallback, errorCallback, noticeCallback) =>
+                    dialogs.openUnlock(nextVolume, navigateCallback, errorCallback, noticeCallback, toolbar),
+                (error, retry) => dialogs.openVolumeError(error, retry, toolbar),
+                message => root.showNotice(message, false))
+            onUnmountVolume: volume => VolumeModel.unmount(volume,
+                (error, retry) => dialogs.openVolumeError(error, retry, toolbar),
+                message => root.showNotice(message, false))
+            onSafeRemoveDrive: drive => root.requestSafeRemove(drive)
             onAddCurrentDirectoryRequested: collection => SavedLocationsModel.addCurrentDirectory(collection, session.directory.path, () => root.showNotice(qsTr("Folder added"), false), message => root.showNotice(message, true))
             onRemoveLocationRequested: (collection, id) => SavedLocationsModel.remove(collection, id, () => root.showNotice(qsTr("Folder removed"), false), message => root.showNotice(message, true))
         }

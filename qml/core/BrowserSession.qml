@@ -20,6 +20,7 @@ QtObject {
     property var activeOperations: ({})
     property bool backendSessionAcquired: false
     property bool sessionAlive: true
+    property var preparedMountPoints: []
     readonly property int selectedCount: Object.keys(selectedPaths).length
     readonly property alias directory: directoryModel
     readonly property alias navigation: navigationController
@@ -256,8 +257,8 @@ QtObject {
             detach();
             if (!root.sessionAlive)
                 return;
-            const completed = result?.completed?.length ?? 0;
-            const partial = result?.partial?.length ?? 0;
+            const completed = result && result.completed ? result.completed.length : 0;
+            const partial = result && result.partial ? result.partial.length : 0;
             const changed = completed + partial;
             let suffix = completed > 0
                 ? ` (${completed} item(s) completed before the error)` : "";
@@ -330,6 +331,46 @@ QtObject {
         clipboardMode === "move");
     }
 
+    function pathInMounts(path, mountPoints) {
+        return (mountPoints ?? []).some(mount => VolumeModel.isWithin(path, mount));
+    }
+
+    function prepareMountRemoval(mountPoints) {
+        if (!pathInMounts(directoryModel.path, mountPoints)
+                && !pathInMounts(directoryModel.requestedPath, mountPoints))
+            return;
+        preparedMountPoints = mountPoints.slice();
+        directoryModel.pauseForRemoval();
+        clearSelection("internal");
+        PreviewManager.advanceGeneration();
+    }
+
+    function finishMountRemoval(mountPoints, success, unexpected) {
+        const affected = pathInMounts(directoryModel.path, mountPoints)
+                      || pathInMounts(directoryModel.requestedPath, mountPoints);
+        if (success) {
+            navigationController.pruneMountPoints(mountPoints);
+            const remainingClipboard = clipboardPaths.filter(path => !pathInMounts(path, mountPoints));
+            if (remainingClipboard.length !== clipboardPaths.length) {
+                clipboardPaths = remainingClipboard;
+                clipboardRevision++;
+            }
+            preparedMountPoints = [];
+            if (affected) {
+                directoryModel.removalPaused = false;
+                pendingHistoryTarget = -1;
+                directoryModel.setPath(navigationController.homePath);
+                if (unexpected)
+                    noticeRequested(qsTr("A drive was disconnected. FileSail moved this window to Home."), true);
+            } else {
+                directoryModel.resumeAfterRemoval();
+            }
+        } else {
+            preparedMountPoints = [];
+            directoryModel.resumeAfterRemoval();
+        }
+    }
+
     property NavigationController navigationObject: NavigationController {
         id: navigationController
         initialPath: root.initialPath
@@ -366,6 +407,18 @@ QtObject {
         }
         onUnsafeEntriesSkipped: count => root.noticeRequested(
             `${count} item(s) were hidden because their names are unsafe in the current locale`, true)
+    }
+
+    property Connections volumeConnections: Connections {
+        target: VolumeModel
+        function onRemovalPreparing(mountPoints) { root.prepareMountRemoval(mountPoints); }
+        function onRemovalFinished(mountPoints, success) { root.finishMountRemoval(mountPoints, success, false); }
+        function onMountPointsLost(mountPoints, expected, disconnected) {
+            if (!expected && root.pathInMounts(root.directory.path, mountPoints)) {
+                root.prepareMountRemoval(mountPoints);
+                root.finishMountRemoval(mountPoints, true, disconnected);
+            }
+        }
     }
 
     Component.onCompleted: {

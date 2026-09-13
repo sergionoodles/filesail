@@ -14,3 +14,4 @@ singleton ControlRouter 1.0 ControlRouter.qml
 singleton PlacesModel 1.0 PlacesModel.qml
 singleton SavedLocationsModel 1.0 SavedLocationsModel.qml
 singleton ContextBadgeCatalog 1.0 ContextBadgeCatalog.qml
+singleton VolumeModel 1.0 VolumeModel.qml

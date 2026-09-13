@@ -17,6 +17,7 @@ class QFileSystemWatcher;
 class QSocketNotifier;
 class QTimer;
 class PreviewService;
+class VolumeService;
 
 class BackendServer final : public QObject
 {
@@ -69,8 +70,10 @@ private:
     QThreadPool m_readPool;
     QThreadPool m_mutationPool;
     PreviewService *m_previewService = nullptr;
+    VolumeService *m_volumeService = nullptr;
     QTimer *m_previewIdleTimer = nullptr;
     QSet<int> m_previewJobs;
+    QSet<int> m_volumeJobs;
     QHash<QString, qsizetype> m_directoryWatchCounts;
     QHash<int, CancellationToken> m_cancellationTokens;
     QHash<int, MutationJob> m_mutationJobs;

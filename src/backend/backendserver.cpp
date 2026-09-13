@@ -4,6 +4,7 @@
 #include "logging.h"
 #include "savedlocations.h"
 #include "previewservice.h"
+#include "volumeservice.h"
 
 #include <QCoreApplication>
 #include <QDir>
@@ -136,6 +137,28 @@ BackendServer::BackendServer(QObject *parent)
 {
     m_readPool.setMaxThreadCount(2);
     m_mutationPool.setMaxThreadCount(1);
+    m_volumeService = new VolumeService(m_backendInstance, this);
+    connect(m_volumeService, &VolumeService::snapshotChanged, this,
+            [this](const QJsonObject &snapshot) {
+        QJsonObject event = snapshot;
+        event.insert(QStringLiteral("event"), QStringLiteral("volumesChanged"));
+        writeResponse(event);
+    });
+    connect(m_volumeService, &VolumeService::responseReady, this,
+            [this](int id, QJsonObject response) {
+        response.insert(QStringLiteral("id"), id);
+        writeResponse(response);
+        if (m_volumeJobs.remove(id) > 0) {
+            --m_activeJobs;
+            if (m_inputClosed && m_activeJobs == 0)
+                QCoreApplication::quit();
+        }
+    });
+    connect(m_volumeService, &VolumeService::operationChanged, this,
+            [this](const QString &targetId, const QString &state) {
+        writeResponse({{"event", "volumeOperationChanged"}, {"targetId", targetId},
+                       {"state", state}, {"backendInstance", m_backendInstance}});
+    });
     m_previewIdleTimer = new QTimer(this);
     m_previewIdleTimer->setSingleShot(true);
     m_previewIdleTimer->setInterval(previewIdleMilliseconds);
@@ -262,6 +285,53 @@ void BackendServer::handleRequest(const QByteArray &line)
         QJsonObject result = resolveControlLocation(params);
         result.insert(QStringLiteral("id"), id);
         writeResponse(result);
+    } else if (method == "volumes.list") {
+        QJsonObject result = m_volumeService->snapshot();
+        result.insert(QStringLiteral("id"), id);
+        result.insert(QStringLiteral("ok"), true);
+        writeResponse(result);
+    } else if (method.startsWith(QStringLiteral("volumes."))
+               || method == QStringLiteral("drives.safeRemove")) {
+        if (method == QStringLiteral("volumes.prepareRemoval")) {
+            const QStringList mountPoints = m_volumeService->targetMountPoints(params);
+            QJsonArray conflicts;
+            for (auto job = m_mutationJobs.cbegin(); job != m_mutationJobs.cend(); ++job) {
+                const QJsonObject snapshot = operationSnapshot(job.value());
+                bool touches = false;
+                const auto check = [&mountPoints, &touches](const QJsonValue &value) {
+                    if (!value.isString()) return;
+                    const QString path = QDir::cleanPath(value.toString());
+                    for (const QString &mount : mountPoints) {
+                        const QString prefix = mount == QStringLiteral("/") ? mount : mount + QLatin1Char('/');
+                        if (path == mount || path.startsWith(prefix)) { touches = true; break; }
+                    }
+                };
+                check(snapshot.value(QStringLiteral("path")));
+                check(snapshot.value(QStringLiteral("parent")));
+                check(snapshot.value(QStringLiteral("targetDirectory")));
+                for (const QJsonValue &path : snapshot.value(QStringLiteral("paths")).toArray()) check(path);
+                if (touches) conflicts.append(job.key());
+            }
+            if (!conflicts.isEmpty()) {
+                writeResponse({{QStringLiteral("id"), id}, {QStringLiteral("ok"), false},
+                    {QStringLiteral("error"), QStringLiteral("A FileSail file operation is using this drive")},
+                    {QStringLiteral("errorCode"), QStringLiteral("filesail_operation_active")},
+                    {QStringLiteral("details"), QJsonObject{{QStringLiteral("operationIds"), conflicts}}}});
+                return;
+            }
+        }
+        if (m_activeJobs >= maximumActiveJobs) {
+            writeResponse({{"id", id}, {"ok", false}, {"error", "Backend job queue is full"}});
+            return;
+        }
+        if (m_volumeJobs.contains(id)) {
+            writeResponse({{"id", id}, {"ok", false}, {"error", "Duplicate volume request ID"},
+                           {"errorCode", "already_in_progress"}});
+            return;
+        }
+        m_volumeJobs.insert(id);
+        ++m_activeJobs;
+        m_volumeService->handleRequest(id, method, params);
     } else if (method == "list") {
         enqueueOperation(id, m_readPool, [params](const CancellationToken &token) { return FileOperations::listDirectory(params, token); });
     } else if (method == "completeDirectories") {
@@ -276,20 +346,44 @@ void BackendServer::handleRequest(const QByteArray &line)
         ensureSavedLocationsWatch();
         enqueueMutation(id, method, params, [params](const CancellationToken &, const ProgressCallback &) { return SavedLocations::remove(params); });
     } else if (method == "mkdir") {
+        if (m_volumeService->mutationConflicts(params)) {
+            writeResponse({{"id", id}, {"ok", false}, {"error", "A drive removal is in progress"},
+                           {"errorCode", "already_in_progress"}}); return;
+        }
         enqueueMutation(id, method, params, [params](const CancellationToken &, const ProgressCallback &) { return FileOperations::createDirectory(params); });
     } else if (method == "rename") {
+        if (m_volumeService->mutationConflicts(params)) {
+            writeResponse({{"id", id}, {"ok", false}, {"error", "A drive removal is in progress"},
+                           {"errorCode", "already_in_progress"}}); return;
+        }
         enqueueMutation(id, method, params, [params](const CancellationToken &, const ProgressCallback &) { return FileOperations::renamePath(params); });
     } else if (method == "trash") {
+        if (m_volumeService->mutationConflicts(params)) {
+            writeResponse({{"id", id}, {"ok", false}, {"error", "A drive removal is in progress"},
+                           {"errorCode", "already_in_progress"}}); return;
+        }
         enqueueMutation(id, method, params, [params](const CancellationToken &, const ProgressCallback &) { return FileOperations::trashPaths(params); });
     } else if (method == "copy") {
+        if (m_volumeService->mutationConflicts(params)) {
+            writeResponse({{"id", id}, {"ok", false}, {"error", "A drive removal is in progress"},
+                           {"errorCode", "already_in_progress"}}); return;
+        }
         enqueueMutation(id, method, params, [params](const CancellationToken &token, const ProgressCallback &progress) {
             return FileOperations::copyPaths(params, token, progress);
         });
     } else if (method == "move") {
+        if (m_volumeService->mutationConflicts(params)) {
+            writeResponse({{"id", id}, {"ok", false}, {"error", "A drive removal is in progress"},
+                           {"errorCode", "already_in_progress"}}); return;
+        }
         enqueueMutation(id, method, params, [params](const CancellationToken &token, const ProgressCallback &progress) {
             return FileOperations::movePaths(params, token, progress);
         });
     } else if (method == "setExecutable") {
+        if (m_volumeService->mutationConflicts(params)) {
+            writeResponse({{"id", id}, {"ok", false}, {"error", "A drive removal is in progress"},
+                           {"errorCode", "already_in_progress"}}); return;
+        }
         enqueueMutation(id, method, params, [params](const CancellationToken &, const ProgressCallback &) { return FileOperations::setExecutable(params); });
     } else if (method == "open") {
         enqueueOperation(id, m_readPool, [params](const CancellationToken &) { return FileOperations::openPath(params); }, false);

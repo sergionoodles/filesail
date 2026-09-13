@@ -5,7 +5,7 @@ pkgdesc='Quickshell-native file manager'
 arch=('x86_64')
 url='https://github.com/sergionoodles/filesail'
 license=('MIT')
-depends=('hicolor-icon-theme' 'libarchive' 'qt6-base' 'quickshell' 'xdg-utils')
+depends=('hicolor-icon-theme' 'libarchive' 'qt6-base' 'quickshell' 'udisks2' 'xdg-utils')
 makedepends=('cmake' 'git' 'pkgconf')
 checkdepends=('jq')
 # This follows main until the first release tag exists. Pin this to a release

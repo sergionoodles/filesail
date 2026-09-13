@@ -370,7 +370,8 @@ and expire automatically after a short documented deadline if the UI disappears.
 Creating one atomically checks active/queued FileSail mutations and blocks new
 mutations beneath its mount points. Only the matching unmount/safe-remove request
 can consume it. Cancellation, failure, timeout, device removal, and backend
-shutdown release it. A caller cannot use the reservation to broaden its target.
+shutdown release it. The reservation itself holds a backend operation lease. A
+caller cannot use the reservation to broaden its target.
 
 Use explicit, longer D-Bus deadlines suitable for a polkit prompt and treat a
 timeout as an unknown outcome. Re-enumerate the target before enabling retry; do
@@ -440,9 +441,10 @@ same two-phase QML preparation:
 1. `volumes.prepareRemoval` freezes the current drive topology and reserves the
    drive/sibling group against concurrent mount, unmount, remove, and conflicting
    filesystem actions.
-2. It detects queued or running FileSail mutations whose source, destination, parent,
-   preview, or watched directory lies under any drive mount point. Return
-   `filesail_operation_active` with operation IDs instead of racing the transfer.
+2. It detects queued or running FileSail mutations whose source, destination, or
+   parent lies under any drive mount point. Return `filesail_operation_active`
+   with operation IDs instead of racing the transfer. Listings, previews, and
+   watches are cancellable preparation work, not reasons to reject every removal.
 3. `VolumeModel` asks BrowserSessions to release cancellable reads, previews, and
    watches, then calls `drives.safeRemove` with the reservation. The backend
    independently cancels registered cancellable jobs in scope and rejects new
@@ -465,6 +467,11 @@ Before `PowerOff`, inspect `SiblingId`. If other present drives share the physic
 device, the confirmation must name/count them because powering off one slot may
 affect the whole multi-card reader. The safe-removal state machine includes every
 affected sibling in its conflict check and result.
+
+Ask for sibling-impact confirmation from the current snapshot before creating the
+short-lived reservation. If preparation discovers that the sibling group changed,
+cancel the reservation and require confirmation for the new set; never broaden a
+previous confirmation silently.
 
 If step 4 fails partway through, stop immediately. Return
 `completedVolumeIds`, `remainingMountedVolumeIds`, and the failed volume. Do not

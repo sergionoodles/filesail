@@ -42,6 +42,12 @@ QtObject {
             || method === "locations.add" || method === "locations.remove";
     }
 
+    function isVolumeOperation(method) {
+        return method === "volumes.mount" || method === "volumes.unlock"
+            || method === "volumes.prepareRemoval" || method === "volumes.unmount"
+            || method === "volumes.cancelRemoval" || method === "drives.safeRemove";
+    }
+
     function setOperations(nextOperations) {
         operations = nextOperations.slice();
     }
@@ -138,7 +144,7 @@ QtObject {
             onFailure: onFailure,
             deadline: timeoutMs > 0 ? Date.now() + timeoutMs : 0
         };
-        if (root.isMutation(method))
+        if (root.isMutation(method) || root.isVolumeOperation(method))
             operationLeases++;
         pendingRevision++;
         Logger.debug("backend", `→ ${id} ${method}`);
@@ -153,11 +159,31 @@ QtObject {
         return id;
     }
 
+
+    // Secret-bearing requests are written only to an already-running backend.
+    // Their serialized form is never retained in pendingLines or diagnostics.
+    function requestSecret(method, params, onSuccess, onFailure) {
+        if (rejectingRequests || !backend.running) {
+            if (onFailure)
+                onFailure("The backend is not ready", { ok: false, error: "The backend is not ready", errorCode: "service_unavailable" });
+            return -1;
+        }
+        const id = nextRequestId++;
+        pendingRequests[id] = {
+            method, onSuccess, onFailure, deadline: 0, secret: true
+        };
+        operationLeases++;
+        pendingRevision++;
+        Logger.debug("backend", `→ ${id} ${method} (secret redacted)`);
+        backend.write(JSON.stringify({ id, method, params: params ?? {} }) + "\n");
+        return id;
+    }
+
     function cancel(id) {
         const pending = pendingRequests[id];
         if (!pending)
             return;
-        if (root.isMutation(pending.method))
+        if (root.isMutation(pending.method) || root.isVolumeOperation(pending.method))
             return;
         delete pendingRequests[id];
         pendingRevision++;
@@ -174,7 +200,7 @@ QtObject {
         if (!pending)
             return;
         delete pendingRequests[id];
-        if (root.isMutation(pending.method))
+        if (root.isMutation(pending.method) || root.isVolumeOperation(pending.method))
             operationLeases = Math.max(0, operationLeases - 1);
         pendingRevision++;
         scheduleIdleShutdown();
@@ -247,7 +273,7 @@ QtObject {
         pendingLines = [];
         for (const id in requests) {
             const pending = requests[id];
-            if (root.isMutation(pending.method))
+            if (root.isMutation(pending.method) || root.isVolumeOperation(pending.method))
                 operationLeases = Math.max(0, operationLeases - 1);
             if (pending.onFailure) {
                 try {
@@ -338,6 +364,40 @@ QtObject {
         return request("setExecutable", { path, executable }, onSuccess, onFailure, 0);
     }
 
+
+    function listVolumes(onSuccess, onFailure) {
+        return request("volumes.list", {}, onSuccess, onFailure, 5000);
+    }
+
+    function mountVolume(volumeId, onSuccess, onFailure) {
+        return request("volumes.mount", { volumeId }, onSuccess, onFailure, 0);
+    }
+
+    function unlockVolume(volumeId, passphrase, mountAfter, onSuccess, onFailure) {
+        return requestSecret("volumes.unlock", { volumeId, passphrase, mount: mountAfter !== false },
+                             onSuccess, onFailure);
+    }
+
+    function prepareVolumeRemoval(targetKind, targetId, intendedAction, expectedAffectedDriveIds,
+                                  onSuccess, onFailure) {
+        return request("volumes.prepareRemoval", {
+            targetKind, targetId, intendedAction,
+            expectedAffectedDriveIds: expectedAffectedDriveIds ?? undefined
+        }, onSuccess, onFailure, 0);
+    }
+
+    function unmountVolume(volumeId, reservationId, onSuccess, onFailure) {
+        return request("volumes.unmount", { volumeId, reservationId }, onSuccess, onFailure, 0);
+    }
+
+    function safelyRemoveDrive(driveId, reservationId, onSuccess, onFailure) {
+        return request("drives.safeRemove", { driveId, reservationId }, onSuccess, onFailure, 0);
+    }
+
+    function cancelVolumeRemoval(reservationId, onSuccess, onFailure) {
+        return request("volumes.cancelRemoval", { reservationId }, onSuccess, onFailure, 5000);
+    }
+
     function flush() {
         for (const queued of pendingLines) {
             if (pendingRequests[queued.id])
@@ -419,6 +479,8 @@ QtObject {
             if (expired.length > 0)
                 root.pendingRequests = requests;
             for (const request of expired) {
+                if (root.isMutation(request.pending.method) || root.isVolumeOperation(request.pending.method))
+                    root.operationLeases = Math.max(0, root.operationLeases - 1);
                 if (request.pending.method === "thumbnailBatch" || request.pending.method === "textPreview"
                         || request.pending.method === "archivePreview")
                     root.cancelPreview(request.id);
@@ -432,6 +494,10 @@ QtObject {
                         root.lastError = "Backend request timeout cleanup failed";
                     }
                 }
+            }
+            if (expired.length > 0) {
+                root.pendingRevision++;
+                root.scheduleIdleShutdown();
             }
         }
     }

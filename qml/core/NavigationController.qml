@@ -65,4 +65,17 @@ QtObject {
         history = nextHistory;
         historyIndex = history.length - 1;
     }
+
+    function pruneMountPoints(mountPoints) {
+        const contains = (path, mount) => {
+            const parent = String(mount ?? "").replace(/\/+$/, "") || "/";
+            return path === parent || path.startsWith(parent === "/" ? "/" : parent + "/");
+        };
+        const current = currentPath;
+        const next = history.filter(path => !mountPoints.some(mount => contains(path, mount)));
+        if (next.length === 0) next.push(homePath);
+        history = next;
+        const currentIndex = next.indexOf(current);
+        historyIndex = currentIndex >= 0 ? currentIndex : next.length - 1;
+    }
 }

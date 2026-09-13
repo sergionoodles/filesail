@@ -13,6 +13,7 @@ Item {
     property string acceptLabel: "Continue"
     property bool destructive: false
     property bool inputVisible: true
+    property bool secretInput: false
     property var payload: ({})
     property Item returnFocus: null
     signal accepted(string value)
@@ -36,6 +37,10 @@ Item {
 
     function close() {
         visible = false;
+        if (secretInput) {
+            value = "";
+            promptInput.clear();
+        }
         if (returnFocus)
             returnFocus.forceActiveFocus();
     }
@@ -79,6 +84,8 @@ Item {
                 visible: root.inputVisible
                 text: root.value
                 placeholderText: root.placeholder
+                echoMode: root.secretInput ? TextInput.Password : TextInput.Normal
+                inputMethodHints: root.secretInput ? Qt.ImhHiddenText | Qt.ImhNoPredictiveText : Qt.ImhNone
                 onTextChanged: root.value = text
                 onAccepted: acceptButton.clicked()
             }

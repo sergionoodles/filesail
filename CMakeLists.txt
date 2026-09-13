@@ -43,6 +43,8 @@ add_executable(filesail-backend
     src/backend/savedlocations.h
     src/backend/previewservice.cpp
     src/backend/previewservice.h
+    src/backend/volumeservice.cpp
+    src/backend/volumeservice.h
 )
 
 add_executable(filesail-cli src/cli/main.cpp)

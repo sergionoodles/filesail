@@ -15,6 +15,7 @@ The current MVP scaffold includes:
 - XDG default-application opening;
 - an optional preview pane for images, thumbnails, text, archives, and metadata;
 - persistent display preferences in `~/.config/filesail/config.json`;
+- live removable-drive discovery, mounting, unlocking, unmounting, and safe removal;
 - a normal tiled window and a Noctalia 5 native slideout panel;
 - a stateless `filesail-cli` for discovering and controlling live browser windows.
 
@@ -25,6 +26,12 @@ Quickshell 0.3.1 or newer (`qs` or `quickshell`), a working D-Bus session, and
 `xdg-utils` for opening files and folders with the desktop defaults. Thumbnail
 previews require a thumbnailer service such as Tumbler, but FileSail can run
 without one.
+
+Removable-drive actions use the host's UDisks2 service on the system D-Bus. An
+active desktop polkit agent is needed only when local policy asks for
+authentication. If UDisks2 is unavailable, FileSail continues to browse files
+normally and shows the Devices section as unavailable. The AppImage uses the
+host daemon and policies; it does not bundle or start UDisks2.
 
 To build from source, install:
 
@@ -88,7 +95,8 @@ systemctl --user disable --now filesail-filemanager1.service
 ## Install from an Arch package
 
 `PKGBUILD` builds the standalone package and declares its runtime dependencies:
-`hicolor-icon-theme`, `libarchive`, `qt6-base`, `quickshell`, and `xdg-utils`.
+`hicolor-icon-theme`, `libarchive`, `qt6-base`, `quickshell`, `udisks2`, and
+`xdg-utils`.
 Build and install it from the repository root with:
 
 ```sh

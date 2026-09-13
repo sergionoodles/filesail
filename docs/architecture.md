@@ -42,6 +42,21 @@ thumbnailer and cache. `cancelPreview` and `cancel` cancel eligible read and
 preview requests. `locations.list`, `locations.add`, and `locations.remove`
 manage atomic saved-location snapshots independently of the host.
 
+`VolumeService` owns the Linux UDisks2 system-bus integration. It coalesces
+ObjectManager/property changes into revisioned, drive-centric snapshots and
+exposes only backend-instance-scoped opaque drive and volume IDs. Additive
+`volumes.*` methods mount, unlock, prepare and cancel removal, and unmount;
+`drives.safeRemove` sequences filesystems, encrypted containers, sibling drives,
+and the supported eject/power-off step without forced unmounts. Short-lived
+removal reservations reject overlapping FileSail mutations. UDisks2 absence is
+nonfatal and is represented by an unavailable volume snapshot.
+
+Unlock passphrases use a direct, non-replayable backend request: QML never queues
+the serialized request and clears its password field on submit or close, while
+the backend never logs or snapshots it. QML/JavaScript and Qt strings do not
+provide guaranteed secure-memory erasure, so this reduces retention but cannot
+promise that every transient copy is overwritten.
+
 Serialized mutations are registered in a backend-owned FIFO. The backend emits
 additive `operationChanged` events for queued/running state and copy/move
 progress, and `operations.list` returns the current mutation snapshot. These

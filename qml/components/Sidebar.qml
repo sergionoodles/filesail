@@ -16,6 +16,9 @@ Rectangle {
     signal navigate(string path)
     signal addCurrentDirectoryRequested(string collection)
     signal removeLocationRequested(string collection, string id)
+    signal activateVolume(var volume)
+    signal unmountVolume(var volume)
+    signal safeRemoveDrive(var drive)
     color: Qt.alpha(Theme.surfaceVariant, 0.58)
 
     function placeIconName(iconName) {
@@ -86,16 +89,19 @@ Rectangle {
 
     Component {
         id: placesPage
-        ColumnLayout {
-            spacing: Theme.spaceXs
-            Text { Layout.leftMargin: Theme.spaceS; Layout.bottomMargin: Theme.spaceXs; text: qsTr("PLACES"); color: Theme.textMuted; font.pixelSize: Theme.fontSmall - 1; font.weight: Font.DemiBold; font.letterSpacing: 1.2 }
-            ListView {
-                Layout.fillWidth: true; Layout.fillHeight: true
-                clip: true; reuseItems: true; model: root.placesModel
-                delegate: AbstractButton {
+        ScrollView {
+            clip: true
+            contentWidth: availableWidth
+            ColumnLayout {
+                width: parent.width
+                spacing: Theme.spaceXs
+                Text { Layout.leftMargin: Theme.spaceS; Layout.bottomMargin: Theme.spaceXs; text: qsTr("PLACES"); color: Theme.textMuted; font.pixelSize: Theme.fontSmall - 1; font.weight: Font.DemiBold; font.letterSpacing: 1.2 }
+                Repeater {
+                    model: root.placesModel
+                    delegate: AbstractButton {
                     id: placeDelegate
                     required property string label; required property string iconName; required property string path
-                    width: ListView.view.width; implicitHeight: 34 * Theme.scale; hoverEnabled: true; focusPolicy: Qt.StrongFocus
+                    Layout.fillWidth: true; implicitHeight: 34 * Theme.scale; hoverEnabled: true; focusPolicy: Qt.StrongFocus
                     leftPadding: Theme.spaceM; rightPadding: Theme.spaceM
                     Accessible.name: label; Accessible.role: Accessible.ListItem
                     onClicked: root.navigate(path)
@@ -106,6 +112,14 @@ Rectangle {
                         Text { Layout.fillWidth: true; text: Format.safeText(label); textFormat: Text.PlainText; color: Theme.text; font.pixelSize: Theme.fontBody; elide: Text.ElideRight }
                     }
                 }
+                }
+                DeviceList {
+                    Layout.fillWidth: true
+                    onActivateVolume: volume => root.activateVolume(volume)
+                    onUnmountVolume: volume => root.unmountVolume(volume)
+                    onSafeRemoveDrive: drive => root.safeRemoveDrive(drive)
+                }
+                Item { Layout.fillWidth: true; Layout.fillHeight: true; implicitHeight: Theme.spaceM }
             }
         }
     }

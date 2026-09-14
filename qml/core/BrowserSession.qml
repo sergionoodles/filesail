@@ -259,13 +259,20 @@ QtObject {
                 return;
             const completed = result && result.completed ? result.completed.length : 0;
             const partial = result && result.partial ? result.partial.length : 0;
+            const recovery = result && result.recovery ? result.recovery.length : 0;
+            const cancelled = result && result.errorCode === "cancelled";
             const changed = completed + partial;
             let suffix = completed > 0
                 ? ` (${completed} item(s) completed before the error)` : "";
             if (partial > 0)
                 suffix += ` (${partial} destination(s) committed, but source cleanup failed)`;
-            if (changed > 0 && refreshAfter && directoryModel.path === originPath) {
+            if (recovery > 0)
+                suffix += ` (${recovery} item(s) need recovery; see backend details)`;
+            if ((changed > 0 || cancelled || recovery > 0) && refreshAfter
+                    && directoryModel.path === originPath) {
                 directoryModel.refresh("refresh");
+            }
+            if (changed > 0 && directoryModel.path === originPath) {
                 root.removeFromSelection(operationPaths.slice(0, changed));
             }
             if (changed > 0 && usesClipboard
@@ -273,7 +280,15 @@ QtObject {
                 root.clipboardPaths = operationPaths.slice(changed);
                 root.clipboardRevision++;
             }
-            root.noticeRequested(message + suffix, true);
+            if (cancelled) {
+                const label = method === "copy" ? qsTr("Copy")
+                    : method === "move" ? qsTr("Move")
+                    : method === "trash" ? qsTr("Remove") : qsTr("Operation");
+                root.noticeRequested(qsTr("%1 cancelled; %2 item(s) completed")
+                    .arg(label).arg(completed) + suffix, false);
+            } else {
+                root.noticeRequested(message + suffix, true);
+            }
         };
         const summary = operationPaths.length > 0
             ? `${operationPaths.length} path(s)` : JSON.stringify(params);

@@ -97,6 +97,22 @@ Rectangle {
         function onRevisionChanged() { PreviewManager.advanceGeneration(); }
     }
 
+    Connections {
+        target: BackendClient
+        function onMutationTerminated(result, method) {
+            if (session.activeOperations[result.id])
+                return;
+            const completed = Array.isArray(result.completed) ? result.completed.length : 0;
+            if (result.errorCode === "cancelled") {
+                const label = method === "copy" ? qsTr("Copy") : method === "move" ? qsTr("Move")
+                    : method === "trash" ? qsTr("Remove") : qsTr("Operation");
+                root.showNotice(qsTr("%1 cancelled; %2 item(s) completed").arg(label).arg(completed), false);
+            } else if (Array.isArray(result.recovery) && result.recovery.length > 0) {
+                root.showNotice(qsTr("An operation needs filesystem recovery; details are in Activity"), true);
+            }
+        }
+    }
+
     BrowserActions {
         id: actions
         session: session

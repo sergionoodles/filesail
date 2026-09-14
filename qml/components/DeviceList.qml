@@ -6,6 +6,8 @@ import "../core"
 ColumnLayout {
     id: root
 
+    visible: VolumeModel.rows.length > 0
+
     signal activateVolume(var volume)
     signal unmountVolume(var volume)
     signal safeRemoveDrive(var drive)
@@ -13,7 +15,7 @@ ColumnLayout {
     spacing: Theme.spaceXs
 
     function iconFor(kind) {
-        if (kind === "usb") return "usb";
+        if (kind === "usb") return "hard-drive";
         if (kind === "card") return "sd-card";
         if (kind === "optical") return "disc-3";
         if (kind === "encrypted") return "lock-keyhole";
@@ -127,7 +129,7 @@ ColumnLayout {
                             text: Format.safeText(VolumeModel.operationFor(row.modelData.volumeId)
                                   || VolumeModel.operationFor(row.modelData.driveId)
                                   || root.detailFor(row.modelData.volume))
-                            textFormat: Text.PlainText; color: Theme.textMuted; font.pixelSize: Theme.fontSmall; elide: Text.ElideRight
+                            textFormat: Text.PlainText; color: Theme.textMuted; font.pixelSize: Theme.fontSmall - 1; elide: Text.ElideRight
                         }
                     }
                     BusyIndicator {
@@ -141,6 +143,8 @@ ColumnLayout {
                         visible: !busyIndicator.running
                         checkable: false
                         iconName: row.modelData.volume.mounted || row.modelData.drive.ejectable ? "eject" : row.modelData.volume.locked ? "lock-keyhole" : "mountain"
+                        iconColor: row.modelData.volume.mounted || row.modelData.drive.ejectable ? Qt.alpha(Theme.textMuted, 0.7) : Theme.textMuted
+                        iconSize: row.modelData.volume.mounted || row.modelData.drive.ejectable ? Theme.iconSize - Math.round(2 * Theme.scale) : Theme.iconSize
                         tooltip: row.modelData.volume.mounted || row.modelData.drive.ejectable
                             ? qsTr("Safely remove %1").arg(Format.safeText(row.modelData.drive.label))
                             : row.modelData.volume.locked ? qsTr("Unlock and open %1").arg(Format.safeText(row.modelData.label))

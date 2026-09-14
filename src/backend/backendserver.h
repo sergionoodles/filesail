@@ -39,6 +39,8 @@ private:
         Operation operation;
         QJsonObject progress;
         QString state = QStringLiteral("queued");
+        CancellationToken cancellationToken;
+        bool cancellationRequested = false;
     };
 
     void readRequests();
@@ -50,6 +52,8 @@ private:
     void enqueueMutation(int id, const QString &method, const QJsonObject &params,
                          Operation operation);
     void startNextMutation();
+    void finalizeMutation(int id, quint64 queueSequence, QJsonObject result);
+    void cancelMutationRequest(int requestId, const QJsonObject &params);
     void emitOperationChanged(int id);
     QJsonObject operationSnapshot(const MutationJob &job) const;
     QJsonObject listOperations() const;

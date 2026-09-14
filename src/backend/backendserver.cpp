@@ -26,8 +26,10 @@
 
 #include <algorithm>
 #include <cerrno>
+#include <cmath>
 #include <cstring>
 #include <exception>
+#include <limits>
 #include <unistd.h>
 
 namespace {
@@ -362,7 +364,9 @@ void BackendServer::handleRequest(const QByteArray &line)
             writeResponse({{"id", id}, {"ok", false}, {"error", "A drive removal is in progress"},
                            {"errorCode", "already_in_progress"}}); return;
         }
-        enqueueMutation(id, method, params, [params](const CancellationToken &, const ProgressCallback &) { return FileOperations::trashPaths(params); });
+        enqueueMutation(id, method, params, [params](const CancellationToken &token, const ProgressCallback &progress) {
+            return FileOperations::trashPaths(params, token, progress);
+        });
     } else if (method == "copy") {
         if (m_volumeService->mutationConflicts(params)) {
             writeResponse({{"id", id}, {"ok", false}, {"error", "A drive removal is in progress"},
@@ -422,6 +426,8 @@ void BackendServer::handleRequest(const QByteArray &line)
         QJsonObject result = listOperations();
         result.insert("id", id);
         writeResponse(result);
+    } else if (method == "operations.cancel") {
+        cancelMutationRequest(id, params);
     } else if (method == "textPreview") {
         ensurePreviewService();
         enqueueOperation(id, m_readPool, [this, params](const CancellationToken &token) { return m_previewService->text(params, token); }, true, true);
@@ -493,6 +499,7 @@ void BackendServer::enqueueMutation(int id, const QString &method, const QJsonOb
     job.params = params;
     job.queueSequence = m_nextOperationSequence++;
     job.operation = std::move(operation);
+    job.cancellationToken = std::make_shared<std::atomic_bool>(false);
     m_mutationJobs.insert(id, std::move(job));
     m_mutationQueue.enqueue(id);
     ++m_activeJobs;
@@ -518,12 +525,15 @@ void BackendServer::startNextMutation()
     m_mutationRunning = true;
 
     const Operation operation = iterator->operation;
-    const ProgressCallback progress = [this, id](const QJsonObject &update) {
+    const CancellationToken token = iterator->cancellationToken;
+    const quint64 queueSequence = iterator->queueSequence;
+    const ProgressCallback progress = [this, id, queueSequence](const QJsonObject &update) {
         // File operations run on the worker pool. All protocol writes and
         // operation registry mutations remain on the backend event thread.
-        QMetaObject::invokeMethod(this, [this, id, update] {
+        QMetaObject::invokeMethod(this, [this, id, queueSequence, update] {
             auto iterator = m_mutationJobs.find(id);
-            if (iterator == m_mutationJobs.end() || iterator->state != "running")
+            if (iterator == m_mutationJobs.end() || iterator->state != "running"
+                || iterator->queueSequence != queueSequence)
                 return;
             for (auto updateIterator = update.constBegin(); updateIterator != update.constEnd(); ++updateIterator)
                 iterator->progress.insert(updateIterator.key(), updateIterator.value());
@@ -532,22 +542,13 @@ void BackendServer::startNextMutation()
     };
 
     auto *watcher = new QFutureWatcher<QJsonObject>(this);
-    connect(watcher, &QFutureWatcher<QJsonObject>::finished, this, [this, watcher, id] {
+    connect(watcher, &QFutureWatcher<QJsonObject>::finished, this, [this, watcher, id, queueSequence] {
         QJsonObject result = watcher->result();
-        result.insert("id", id);
-        writeResponse(result);
         watcher->deleteLater();
-
-        m_mutationJobs.remove(id);
-        m_mutationRunning = false;
-        --m_activeJobs;
-        startNextMutation();
-        if (m_inputClosed && m_activeJobs == 0)
-            QCoreApplication::quit();
+        finalizeMutation(id, queueSequence, std::move(result));
     });
-    watcher->setFuture(QtConcurrent::run(&m_mutationPool, [operation, progress] {
+    watcher->setFuture(QtConcurrent::run(&m_mutationPool, [operation, progress, token] {
         try {
-            const CancellationToken token;
             return operation(token, progress);
         } catch (const std::exception &exception) {
             return failure(QStringLiteral("Backend operation failed: %1")
@@ -558,14 +559,105 @@ void BackendServer::startNextMutation()
     }));
 }
 
+void BackendServer::finalizeMutation(int id, quint64 queueSequence, QJsonObject result)
+{
+    const auto iterator = m_mutationJobs.find(id);
+    if (iterator == m_mutationJobs.end() || iterator->queueSequence != queueSequence)
+        return;
+    if (iterator->cancellationRequested)
+        result.insert(QStringLiteral("cancellationRequested"), true);
+    result.insert(QStringLiteral("id"), id);
+    writeResponse(result);
+    m_mutationJobs.erase(iterator);
+    m_mutationRunning = false;
+    --m_activeJobs;
+    startNextMutation();
+    if (m_inputClosed && m_activeJobs == 0)
+        QCoreApplication::quit();
+}
+
+void BackendServer::cancelMutationRequest(int requestId, const QJsonObject &params)
+{
+    const QJsonValue operationValue = params.value(QStringLiteral("operationId"));
+    const double numericId = operationValue.toDouble(-1);
+    const QString instance = params.value(QStringLiteral("backendInstance")).toString();
+    if (!operationValue.isDouble() || !std::isfinite(numericId) || std::floor(numericId) != numericId
+        || numericId < 0 || numericId > std::numeric_limits<int>::max() || instance.isEmpty()) {
+        writeResponse({{"id", requestId}, {"ok", false}, {"error", "Invalid cancellation parameters"},
+                       {"errorCode", "invalid_params"}});
+        return;
+    }
+    if (instance != m_backendInstance) {
+        writeResponse({{"id", requestId}, {"ok", false}, {"error", "Backend instance is stale"},
+                       {"errorCode", "stale_backend_instance"}});
+        return;
+    }
+    const int operationId = static_cast<int>(numericId);
+    auto iterator = m_mutationJobs.find(operationId);
+    if (iterator == m_mutationJobs.end()) {
+        writeResponse({{"id", requestId}, {"ok", true}, {"operationId", operationId},
+                       {"accepted", false}, {"reason", "not_active"}});
+        return;
+    }
+
+    const bool runningSupported = iterator->method == QStringLiteral("copy")
+        || iterator->method == QStringLiteral("move") || iterator->method == QStringLiteral("trash");
+    if (iterator->state == QStringLiteral("running") && !runningSupported) {
+        writeResponse({{"id", requestId}, {"ok", false}, {"error", "Running operation cannot be cancelled"},
+                       {"errorCode", "not_cancellable"}});
+        return;
+    }
+
+    iterator->cancellationRequested = true;
+    iterator->cancellationToken->store(true, std::memory_order_relaxed);
+    emitOperationChanged(operationId);
+    writeResponse({{"id", requestId}, {"ok", true}, {"operationId", operationId}, {"accepted", true}});
+
+    if (iterator->state == QStringLiteral("queued")) {
+        const quint64 queueSequence = iterator->queueSequence;
+        m_mutationQueue.removeAll(operationId);
+        QJsonObject result{{"ok", false}, {"error", "Operation cancelled"},
+                           {"errorCode", "cancelled"}, {"completed", QJsonArray{}},
+                           {"cancellationRequested", true}};
+        result.insert(QStringLiteral("id"), operationId);
+        writeResponse(result);
+        iterator = m_mutationJobs.find(operationId);
+        if (iterator != m_mutationJobs.end() && iterator->queueSequence == queueSequence) {
+            m_mutationJobs.erase(iterator);
+            --m_activeJobs;
+        }
+        if (m_inputClosed && m_activeJobs == 0)
+            QCoreApplication::quit();
+    }
+}
+
 QJsonObject BackendServer::operationSnapshot(const MutationJob &job) const
 {
+    QString cancelMode = QStringLiteral("none");
+    bool canCancel = false;
+    if (!job.cancellationRequested && job.state == QStringLiteral("queued")) {
+        cancelMode = QStringLiteral("queued");
+        canCancel = true;
+    } else if (job.state == QStringLiteral("running")
+               && (job.method == QStringLiteral("copy") || job.method == QStringLiteral("move"))) {
+        const QString phase = job.progress.value(QStringLiteral("phase")).toString();
+        cancelMode = phase == QStringLiteral("committing") || phase == QStringLiteral("cleaningUp")
+                || phase == QStringLiteral("restoringSource")
+            ? QStringLiteral("betweenItems") : QStringLiteral("cooperative");
+        canCancel = !job.cancellationRequested;
+    } else if (job.state == QStringLiteral("running") && job.method == QStringLiteral("trash")) {
+        cancelMode = QStringLiteral("betweenItems");
+        canCancel = !job.cancellationRequested;
+    }
     QJsonObject operation{
         {"id", job.id},
         {"method", job.method},
         {"state", job.state},
         {"queueSequence", static_cast<qint64>(job.queueSequence)},
         {"progress", job.progress},
+        {"canCancel", canCancel},
+        {"cancelMode", cancelMode},
+        {"cancellationRequested", job.cancellationRequested},
     };
     if (job.params.value("paths").isArray())
         operation.insert("paths", job.params.value("paths"));

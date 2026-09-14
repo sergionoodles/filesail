@@ -80,10 +80,11 @@ Rectangle {
                 }
             }
 
-            OperationQueue {
-                Layout.fillWidth: true
-                onNavigate: path => root.navigate(path)
-            }
+        }
+
+        OperationQueue {
+            Layout.fillWidth: true
+            onNavigate: path => root.navigate(path)
         }
     }
 

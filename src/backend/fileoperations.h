@@ -16,7 +16,8 @@ QJsonObject listDirectory(const QJsonObject &params, const CancellationToken &to
 QJsonObject completeDirectories(const QJsonObject &params, const CancellationToken &token = {});
 QJsonObject createDirectory(const QJsonObject &params);
 QJsonObject renamePath(const QJsonObject &params);
-QJsonObject trashPaths(const QJsonObject &params);
+QJsonObject trashPaths(const QJsonObject &params, const CancellationToken &token = {},
+                       const ProgressCallback &progress = {});
 QJsonObject copyPaths(const QJsonObject &params, const CancellationToken &token = {},
                       const ProgressCallback &progress = {});
 QJsonObject movePaths(const QJsonObject &params, const CancellationToken &token = {},

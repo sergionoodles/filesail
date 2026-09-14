@@ -209,6 +209,11 @@ jq -s -e --arg source "$test_dir/action-source-a/nested/payload" '
     and ([.[] | select(.id == 62)][0] | .ok == true and (.operations | map(.id) == [60, 61]) and (.operations | map(.state) == ["running", "queued"]))
     and ([.[] | select(.event == "operationChanged" and .operation.id == 60 and .operation.progress.currentPath == $source)] | length > 0)
     and ([.[] | select(.event == "operationChanged" and .operation.id == 60 and (((.operation.progress.bytesDone // "0") | tonumber) > 0))] | length > 0)
+    and ([.[] | select(.event == "operationChanged" and .operation.id == 60 and .operation.progress.phase == "scanning")] | length > 0)
+    and ([.[] | select(.event == "operationChanged" and .operation.id == 60
+        and .operation.progress.overallProgressActive == true
+        and ((.operation.progress.bytesTotal | tonumber) == 8388608)
+        and (.operation.progress.entriesTotal == 3))] | length > 0)
     and ([.[] | select(.event == "operationChanged" and ((.operation.progress.currentPath // "") | contains("/proc/self/fd/")))] | length == 0)
     and ([.[] | select(.id == 60)] | length == 1 and .[0].ok == true)
     and ([.[] | select(.id == 61)] | length == 1 and .[0].ok == true)

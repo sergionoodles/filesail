@@ -9,6 +9,7 @@ AbstractButton {
     property string label: ""
     property string tooltip: label
     property int iconSize: Theme.iconSize
+    property color iconColor: Theme.textMuted
     implicitWidth: label.length > 0 ? contentRow.implicitWidth + Theme.buttonPaddingHorizontal * 2 : implicitHeight
     implicitHeight: label.length > 0 ? Math.max(contentRow.implicitHeight + Theme.buttonPaddingVertical * 2, Theme.buttonHeight) : 40 * Theme.scale
     hoverEnabled: true
@@ -35,7 +36,7 @@ AbstractButton {
 
         LucideIcon {
             name: root.iconName
-            iconColor: root.checked ? Theme.primary : Theme.textMuted
+            iconColor: root.checked ? Theme.primary : root.iconColor
             iconSize: root.iconSize
             anchors.verticalCenter: parent.verticalCenter
         }

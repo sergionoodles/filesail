@@ -63,14 +63,23 @@ progress, and `operations.list` returns the current mutation snapshot. These
 events are non-terminal; the original request response remains the sole source
 of success, failure, and partial-transfer results. Progress reports logical
 source paths, completed entries, top-level item counts, aggregate bytes written,
-and current-file byte counters. Aggregate directory totals are intentionally
-not pre-scanned, so directory transfers may report indeterminate progress.
+and current-file byte counters. Copy and move operations first run a cancellable,
+no-symlink-follow scan on the mutation worker. The scan publishes estimated
+aggregate byte and entry totals, allowing the primary progress indicator to
+represent the whole selected transfer; current-file counters remain secondary
+detail. Empty and zero-byte trees fall back to entry progress.
+`operations.cancel` removes queued mutations before dispatch and cooperatively
+stops running copies and moves at traversal and I/O checkpoints; Trash stops
+between selected items. Copy commits, move source cleanup, and rollback are
+protected boundaries. The original mutation always emits its terminal response,
+including completed-item accounting and structured recovery paths when cleanup
+cannot finish safely.
 
 Filesystem work runs outside the protocol event loop. Directory queries use a
 small read pool, while mutating operations use the explicit single-worker FIFO
-so their ordering remains deterministic. Request IDs are also operation IDs,
-and mutation cancellation remains a future extension with explicit staging
-boundary semantics.
+so their ordering remains deterministic. Request IDs are also operation IDs.
+Cancellation requests are scoped to the backend instance so a restarted helper
+cannot receive a stale stop request.
 
 Copies are staged on the destination filesystem and committed with atomic
 no-replace semantics. Copy and cross-device move preserve regular files,

@@ -28,6 +28,9 @@ QtObject {
     property string operationsBackendInstance: ""
     property int operationEventSequence: 0
     property int operationsRequestId: -1
+    property var operationCancelStates: ({})
+    property int operationCancelRevision: 0
+    property var recoveryRecords: []
     readonly property int pendingCount: pendingRevision >= 0 ? Object.keys(pendingRequests).length : 0
     readonly property bool shouldRun: (sessionLeases > 0 || operationLeases > 0
         || pendingCount > 0 || idleHold || restartRequested)
@@ -35,6 +38,7 @@ QtObject {
     signal response(int id, var result)
     signal eventReceived(string event, var message)
     signal backendStopped(string message)
+    signal mutationTerminated(var result, string method)
 
     function isMutation(method) {
         return method === "mkdir" || method === "rename" || method === "trash"
@@ -69,6 +73,55 @@ QtObject {
             setOperations(nextOperations);
     }
 
+    function operationCancelState(id) {
+        operationCancelRevision;
+        return String(operationCancelStates[id] ?? "");
+    }
+
+    function setOperationCancelState(id, state) {
+        const next = Object.assign({}, operationCancelStates);
+        if (state)
+            next[id] = state;
+        else
+            delete next[id];
+        operationCancelStates = next;
+        operationCancelRevision++;
+    }
+
+    function dismissRecovery(index) {
+        const next = recoveryRecords.slice();
+        next.splice(index, 1);
+        recoveryRecords = next;
+    }
+
+    function retainRecovery(message, method) {
+        if (!Array.isArray(message.recovery) || message.recovery.length === 0)
+            return;
+        const added = message.recovery.map(record => Object.assign({}, record, {
+            operationId: message.id, method
+        }));
+        recoveryRecords = recoveryRecords.concat(added);
+    }
+
+    function cancelOperation(operationId, backendInstance, onSuccess, onFailure) {
+        if (operationCancelState(operationId))
+            return -1;
+        setOperationCancelState(operationId, "requesting");
+        return request("operations.cancel", { operationId, backendInstance }, result => {
+            if (result.accepted)
+                setOperationCancelState(operationId, "cancelling");
+            else {
+                setOperationCancelState(operationId, "");
+                refreshOperations();
+            }
+            if (onSuccess) onSuccess(result);
+        }, (message, result) => {
+            setOperationCancelState(operationId, "");
+            refreshOperations();
+            if (onFailure) onFailure(message, result);
+        }, 5000);
+    }
+
     function applyOperationEvent(message) {
         const backendInstance = String(message.backendInstance ?? "");
         const eventSequence = Number(message.eventSequence ?? 0);
@@ -84,6 +137,8 @@ QtObject {
         if (!operation || operation.id === undefined)
             return;
         operationEventSequence = Math.max(operationEventSequence, eventSequence);
+        if (operation.cancellationRequested)
+            setOperationCancelState(operation.id, "cancelling");
         replaceOperation(operation);
     }
 
@@ -232,12 +287,25 @@ QtObject {
         const id = message.id ?? -1;
         const pending = pendingRequests[id];
         if (!pending) {
+            const tracked = operations.find(operation => Number(operation.id) === Number(id));
+            if (tracked) {
+                retainRecovery(message, tracked.method);
+                mutationTerminated(message, tracked.method);
+                removeOperation(id);
+                setOperationCancelState(id, "");
+            }
             response(id, message);
             return;
+        }
+        if (root.isMutation(pending.method)) {
+            retainRecovery(message, pending.method);
+            mutationTerminated(message, pending.method);
         }
         forget(id);
         if (root.isMutation(pending.method))
             root.removeOperation(id);
+        if (root.isMutation(pending.method))
+            root.setOperationCancelState(id, "");
         Logger.debug("backend", `← ${id} ${pending.method} ok=${!!message.ok}`);
         if (message.ok) {
             if (pending.onSuccess)
@@ -286,6 +354,8 @@ QtObject {
         pendingRevision++;
         operationsRequestId = -1;
         setOperations([]);
+        operationCancelStates = ({});
+        operationCancelRevision++;
         operationsBackendInstance = "";
         operationEventSequence = 0;
         rejectingRequests = false;

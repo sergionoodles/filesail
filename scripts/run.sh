@@ -11,6 +11,10 @@ if [[ ! -x "$backend" ]]; then
 fi
 
 export FILESAIL_BACKEND="$backend"
+# Development launches intentionally make transfer progress observable. The
+# installed launcher does not set this hook, and developers can restore native
+# speed with FILESAIL_DEV_TRANSFER_DELAY_MS=0.
+export FILESAIL_DEV_TRANSFER_DELAY_MS="${FILESAIL_DEV_TRANSFER_DELAY_MS:-15}"
 requested_path="${FILESAIL_PATH:-$HOME}"
 selection_json="${FILESAIL_SELECTION_JSON:-[]}";
 force_new_instance=false
@@ -28,7 +32,7 @@ while (($#)); do
             selection_json="$2"
             shift 2
             ;;
-        --help|-h) printf '%s\n' 'Usage: filesail [--path PATH] [PATH]' 'Options: --new-instance (temporary duplicate-host escape hatch)' 'Environment: FILESAIL_LOG=error|warn|info|debug (default: info)'; exit 0 ;;
+        --help|-h) printf '%s\n' 'Usage: filesail [--path PATH] [PATH]' 'Options: --new-instance (temporary duplicate-host escape hatch)' 'Environment: FILESAIL_LOG=error|warn|info|debug (default: info)' 'Development transfer delay: FILESAIL_DEV_TRANSFER_DELAY_MS (default: 15; use 0 for native speed)'; exit 0 ;;
         --new-instance|--allow-duplicate) force_new_instance=true; shift ;;
         --ensure-window) ensure_window=true; shift ;;
         -*) printf 'filesail: unknown option: %s\\n' "$1" >&2; exit 2 ;;

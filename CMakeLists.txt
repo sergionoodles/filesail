@@ -146,6 +146,12 @@ if(FILESAIL_QUICKSHELL AND Python3_Interpreter_FOUND)
             ${FILESAIL_QUICKSHELL})
     set_tests_properties(theme-smoke PROPERTIES TIMEOUT 90)
 endif()
+if(Python3_Interpreter_FOUND)
+    add_test(NAME operation-cancellation
+        COMMAND ${Python3_EXECUTABLE} ${CMAKE_CURRENT_SOURCE_DIR}/tests/operation-cancellation-test.py
+            $<TARGET_FILE:filesail-backend>)
+    set_tests_properties(operation-cancellation PROPERTIES TIMEOUT 30)
+endif()
 if(FILESAIL_NOCTALIA)
     add_test(NAME noctalia-plugin-lint
         COMMAND ${FILESAIL_NOCTALIA} plugins lint

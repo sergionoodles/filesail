@@ -5,8 +5,8 @@ pkgdesc='Quickshell-native file manager'
 arch=('x86_64')
 url='https://github.com/sergionoodles/filesail'
 license=('MIT')
-depends=('hicolor-icon-theme' 'libarchive' 'qt6-base' 'quickshell' 'udisks2' 'xdg-utils')
-makedepends=('cmake' 'git' 'pkgconf')
+depends=('hicolor-icon-theme' 'libarchive' 'qt6-base' 'quickshell' 'udisks2' 'wayland' 'xdg-utils')
+makedepends=('cmake' 'git' 'pkgconf' 'wayland')
 checkdepends=('jq')
 # This follows main until the first release tag exists. Pin this to a release
 # tag or commit before publishing a stable AUR revision.

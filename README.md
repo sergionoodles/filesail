@@ -11,7 +11,8 @@ The current MVP scaffold includes:
 
 - details/list and icon-grid browsing;
 - breadcrumbs, editable address (`Ctrl+L`), back/forward/up, and filtering;
-- multi-selection, create folder, rename, copy, move, and Trash-by-default;
+- multi-selection, create folder, rename, desktop-interoperable Copy/Cut/Paste,
+  and Trash-by-default;
 - XDG default-application opening;
 - an optional preview pane for images, thumbnails, text, archives, and metadata;
 - persistent display preferences in `~/.config/filesail/config.json`;
@@ -40,6 +41,7 @@ To build from source, install:
 - Qt 6.6 or newer with the Core, Concurrent, and DBus components, including the
   Qt Wayland platform plugin;
 - `libarchive` and its development files;
+- Wayland client libraries and `wayland-scanner`;
 - `pkg-config` (or an equivalent `pkgconf` implementation); and
 - Quickshell.
 
@@ -71,8 +73,9 @@ source snapshot and leaves the repository `PKGBUILD` unchanged.
 cmake --install build
 ```
 
-This installs the `filesail` launcher, `filesail-cli`, backend, desktop entry,
-QML tree, and Noctalia app-theme bridge using CMake's configured install prefix.
+This installs the `filesail` launcher, `filesail-cli`, filesystem backend,
+`filesail-clipboard`, desktop entry, QML tree, and Noctalia app-theme bridge
+using CMake's configured install prefix.
 The checkout remains usable for Noctalia plugin development through
 `scripts/install-noctalia.sh`.
 
@@ -95,8 +98,8 @@ systemctl --user disable --now filesail-filemanager1.service
 ## Install from an Arch package
 
 `PKGBUILD` builds the standalone package and declares its runtime dependencies:
-`hicolor-icon-theme`, `libarchive`, `qt6-base`, `quickshell`, `udisks2`, and
-`xdg-utils`.
+`hicolor-icon-theme`, `libarchive`, `qt6-base`, `quickshell`, `udisks2`,
+`wayland`, and `xdg-utils`.
 Build and install it from the repository root with:
 
 ```sh
@@ -257,6 +260,20 @@ are preserved. If your config uses `[include] autoload = false`, include
 Set `enabled = false` on that template to stop automatic generation. FileSail
 keeps the last valid palette if Noctalia is unavailable or a write is incomplete.
 Without a host palette, FileSail uses Qt's system palette.
+
+## Desktop clipboard
+
+FileSail starts the installed `filesail-clipboard` helper while a browser is
+open. It uses Wayland data-control (preferring `ext-data-control-v1` and then
+`zwlr_data_control_manager_v1`) to publish and observe local-file selections;
+it does not create a focus-stealing helper window. Copy/Cut publish both
+`text/uri-list` and Nautilus-compatible `x-special/gnome-copied-files` data.
+
+If the compositor does not expose either data-control protocol, file browsing
+continues and the clipboard actions show an unavailable status. The helper
+requires a single unambiguous Wayland seat; set `FILESAIL_WAYLAND_SEAT` to the
+seat global name when a session exposes more than one. Clipboard persistence
+after all FileSail windows close depends on the desktop clipboard manager.
 
 The integration follows Noctalia's **app** mode (`theme.mode`). A separate
 `theme.shell_mode` override affects only Noctalia's shell, as specified by its

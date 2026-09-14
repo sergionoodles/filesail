@@ -70,9 +70,9 @@ QtObject {
         enabled: !root.modalActive
         onTriggered: root.session.setFoldersFirst(!root.session.directory.foldersFirst)
     }
-    property Action copyAction: Action { text: qsTr("Copy"); shortcut: "Ctrl+C"; enabled: !root.modalActive && root.session.selectedCount > 0; onTriggered: root.session.copySelection("copy") }
-    property Action moveAction: Action { text: qsTr("Move"); shortcut: "Ctrl+X"; enabled: !root.modalActive && root.session.selectedCount > 0; onTriggered: root.session.copySelection("move") }
-    property Action pasteAction: Action { text: qsTr("Paste"); shortcut: "Ctrl+V"; enabled: !root.modalActive && root.session.clipboardPaths.length > 0; onTriggered: root.session.paste() }
+    property Action copyAction: Action { text: qsTr("Copy"); shortcut: "Ctrl+C"; enabled: !root.modalActive && FileClipboard.available && root.session.selectedCount > 0; onTriggered: root.session.copySelection("copy") }
+    property Action moveAction: Action { text: qsTr("Cut"); shortcut: "Ctrl+X"; enabled: !root.modalActive && FileClipboard.available && root.session.selectedCount > 0; onTriggered: root.session.copySelection("move") }
+    property Action pasteAction: Action { text: qsTr("Paste"); shortcut: "Ctrl+V"; enabled: !root.modalActive && FileClipboard.ready; onTriggered: root.session.paste() }
     property Action selectAllAction: Action { text: qsTr("Select all"); shortcut: "Ctrl+A"; enabled: !root.modalActive; onTriggered: root.session.selectAllVisible() }
     property Action createAction: Action { text: qsTr("New folder"); shortcut: "Ctrl+Shift+N"; enabled: !root.modalActive; onTriggered: root.createRequested() }
     property Action renameAction: Action { text: qsTr("Rename"); shortcut: "Alt+R"; enabled: !root.modalActive && root.session.selectedCount === 1; onTriggered: root.renameRequested() }
@@ -84,7 +84,7 @@ QtObject {
     property Action openTerminalAction: Action {
         text: qsTr("Open Terminal Here"); enabled: !root.modalActive
         onTriggered: root.session.runOperation("terminal", { path: root.session.directory.path }, false,
-                                         qsTr("Terminal opened"), false, false)
+                                         qsTr("Terminal opened"), false)
     }
     property Action trashAction: Action { text: qsTr("Move to Trash"); shortcut: "Delete"; enabled: !root.modalActive && root.session.selectedCount > 0; onTriggered: root.trashRequested() }
     property Action infoAction: Action { text: qsTr("File info"); shortcut: "Ctrl+I"; enabled: !root.modalActive && root.session.selectedCount === 1; onTriggered: root.infoRequested() }

@@ -211,6 +211,7 @@ rm -f -- "$output_file"
         --appdir "$appdir" \
         --executable "$appdir/usr/bin/qs" \
         --executable "$appdir/usr/bin/filesail-backend" \
+        --executable "$appdir/usr/bin/filesail-clipboard" \
         --executable "$appdir/usr/bin/filesail-cli" \
         --plugin qt
 
@@ -229,6 +230,11 @@ rm -f -- "$output_file"
             fi
         done
     done
+
+    if ldd "$appdir/usr/bin/filesail-clipboard" | grep -q 'not found'; then
+        printf '%s\n' 'The AppImage clipboard helper has unresolved shared-library dependencies.' >&2
+        exit 1
+    fi
 
     ln -sfn -- usr/share/applications/dev.filesail.FileSail.desktop \
         "$appdir/dev.filesail.FileSail.desktop"

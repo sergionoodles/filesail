@@ -5,10 +5,12 @@ if [[ -n "${APPDIR:-}" && -d "$APPDIR/usr/share/filesail" ]]; then
     filesail_data_dir="$APPDIR/usr/share/filesail"
     filesail_qs_default="$APPDIR/usr/bin/qs"
     filesail_backend_default="$APPDIR/usr/bin/filesail-backend"
+    filesail_clipboard_default="$APPDIR/usr/bin/filesail-clipboard"
 else
     filesail_data_dir=@FILESAIL_INSTALL_DATADIR_SHELL@/filesail
     filesail_qs_default=""
     filesail_backend_default=@FILESAIL_INSTALL_BINDIR_SHELL@/filesail-backend
+    filesail_clipboard_default=@FILESAIL_INSTALL_BINDIR_SHELL@/filesail-clipboard
 fi
 
 if [[ -n "$filesail_qs_default" && -x "$filesail_qs_default" ]]; then
@@ -27,6 +29,7 @@ if [[ ! -x "$filesail_qs" ]]; then
 fi
 
 export FILESAIL_BACKEND="${FILESAIL_BACKEND:-$filesail_backend_default}"
+export FILESAIL_CLIPBOARD="${FILESAIL_CLIPBOARD:-$filesail_clipboard_default}"
 requested_path="${FILESAIL_PATH:-$HOME}"
 selection_json="${FILESAIL_SELECTION_JSON:-[]}"
 force_new_instance=false

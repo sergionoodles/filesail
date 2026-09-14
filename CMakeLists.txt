@@ -5,7 +5,7 @@ string(STRIP "${FILESAIL_VERSION}" FILESAIL_VERSION)
 if(NOT FILESAIL_VERSION MATCHES "^[0-9]+\\.[0-9]+\\.[0-9]+$")
     message(FATAL_ERROR "VERSION must contain a numeric major.minor.patch version")
 endif()
-project(FileSail VERSION ${FILESAIL_VERSION} LANGUAGES CXX)
+project(FileSail VERSION ${FILESAIL_VERSION} LANGUAGES C CXX)
 
 if(NOT CMAKE_SYSTEM_NAME STREQUAL "Linux")
     message(FATAL_ERROR "FileSail currently requires Linux filesystem primitives")
@@ -21,6 +21,34 @@ option(FILESAIL_BUILD_DBUS "Build the optional FileManager1 D-Bus service" OFF)
 find_package(Qt6 6.6 REQUIRED COMPONENTS Core Concurrent DBus)
 find_package(PkgConfig REQUIRED)
 pkg_check_modules(LIBARCHIVE REQUIRED IMPORTED_TARGET libarchive)
+pkg_check_modules(WAYLAND_CLIENT REQUIRED IMPORTED_TARGET wayland-client)
+find_program(WAYLAND_SCANNER REQUIRED NAMES wayland-scanner)
+
+set(FILESAIL_CLIPBOARD_PROTOCOL_DIR "${CMAKE_CURRENT_SOURCE_DIR}/src/clipboard/protocols")
+set(FILESAIL_CLIPBOARD_PROTOCOL_BUILD_DIR "${CMAKE_CURRENT_BINARY_DIR}/generated/clipboard")
+file(MAKE_DIRECTORY "${FILESAIL_CLIPBOARD_PROTOCOL_BUILD_DIR}")
+set(FILESAIL_CLIPBOARD_PROTOCOLS
+    ext-data-control-v1
+    wlr-data-control-unstable-v1)
+set(FILESAIL_CLIPBOARD_PROTOCOL_SOURCES)
+set(FILESAIL_CLIPBOARD_PROTOCOL_HEADERS)
+foreach(protocol IN LISTS FILESAIL_CLIPBOARD_PROTOCOLS)
+    if(protocol STREQUAL "ext-data-control-v1")
+        set(xml "${FILESAIL_CLIPBOARD_PROTOCOL_DIR}/ext-data-control-v1.xml")
+    else()
+        set(xml "${FILESAIL_CLIPBOARD_PROTOCOL_DIR}/wlr-data-control-unstable-v1.xml")
+    endif()
+    set(header "${FILESAIL_CLIPBOARD_PROTOCOL_BUILD_DIR}/${protocol}-client-protocol.h")
+    set(source "${FILESAIL_CLIPBOARD_PROTOCOL_BUILD_DIR}/${protocol}-protocol.c")
+    add_custom_command(
+        OUTPUT "${header}" "${source}"
+        COMMAND "${WAYLAND_SCANNER}" client-header "${xml}" "${header}"
+        COMMAND "${WAYLAND_SCANNER}" private-code "${xml}" "${source}"
+        DEPENDS "${xml}"
+        VERBATIM)
+    list(APPEND FILESAIL_CLIPBOARD_PROTOCOL_HEADERS "${header}")
+    list(APPEND FILESAIL_CLIPBOARD_PROTOCOL_SOURCES "${source}")
+endforeach()
 
 configure_file(
     src/backend/filesail_version.h.in
@@ -46,6 +74,22 @@ add_executable(filesail-backend
     src/backend/volumeservice.cpp
     src/backend/volumeservice.h
 )
+
+add_executable(filesail-clipboard
+    src/clipboard/main.cpp
+    src/clipboard/clipboardcodec.cpp
+    src/clipboard/clipboardcodec.h
+    src/clipboard/clipboardbridge.cpp
+    src/clipboard/clipboardbridge.h
+    ${FILESAIL_CLIPBOARD_PROTOCOL_SOURCES}
+    ${FILESAIL_CLIPBOARD_PROTOCOL_HEADERS}
+)
+set_source_files_properties(${FILESAIL_CLIPBOARD_PROTOCOL_SOURCES} PROPERTIES LANGUAGE C)
+target_include_directories(filesail-clipboard PRIVATE
+    ${CMAKE_CURRENT_BINARY_DIR}/generated/clipboard)
+target_link_libraries(filesail-clipboard PRIVATE Qt6::Core PkgConfig::WAYLAND_CLIENT)
+target_compile_options(filesail-clipboard PRIVATE
+    $<$<CXX_COMPILER_ID:GNU,Clang>:-Wall -Wextra -Wpedantic>)
 
 add_executable(filesail-cli src/cli/main.cpp)
 target_link_libraries(filesail-cli PRIVATE Qt6::Core)
@@ -113,7 +157,7 @@ configure_file(
     COPYONLY
 )
 
-install(TARGETS filesail-backend filesail-cli RUNTIME DESTINATION ${CMAKE_INSTALL_BINDIR})
+install(TARGETS filesail-backend filesail-cli filesail-clipboard RUNTIME DESTINATION ${CMAKE_INSTALL_BINDIR})
 if(FILESAIL_BUILD_DBUS)
     install(TARGETS filesail-filemanager1 RUNTIME DESTINATION ${CMAKE_INSTALL_BINDIR})
     install(FILES packaging/filesail-filemanager1.service
@@ -185,6 +229,20 @@ add_test(
     NAME cli-transport-smoke
     COMMAND bash ${CMAKE_CURRENT_SOURCE_DIR}/tests/cli-smoke.sh $<TARGET_FILE:filesail-cli>
 )
+add_executable(filesail-clipboard-codec-test
+    tests/clipboard-codec-test.cpp
+    src/clipboard/clipboardcodec.cpp
+    src/clipboard/clipboardcodec.h
+)
+target_include_directories(filesail-clipboard-codec-test PRIVATE src/clipboard)
+target_link_libraries(filesail-clipboard-codec-test PRIVATE Qt6::Core)
+target_compile_options(filesail-clipboard-codec-test PRIVATE
+    $<$<CXX_COMPILER_ID:GNU,Clang>:-Wall -Wextra -Wpedantic>)
+add_test(NAME clipboard-codec COMMAND filesail-clipboard-codec-test)
+add_test(
+    NAME clipboard-helper-protocol
+    COMMAND bash ${CMAKE_CURRENT_SOURCE_DIR}/tests/clipboard-helper-smoke.sh
+        $<TARGET_FILE:filesail-clipboard>)
 add_test(
     NAME noctalia-plugin-version-consistency
     COMMAND ${CMAKE_COMMAND}

@@ -95,9 +95,15 @@ QtObject {
     }
 
     function retainRecovery(message, method) {
-        if (!Array.isArray(message.recovery) || message.recovery.length === 0)
+        const recovery = Array.isArray(message.recovery) ? message.recovery : [];
+        const partial = Array.isArray(message.partial) ? message.partial.map(record => Object.assign({}, record, {
+            kind: "partialSourceCleanup",
+            error: qsTr("Destination committed but source cleanup did not finish")
+        })) : [];
+        const records = recovery.concat(partial);
+        if (records.length === 0)
             return;
-        const added = message.recovery.map(record => Object.assign({}, record, {
+        const added = records.map(record => Object.assign({}, record, {
             operationId: message.id, method
         }));
         recoveryRecords = recoveryRecords.concat(added);

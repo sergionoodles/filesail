@@ -22,6 +22,12 @@ QtObject {
         function onOperationLeasesChanged() { root.quitIfIdle(); }
     }
 
+    property Connections clipboardLeaseConnections: Connections {
+        target: FileClipboard
+        function onOperationLeasesChanged() { root.quitIfIdle(); }
+        function onPendingRevisionChanged() { root.quitIfIdle(); }
+    }
+
     function normalizedPath(requested) {
         // Do not trim non-empty paths: leading/trailing spaces can be valid
         // filename bytes. The backend remains the canonical path authority.
@@ -107,7 +113,8 @@ QtObject {
     }
 
     function quitIfIdle() {
-        if (root.windowCount === 0 && BackendClient.operationLeases === 0)
+        if (root.windowCount === 0 && BackendClient.operationLeases === 0
+                && !FileClipboard.shouldRun)
             Qt.quit();
     }
 

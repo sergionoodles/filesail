@@ -234,6 +234,7 @@ Rectangle {
                 selectedCount: session.selectedCount
                 clipboardCount: session.clipboardPaths.length
                 clipboardMode: session.clipboardMode
+                clipboardState: FileClipboard.state
             }
         }
     }

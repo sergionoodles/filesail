@@ -51,6 +51,26 @@ and the supported eject/power-off step without forced unmounts. Short-lived
 removal reservations reject overlapping FileSail mutations. UDisks2 absence is
 nonfatal and is represented by an unavailable volume snapshot.
 
+## Desktop clipboard
+
+`filesail-clipboard` is a long-lived Qt Core helper, separate from Quickshell
+and the filesystem backend. It owns a Wayland data-control selection when the
+desktop exposes `ext-data-control-v1`, falling back to
+`zwlr_data_control_manager_v1` without branching on compositor names. The
+helper publishes and reads `text/uri-list` and
+`x-special/gnome-copied-files`, validates local file URIs, and communicates
+with QML over bounded request-ID NDJSON. It never creates a helper window or
+reads arbitrary clipboard text.
+
+`FileClipboard.qml` is the shared cache/coordinator used by every browser
+session in the QML engine. The desktop selection remains authoritative: tokens
+are used to reject stale asynchronous pastes, and only a still-owned FileSail
+selection may be conditionally pruned after a completed Cut. Filesystem safety
+and transfer completion remain the backend's responsibility. When data-control
+is unavailable, the coordinator exposes an unavailable state without affecting
+directory browsing. See [the clipboard implementation plan](clipboard-plan.md)
+for codec, protocol, and desktop verification details.
+
 Unlock passphrases use a direct, non-replayable backend request: QML never queues
 the serialized request and clears its password field on submit or close, while
 the backend never logs or snapshots it. QML/JavaScript and Qt strings do not

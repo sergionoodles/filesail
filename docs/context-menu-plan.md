@@ -1,5 +1,9 @@
 # Consistent context menus: implementation plan
 
+The desktop clipboard portion is implemented separately in
+[clipboard-plan.md](clipboard-plan.md). This document remains the context-menu
+design and should not be used as an inventory of clipboard implementation.
+
 Status: draft for review. This document proposes future work; it does not implement it.
 
 ## Objective and scope
@@ -25,9 +29,9 @@ Follow [the architecture](architecture.md) and the repository's `AGENTS.md`.
 - `BrowserActions.qml` already centralizes many toolbar actions and shortcuts.
   Its commands mostly read live session selection or the current directory;
   they cannot yet safely represent a different context-menu target.
-- `BrowserSession.qml` owns selection, filesystem command dispatch, and a
-  session-local path clipboard. Paste always targets the current directory.
-  Separate browser sessions do not currently share that clipboard.
+- `BrowserSession.qml` owns selection and filesystem command dispatch. Shared
+  desktop clipboard state is provided by `FileClipboard.qml`; context-menu
+  targeting remains local to the browser session.
 - `FileListView.qml` accepts both mouse buttons but applies the same selection
   logic to either. Its double-click handler is not restricted to the left button.
 - `FileGridView.qml` routes pointer selection through `SelectionMarquee.qml`,
@@ -151,10 +155,15 @@ authoritative even when a menu was enabled a moment earlier.
 
 ### Clipboard and destination semantics
 
-- Introduce a shared clipboard service for FileSail windows and integrate with the
-  desktop clipboard's local-file URI and copy/cut representations. Verify the
-  available Qt/Quickshell API and interoperability formats during implementation;
-  keep any platform bridge out of compositor-specific UI code.
+See [the clipboard implementation plan](clipboard-plan.md) for the native
+Wayland bridge, MIME codec, shared coordinator, and verification contract.
+The context-menu rules below only describe menu targeting and destination
+capture.
+
+- The shared desktop clipboard service, native Wayland bridge, and local-file
+  URI/copy-cut representations are implemented in
+  [clipboard-plan.md](clipboard-plan.md). Keep the platform bridge out of
+  compositor-specific UI code as future context-menu actions are added.
 - Snapshot clipboard content at command activation. Reject unsupported/nonlocal
   URI inputs with a useful explanation. Preserve spaces, Unicode, and literal
   filename characters through URI encoding; never construct shell commands.

@@ -9,6 +9,7 @@ Rectangle {
     property int selectedCount: 0
     property int clipboardCount: 0
     property string clipboardMode: "copy"
+    property string clipboardState: "empty"
 
     implicitHeight: 30 * Theme.scale
     color: Theme.surface
@@ -24,8 +25,12 @@ Rectangle {
             font.pixelSize: Theme.fontSmall
         }
         Text {
-            text: root.clipboardCount > 0 ? `${root.clipboardMode === "move" ? "Move" : "Copy"} buffer: ${root.clipboardCount}` : ""
-            color: Theme.primary
+            text: root.clipboardCount > 0
+                ? `${root.clipboardMode === "cut" ? "Cut" : "Copy"} buffer: ${root.clipboardCount}`
+                : root.clipboardState === "unavailable" ? qsTr("Clipboard unavailable")
+                : root.clipboardState === "unsupported" ? qsTr("Clipboard is not a file selection")
+                : root.clipboardState === "reading" ? qsTr("Reading clipboard…") : ""
+            color: root.clipboardState === "unavailable" ? Theme.textMuted : Theme.primary
             font.pixelSize: Theme.fontSmall
         }
     }

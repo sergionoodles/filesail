@@ -114,7 +114,7 @@ Item {
                                   true,
                                   executable ? qsTr("Executable permission enabled")
                                              : qsTr("Executable permission removed"),
-                                  false, false);
+                                  false);
     }
 
     onEntryChanged: syncExecutableSwitch()

@@ -42,7 +42,7 @@ Item {
                 model: root.session.directory.entries
                 onContextMenuRequested: (entry, x, y) => {
                     const point = listLoader.item.mapToItem(root, x, y);
-                    root.contextMenuRequested(entry, false, point.x, point.y);
+                    root.contextMenuRequested(entry, !entry, point.x, point.y);
                 }
             }
         }
@@ -57,7 +57,7 @@ Item {
                 model: root.session.directory.entries
                 onContextMenuRequested: (entry, x, y) => {
                     const point = gridLoader.item.mapToItem(root, x, y);
-                    root.contextMenuRequested(entry, false, point.x, point.y);
+                    root.contextMenuRequested(entry, !entry, point.x, point.y);
                 }
             }
         }

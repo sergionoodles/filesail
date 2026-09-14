@@ -4,6 +4,7 @@ set -euo pipefail
 script_path="$(readlink -f -- "${BASH_SOURCE[0]}")"
 project_dir="$(cd -- "$(dirname -- "$script_path")/.." && pwd)"
 backend="${FILESAIL_BACKEND:-$project_dir/build/filesail-backend}"
+clipboard="${FILESAIL_CLIPBOARD:-$project_dir/build/filesail-clipboard}"
 
 if [[ ! -x "$backend" ]]; then
     printf 'FileSail backend not found at %s\nRun: cmake -S . -B build && cmake --build build\n' "$backend" >&2
@@ -11,6 +12,7 @@ if [[ ! -x "$backend" ]]; then
 fi
 
 export FILESAIL_BACKEND="$backend"
+export FILESAIL_CLIPBOARD="$clipboard"
 # Development launches intentionally make transfer progress observable. The
 # installed launcher does not set this hook, and developers can restore native
 # speed with FILESAIL_DEV_TRANSFER_DELAY_MS=0.

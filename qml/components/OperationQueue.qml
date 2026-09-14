@@ -57,7 +57,11 @@ ColumnLayout {
         if (paths.length === 1)
             return fileName(paths[0]);
         if (paths.length > 1)
-            return qsTr("%1 items").arg(paths.length);
+            return qsTr("%1 and %2 more").arg(fileName(paths[0])).arg(paths.length - 1);
+        if (typeof operation.path === "string" && operation.path.length > 0)
+            return fileName(operation.path);
+        if (typeof operation.name === "string" && operation.name.length > 0)
+            return Format.safeText(operation.name);
         return operation.targetDirectory ? fileName(operation.targetDirectory) : qsTr("Working");
     }
 
@@ -432,9 +436,13 @@ ColumnLayout {
                             readOnly: true
                             selectByMouse: true
                             wrapMode: TextEdit.Wrap
-                            text: qsTr("%1\nRecovery path: %2\n%3")
+                            text: qsTr("%1\n%2\n%3")
                                 .arg(Format.safeText(recoveryDelegate.modelData.kind ?? qsTr("Recovery failed")))
-                                .arg(Format.safeText(recoveryDelegate.modelData.recoveryPath ?? ""))
+                                .arg(recoveryDelegate.modelData.recoveryPath
+                                    ? qsTr("Recovery path: %1").arg(Format.safeText(recoveryDelegate.modelData.recoveryPath))
+                                    : recoveryDelegate.modelData.destination
+                                        ? qsTr("Destination: %1").arg(Format.safeText(recoveryDelegate.modelData.destination))
+                                        : "")
                                 .arg(Format.safeText(recoveryDelegate.modelData.error ?? ""))
                             color: Theme.text
                             selectionColor: Theme.selectionFill

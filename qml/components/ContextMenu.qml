@@ -51,7 +51,7 @@ Menu {
         text: root.actions.openTerminalAction.text
         enabled: root.actions.openTerminalAction.enabled
         visible: root.backgroundContext || root.entry?.isDirectory
-        onTriggered: root.session.runOperation("terminal", { path: root.targetDirectory }, false, qsTr("Terminal opened"), false, false)
+        onTriggered: root.session.runOperation("terminal", { path: root.targetDirectory }, false, qsTr("Terminal opened"), false)
     }
 
     MenuSeparator {
@@ -78,7 +78,7 @@ Menu {
         onTriggered: root.actions.copyAction.trigger()
     }
     ThemedMenuItem {
-        text: qsTr("Cut")
+        text: root.actions.moveAction.text
         visible: !root.backgroundContext
         enabled: root.actions.moveAction.enabled
         onTriggered: root.actions.moveAction.trigger()
@@ -87,7 +87,7 @@ Menu {
         text: root.actions.pasteAction.text
         visible: root.backgroundContext
         enabled: root.actions.pasteAction.enabled
-        onTriggered: root.session.paste()
+        onTriggered: root.session.paste(root.targetDirectory)
     }
 
     MenuSeparator {

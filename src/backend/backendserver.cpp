@@ -665,6 +665,8 @@ QJsonObject BackendServer::operationSnapshot(const MutationJob &job) const
         operation.insert("path", job.params.value("path"));
     if (job.params.value("parent").isString())
         operation.insert("parent", job.params.value("parent"));
+    if (job.params.value("name").isString())
+        operation.insert("name", job.params.value("name"));
     if (job.params.value("targetDirectory").isString())
         operation.insert("targetDirectory", job.params.value("targetDirectory"));
     return operation;

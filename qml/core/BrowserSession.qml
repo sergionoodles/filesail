@@ -13,13 +13,14 @@ QtObject {
     property string selectionAnchorPath: ""
     property var selectedEntries: []
     property int selectionRevision: 0
-    property var clipboardPaths: []
-    property string clipboardMode: "copy"
-    property int clipboardRevision: 0
+    readonly property var clipboardPaths: FileClipboard.paths
+    readonly property string clipboardMode: FileClipboard.mode
+    readonly property int clipboardRevision: FileClipboard.generation
     property int pendingHistoryTarget: 0
     property var activeOperations: ({})
     property bool backendSessionAcquired: false
     property bool sessionAlive: true
+    property bool clipboardSessionAcquired: false
     property var preparedMountPoints: []
     readonly property int selectedCount: Object.keys(selectedPaths).length
     readonly property alias directory: directoryModel
@@ -220,16 +221,11 @@ QtObject {
             runOperation("open", { path }, false, "Opened with the default application");
     }
 
-    function runOperation(method, params, refreshAfter, successMessage, clearClipboardOnSuccess,
-                          clearSelectionOnSuccess) {
+    function runOperation(method, params, refreshAfter, successMessage, clearSelectionOnSuccess) {
         const originPath = directoryModel.path;
         const selectionSnapshot = Object.keys(selectedPaths);
         const operationPaths = Array.isArray(params.paths)
             ? params.paths.slice() : params.path ? [params.path] : [];
-        const clipboardRevisionAtStart = clipboardRevision;
-        const usesClipboard = (method === "copy" || method === "move")
-            && clipboardPaths.length === operationPaths.length
-            && clipboardPaths.every((path, index) => path === operationPaths[index]);
         let operationId = -1;
         const detach = () => {
             if (!root.sessionAlive || operationId < 0)
@@ -242,11 +238,6 @@ QtObject {
             detach();
             if (!root.sessionAlive)
                 return;
-            if ((clearClipboardOnSuccess ?? false)
-                    && root.clipboardRevision === clipboardRevisionAtStart) {
-                root.clipboardPaths = [];
-                root.clipboardRevision++;
-            }
             if (refreshAfter && directoryModel.path === originPath)
                 directoryModel.refresh("refresh");
             if ((clearSelectionOnSuccess ?? true) && directoryModel.path === originPath)
@@ -261,7 +252,7 @@ QtObject {
             const partial = result && result.partial ? result.partial.length : 0;
             const recovery = result && result.recovery ? result.recovery.length : 0;
             const cancelled = result && result.errorCode === "cancelled";
-            const changed = completed + partial;
+            const changed = completed;
             let suffix = completed > 0
                 ? ` (${completed} item(s) completed before the error)` : "";
             if (partial > 0)
@@ -275,14 +266,9 @@ QtObject {
             if (changed > 0 && directoryModel.path === originPath) {
                 root.removeFromSelection(operationPaths.slice(0, changed));
             }
-            if (changed > 0 && usesClipboard
-                    && root.clipboardRevision === clipboardRevisionAtStart) {
-                root.clipboardPaths = operationPaths.slice(changed);
-                root.clipboardRevision++;
-            }
             if (cancelled) {
                 const label = method === "copy" ? qsTr("Copy")
-                    : method === "move" ? qsTr("Move")
+                    : method === "move" ? qsTr("Cut")
                     : method === "trash" ? qsTr("Remove") : qsTr("Operation");
                 root.noticeRequested(qsTr("%1 cancelled; %2 item(s) completed")
                     .arg(label).arg(completed) + suffix, false);
@@ -330,20 +316,38 @@ QtObject {
     function copySelection(mode) {
         if (selectedCount === 0)
             return;
-        clipboardPaths = Object.keys(selectedPaths);
-        clipboardMode = mode;
-        clipboardRevision++;
-        noticeRequested(mode === "move" ? "Ready to move selection" : "Copied selection", false);
+        const paths = Object.keys(selectedPaths);
+        FileClipboard.publish(paths, mode === "move" ? "cut" : "copy", () => {
+            root.noticeRequested(mode === "move" ? "Ready to cut selection" : "Copied selection", false);
+        }, message => root.noticeRequested(message, true));
     }
 
-    function paste() {
-        if (clipboardPaths.length === 0)
-            return;
-        runOperation(clipboardMode, {
-            paths: clipboardPaths,
-            targetDirectory: directoryModel.path
-        }, true, clipboardMode === "move" ? "Moved into this folder" : "Copied into this folder",
-        clipboardMode === "move");
+    function paste(destination) {
+        const target = String(destination ?? directoryModel.path);
+        FileClipboard.beginPaste(target, (operationId, record) => {
+            const next = Object.assign({}, root.activeOperations);
+            next[operationId] = record.mode === "cut" ? "move" : "copy";
+            root.activeOperations = next;
+        }, (result, success, record) => {
+            if (!root.sessionAlive)
+                return;
+            const next = Object.assign({}, root.activeOperations);
+            delete next[record.operationId];
+            root.activeOperations = next;
+            const completed = result && result.ok ? record.paths.length
+                : Array.isArray(result?.completed) ? result.completed.length : 0;
+            if (directoryModel.path === record.destination) {
+                directoryModel.refresh("refresh");
+                if (completed > 0)
+                    root.removeFromSelection(record.paths.slice(0, completed));
+            }
+            if (success)
+                root.noticeRequested(record.mode === "cut" ? "Moved into this folder" : "Copied into this folder", false);
+            else if (result.errorCode === "cancelled")
+                root.noticeRequested(`${record.mode === "cut" ? "Cut" : "Copy"} cancelled; ${completed} item(s) completed`, false);
+            else
+                root.noticeRequested(result.error ?? "Paste failed", true);
+        }, message => root.noticeRequested(message, true));
     }
 
     function pathInMounts(path, mountPoints) {
@@ -365,11 +369,6 @@ QtObject {
                       || pathInMounts(directoryModel.requestedPath, mountPoints);
         if (success) {
             navigationController.pruneMountPoints(mountPoints);
-            const remainingClipboard = clipboardPaths.filter(path => !pathInMounts(path, mountPoints));
-            if (remainingClipboard.length !== clipboardPaths.length) {
-                clipboardPaths = remainingClipboard;
-                clipboardRevision++;
-            }
             preparedMountPoints = [];
             if (affected) {
                 directoryModel.removalPaused = false;
@@ -439,6 +438,8 @@ QtObject {
     Component.onCompleted: {
         BackendClient.acquireSession();
         backendSessionAcquired = true;
+        FileClipboard.acquireSession();
+        clipboardSessionAcquired = true;
     }
 
     Component.onDestruction: {
@@ -454,6 +455,10 @@ QtObject {
         if (backendSessionAcquired) {
             BackendClient.releaseSession();
             backendSessionAcquired = false;
+        }
+        if (clipboardSessionAcquired) {
+            FileClipboard.releaseSession();
+            clipboardSessionAcquired = false;
         }
     }
 }

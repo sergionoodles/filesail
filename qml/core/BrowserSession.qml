@@ -218,7 +218,7 @@ QtObject {
         if (isDirectory)
             navigationController.navigate(path);
         else
-            runOperation("open", { path }, false, "Opened with the default application");
+            runOperation("open", { path }, false, "");
     }
 
     function runOperation(method, params, refreshAfter, successMessage, clearSelectionOnSuccess) {
@@ -242,7 +242,8 @@ QtObject {
                 directoryModel.refresh("refresh");
             if ((clearSelectionOnSuccess ?? true) && directoryModel.path === originPath)
                 root.removeFromSelection(selectionSnapshot);
-            root.noticeRequested(successMessage, false);
+            if (successMessage)
+                root.noticeRequested(successMessage, false);
         };
         const failed = (message, result) => {
             detach();

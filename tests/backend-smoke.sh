@@ -190,6 +190,106 @@ for _ in {1..20}; do
 done
 [[ $(<"$terminal_output") == "$test_dir" ]]
 
+# Opening files uses the desktop default with a plain local path and reports
+# launcher failures instead of a false success. Handler detection is skipped
+# when xdg-mime is not on PATH so the fake xdg-open below is exercised.
+mkdir -p -- "$test_dir/fakebin" "$test_dir/emptybin" "$test_dir/data/applications"
+printf '#!/bin/sh\nprintf "%%s\\n" "$@" > "$FILESAIL_OPEN_ARGS"\nexit 0\n' > "$test_dir/fakebin/xdg-open"
+chmod +x -- "$test_dir/fakebin/xdg-open"
+printf 'open me' > "$test_dir/open target.txt"
+open_response="$(FILESAIL_OPEN_ARGS="$test_dir/open-args" PATH="$test_dir/fakebin" "$backend" --serve <<<"{\"id\":70,\"method\":\"open\",\"params\":{\"path\":\"$test_dir/open target.txt\"}}")"
+jq -e '.id == 70 and .ok == true' <<<"$open_response" >/dev/null
+[[ $(wc -l <"$test_dir/open-args") == 1 && $(<"$test_dir/open-args") == "$test_dir/open target.txt" ]]
+
+printf '#!/bin/sh\necho "xdg-open: no method available" >&2\nexit 4\n' > "$test_dir/fakebin/xdg-open"
+open_failure="$(PATH="$test_dir/fakebin" "$backend" --serve <<<"{\"id\":71,\"method\":\"open\",\"params\":{\"path\":\"$test_dir/open target.txt\"}}")"
+jq -e '.id == 71 and .ok == false and (.error | contains("xdg-open"))' <<<"$open_failure" >/dev/null
+
+open_missing="$(PATH="$test_dir/emptybin" "$backend" --serve <<<"{\"id\":72,\"method\":\"open\",\"params\":{\"path\":\"$test_dir/open target.txt\"}}")"
+jq -e '.id == 72 and .ok == false and (.error | contains("xdg-open or gio"))' <<<"$open_missing" >/dev/null
+
+open_nonexistent="$(PATH="$test_dir/fakebin" "$backend" --serve <<<"{\"id\":73,\"method\":\"open\",\"params\":{\"path\":\"$test_dir/no-such-file\"}}")"
+jq -e '.id == 73 and .ok == false and (.error | type == "string")' <<<"$open_nonexistent" >/dev/null
+
+# Terminal-based default applications (Terminal=true) cannot run attached to
+# the backend stdio, so they are wrapped in the user's terminal emulator.
+printf '#!/bin/sh\nexit 0\n' > "$test_dir/fakebin/fake-editor"
+chmod +x -- "$test_dir/fakebin/fake-editor"
+printf '#!/bin/sh\nprintf "%%s\\n" "$@" > "$FILESAIL_OPEN_ARGS"\nexit 0\n' > "$test_dir/fakebin/fake-terminal"
+chmod +x -- "$test_dir/fakebin/fake-terminal"
+cat > "$test_dir/data/applications/fake-term-app.desktop" <<'DESKTOP_EOF'
+[Desktop Entry]
+Name=Fake Terminal Editor
+Exec=fake-editor %F
+Terminal=true
+Type=Application
+MimeType=text/plain;
+DESKTOP_EOF
+mkdir -p -- "$XDG_CONFIG_HOME"
+printf '[Default Applications]\ntext/plain=fake-term-app.desktop\n' > "$XDG_CONFIG_HOME/mimeapps.list"
+terminal_open="$(FILESAIL_OPEN_ARGS="$test_dir/terminal-open-args" PATH="$test_dir/fakebin:/usr/bin:/bin" XDG_DATA_HOME="$test_dir/data" TERMINAL=fake-terminal "$backend" --serve <<<"{\"id\":74,\"method\":\"open\",\"params\":{\"path\":\"$test_dir/open target.txt\"}}")"
+jq -e '.id == 74 and .ok == true' <<<"$terminal_open" >/dev/null
+mapfile -t open_argv < "$test_dir/terminal-open-args"
+[[ ${#open_argv[@]} == 3 && ${open_argv[0]} == -e && ${open_argv[1]} == fake-editor && ${open_argv[2]} == "$test_dir/open target.txt" ]]
+
+# Defaults are resolved the Nautilus way: GIO first (it also falls back
+# across MIME subclasses where xdg-mime reports no default, e.g. markdown),
+# then xdg-mime. The terminal comes from xdg-terminals.list so a configured
+# default terminal is honored with its own execution argument.
+cat > "$test_dir/fakebin/gio" <<'GIO_EOF'
+#!/bin/sh
+if [ "$1" = "mime" ]; then
+  printf 'Default application for "%s": fake-term-app.desktop\n' "$2"
+  exit 0
+fi
+exit 1
+GIO_EOF
+chmod +x -- "$test_dir/fakebin/gio"
+cat > "$test_dir/data/applications/fake-term-terminal.desktop" <<'DESKTOP_EOF'
+[Desktop Entry]
+Name=Fake Terminal
+TryExec=fake-term-bin
+Exec=fake-term-bin --single-instance
+Categories=System;TerminalEmulator;
+X-TerminalArgExec=--cmd
+Type=Application
+DESKTOP_EOF
+printf '#!/bin/sh\nprintf "%%s\\n" "$@" > "$FILESAIL_OPEN_ARGS"\nexit 0\n' > "$test_dir/fakebin/fake-term-bin"
+chmod +x -- "$test_dir/fakebin/fake-term-bin"
+mkdir -p -- "$test_dir/termconfig"
+printf 'fake-term-terminal.desktop\n' > "$test_dir/termconfig/xdg-terminals.list"
+config_terminal_open="$(FILESAIL_OPEN_ARGS="$test_dir/config-terminal-args" PATH="$test_dir/fakebin" XDG_DATA_HOME="$test_dir/data" XDG_CONFIG_HOME="$test_dir/termconfig" "$backend" --serve <<<"{\"id\":75,\"method\":\"open\",\"params\":{\"path\":\"$test_dir/open target.txt\"}}")"
+jq -e '.id == 75 and .ok == true' <<<"$config_terminal_open" >/dev/null
+mapfile -t open_argv < "$test_dir/config-terminal-args"
+[[ ${#open_argv[@]} == 4 && ${open_argv[0]} == --single-instance && ${open_argv[1]} == --cmd && ${open_argv[2]} == fake-editor && ${open_argv[3]} == "$test_dir/open target.txt" ]]
+
+# Without terminal config, the GNOME default terminal is used when available.
+mkdir -p -- "$test_dir/emptyconfig"
+cat > "$test_dir/fakebin/gsettings" <<'GSETTINGS_EOF'
+#!/bin/sh
+if [ "$1" = "get" ]; then
+  printf "'fake-settings-term'\n"
+  exit 0
+fi
+exit 1
+GSETTINGS_EOF
+chmod +x -- "$test_dir/fakebin/gsettings"
+printf '#!/bin/sh\nprintf "%%s\\n" "$@" > "$FILESAIL_OPEN_ARGS"\nexit 0\n' > "$test_dir/fakebin/fake-settings-term"
+chmod +x -- "$test_dir/fakebin/fake-settings-term"
+settings_terminal_open="$(FILESAIL_OPEN_ARGS="$test_dir/settings-terminal-args" PATH="$test_dir/fakebin" XDG_DATA_HOME="$test_dir/data" XDG_CONFIG_HOME="$test_dir/emptyconfig" "$backend" --serve <<<"{\"id\":76,\"method\":\"open\",\"params\":{\"path\":\"$test_dir/open target.txt\"}}")"
+jq -e '.id == 76 and .ok == true' <<<"$settings_terminal_open" >/dev/null
+mapfile -t open_argv < "$test_dir/settings-terminal-args"
+[[ ${#open_argv[@]} == 3 && ${open_argv[0]} == -e && ${open_argv[1]} == fake-editor && ${open_argv[2]} == "$test_dir/open target.txt" ]]
+
+# Like Nautilus/GLib, the standard xdg-terminal-exec launcher takes
+# precedence over a TERMINAL override so both pick the same terminal.
+printf '#!/bin/sh\nprintf "%%s\\n" "$@" > "$FILESAIL_OPEN_ARGS"\nexit 0\n' > "$test_dir/fakebin/xdg-terminal-exec"
+chmod +x -- "$test_dir/fakebin/xdg-terminal-exec"
+standard_terminal_open="$(FILESAIL_OPEN_ARGS="$test_dir/standard-terminal-args" PATH="$test_dir/fakebin" XDG_DATA_HOME="$test_dir/data" XDG_CONFIG_HOME="$test_dir/emptyconfig" TERMINAL=fake-terminal "$backend" --serve <<<"{\"id\":77,\"method\":\"open\",\"params\":{\"path\":\"$test_dir/open target.txt\"}}")"
+jq -e '.id == 77 and .ok == true' <<<"$standard_terminal_open" >/dev/null
+mapfile -t open_argv < "$test_dir/standard-terminal-args"
+[[ ${#open_argv[@]} == 2 && ${open_argv[0]} == fake-editor && ${open_argv[1]} == "$test_dir/open target.txt" ]]
+
 # Mutation activity is reported as ordered backend events while the original
 # request still receives its normal terminal response. The second copy stays
 # queued behind the first because mutations are dispatched FIFO.

@@ -24,6 +24,30 @@ QtObject {
     property var requestBatches: ({})
     readonly property int activeJobs: revision >= 0 ? Object.keys(requests).length : 0
 
+    property Connections backendEvents: Connections {
+        target: BackendClient
+        function onEventReceived(event, message) {
+            if (event === "thumbnailReady")
+                root.handleThumbnailEvent(message)
+        }
+        function onBackendStopped(message) {
+            for (const requestId of Object.keys(requestBatches))
+                requestBatches[requestId].forEach(root.markError)
+            requestBatches = ({})
+            requests = ({})
+            revision++
+        }
+    }
+
+    function markError(requestKey) {
+        const record = results[requestKey];
+        if (record && record.state !== "ready") {
+            record.state = "error";
+            record.url = "";
+            record.revision++;
+        }
+    }
+
     function key(entry, flavor) {
         return `${entry.path}|${entry.size}|${entry.modified}|${flavor}`;
     }
@@ -151,6 +175,50 @@ QtObject {
         }
     }
 
+    function recordResults(requestId, batch, result) {
+        if (!requestBatches[requestId]) return;
+        const byPath = ({ });
+        for (let index = 0; index < batch.length; ++index)
+            byPath[batch[index].entry.path] = batch[index];
+        const returnedItems = result.items || [];
+        for (let index = 0; index < returnedItems.length; ++index) {
+            const item = returnedItems[index];
+            const match = byPath[item.path];
+            const parts = String(item.fingerprint ?? "").split(":");
+            const size = Number(parts[0]);
+            const modified = match ? Date.parse(String(match.entry.modified || "")) : 0;
+            if (!match || parts.length !== 2 || requests[match.key] !== requestId || !results[match.key]
+                    || !Number.isFinite(size) || !Number.isFinite(modified)
+                    || size !== Number(match.entry.size) || Number(parts[1]) !== modified)
+                continue;
+            const record = results[match.key];
+            const state = item.status ?? "unsupported";
+            const url = state === "ready" ? (item.url ?? "") : "";
+            if (record.state === state && record.url === url) continue;
+            record.state = state;
+            record.url = url;
+            record.revision++;
+            if (record.state === "ready" && record.consumers === 0) record.lease = false;
+        }
+        grantLeases();
+    }
+
+    function handleThumbnailEvent(message) {
+        const requestId = Number(message.requestId);
+        const batch = requestBatches[requestId];
+        if (!batch) return;
+        const activeItems = [];
+        for (let index = 0; index < batch.length; ++index) {
+            const key = batch[index];
+            if (results[key] && requests[key] === requestId)
+                activeItems.push({ key, entry: results[key].entry });
+        }
+        if (activeItems.length === 0) return;
+        recordResults(requestId, activeItems, message);
+        trim();
+        revision++;
+    }
+
     function grantLeases() {
         const candidates = Object.keys(results).map(requestKey => results[requestKey])
             .filter(record => record.state === "ready" && !record.lease && record.consumers > 0)
@@ -185,6 +253,10 @@ QtObject {
                     flavor, priority,
                     result => completeBatch(requestId, batch, flavor, result),
                     message => failBatch(requestId, batch, message));
+                if (requestId < 0) {
+                    for (const item of batch) markError(item.key);
+                    continue;
+                }
                 for (const item of batch) requests[item.key] = requestId;
                 requestBatches[requestId] = batch.map(item => item.key);
             }
@@ -193,29 +265,24 @@ QtObject {
     }
 
     function completeBatch(requestId, batch, flavor, result) {
-        clearRequest(requestId, batch.map(item => item.key), false);
-        const byPath = ({ });
-        for (const item of batch) byPath[item.entry.path] = item;
-        for (const item of result.items ?? []) {
-            const match = byPath[item.path];
-            if (!match || !results[match.key]) continue;
-            const record = results[match.key];
-            record.state = item.status ?? "unsupported";
-            record.url = item.url ?? "";
-            record.revision++;
-            if (record.state === "ready" && record.consumers === 0) record.lease = false;
+        if (!requestBatches[requestId]) return;
+        recordResults(requestId, batch, result);
+        for (const item of batch) {
+            if (requests[item.key] !== requestId) continue;
+            if (results[item.key] && results[item.key].state === "loading") markError(item.key);
         }
+        clearRequest(requestId, batch.map(item => item.key), false);
         grantLeases();
         trim();
         revision++;
     }
 
     function failBatch(requestId, batch, message) {
-        clearRequest(requestId, batch.map(item => item.key), false);
+        if (!requestBatches[requestId]) return;
         for (const item of batch) {
-            const record = results[item.key];
-            if (record) { record.state = "error"; record.revision++; }
+            if (requests[item.key] === requestId) markError(item.key);
         }
+        clearRequest(requestId, batch.map(item => item.key), false);
         Logger.warn("preview", `thumbnailBatch failed: ${message}`);
         revision++;
     }

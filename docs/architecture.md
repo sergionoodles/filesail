@@ -28,8 +28,8 @@ boundary has two advantages:
 
 The primary protocol methods are `list`, `mkdir`, `rename`, `trash`, `copy`,
 `move`, `setExecutable`, and `open`. Requests carry numeric IDs. Directory
-entries include symbolic `permissions`, effective `isExecutable` state, and a
-`created` timestamp for the file info view. `watch` and `unwatch` manage
+entries include symbolic `permissions`, effective `isExecutable` state, a
+`created` timestamp, and readable image dimensions. `watch` and `unwatch` manage
 explicit, reference-counted directory subscriptions; `QFileSystemWatcher`
 events are emitted immediately and each directory model debounces its own
 refreshes.
@@ -38,7 +38,13 @@ refreshes.
 serve the preview providers. `PreviewService` is created on demand and released
 after its jobs finish and an idle timeout expires. Text and archive reads run
 on the read pool with bounded output; thumbnails use the session's external
-thumbnailer and cache. `cancelPreview` and `cancel` cancel eligible read and
+thumbnailer and shared freedesktop cache. Cache candidates are accepted only
+after bounded worker-side PNG validation of `Thumb::URI`, `Thumb::MTime`, and
+optional `Thumb::Size`, plus a source-fingerprint recheck. `thumbnailBatch`
+remains a normal final response; clients may opt into additive
+`thumbnailReady` events, which carry no response ID and never complete the
+request. Events and final results are validated and deduplicated by the
+request lifecycle. `cancelPreview` and `cancel` cancel eligible read and
 preview requests. `locations.list`, `locations.add`, and `locations.remove`
 manage atomic saved-location snapshots independently of the host.
 
@@ -193,5 +199,12 @@ needed. Noctalia development remains supported by
 - `xdg-open` handles defaults; an explicit “Open with…” chooser comes next.
 - Previews include images, external visual thumbnails, bounded UTF-8 text,
   archive listings, and file metadata. Syntax highlighting remains deferred.
+  Selected image previews decode original files asynchronously in the Quickshell
+  process at display-sized output. This keeps the first implementation small
+  and avoids a new protocol, but unlike thumbnail, text, and archive work it
+  does not have the backend process's crash isolation. Visible-only activation,
+  disabled Qt image caching, and display-sized output limit retained image data;
+  they are not a hard memory bound. If stress measurements show unacceptable
+  decoder allocations or UI stalls, move this path to a bounded FileSail worker.
 - New tiled windows replace tabs. Launchers reuse the existing host by default;
   `--new-instance` remains a diagnostic escape hatch.

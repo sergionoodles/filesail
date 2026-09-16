@@ -4,6 +4,7 @@ set -euo pipefail
 backend="${1:?backend executable is required}"
 test_dir="$(mktemp -d /tmp/filesail-backend-test.XXXXXX)"
 export XDG_CONFIG_HOME="$test_dir/config"
+export XDG_CACHE_HOME="$test_dir/cache"
 cleanup() {
     if [[ -n "$test_dir" && -d "$test_dir" ]]; then
         rm -rf -- "$test_dir"
@@ -128,6 +129,64 @@ for character_count in 65535 65536 65537; do
 done
 
 # Thumbnail batches and directory completion have independent hard caps.
+thumbnail_source="$test_dir/thumbnail space-%#?.jpg"
+printf 'thumbnail source' > "$thumbnail_source"
+thumbnail_uri="$(python3 - "$thumbnail_source" <<'PY'
+import sys
+from urllib.parse import quote
+print('file://' + quote(sys.argv[1], safe='/'))
+PY
+)"
+thumbnail_hash="$(printf '%s' "$thumbnail_uri" | md5sum | cut -d' ' -f1)"
+thumbnail_mtime="$(stat -c %Y "$thumbnail_source")"
+mkdir -p -- "$XDG_CACHE_HOME/thumbnails/normal" "$XDG_CACHE_HOME/thumbnails/large"
+printf 'not a png' > "$XDG_CACHE_HOME/thumbnails/large/$thumbnail_hash.png"
+write_thumbnail_fixture() {
+    python3 - "$@" <<'PY'
+import binascii
+import struct
+import sys
+import zlib
+
+def chunk(kind, data):
+    return (struct.pack('>I', len(data)) + kind + data
+            + struct.pack('>I', binascii.crc32(kind + data) & 0xffffffff))
+
+# Usage: output [uri mtime] [width height]
+output, *rest = sys.argv[1:]
+text = rest[:2] if rest and not rest[0].isdigit() else []
+width, height = map(int, rest[len(text):] or (1, 1))
+pixels = b''.join(b'\0' + b'\xff\0\0' * width for _ in range(height))
+png = (b'\x89PNG\r\n\x1a\n'
+       + chunk(b'IHDR', struct.pack('>IIBBBBB', width, height, 8, 2, 0, 0, 0))
+       + chunk(b'IDAT', zlib.compress(pixels))
+       + b''.join(chunk(b'tEXt', key + b'\0' + value.encode())
+                  for key, value in zip((b'Thumb::URI', b'Thumb::MTime'), text))
+       + chunk(b'IEND', b''))
+with open(output, 'wb') as stream:
+    stream.write(png)
+PY
+}
+# Tumbler writes fractional mtime values; cache validation compares their
+# integer Unix-second portion with the source.
+write_thumbnail_fixture "$XDG_CACHE_HOME/thumbnails/normal/$thumbnail_hash.png" "$thumbnail_uri" "$thumbnail_mtime.310000"
+thumbnail_cached="$(jq -nc --arg path "$thumbnail_source" \
+    '{id:37,method:"thumbnailBatch",params:{flavor:"large",incremental:true,items:[{path:$path,mimeType:"image/jpeg"}]}}' \
+    | "$backend" --serve)"
+jq -e --arg hash "$thumbnail_hash" '
+    .id == 37 and .ok == true and .items[0].status == "ready"
+    and (.items[0].url | contains("/thumbnails/normal/" + $hash + ".png"))
+' <<<"$thumbnail_cached" >/dev/null
+
+# A stale cache entry is rejected even though its MD5 path still exists. The
+# missing optional Thumb::Size field above is intentionally accepted.
+write_thumbnail_fixture "$XDG_CACHE_HOME/thumbnails/normal/$thumbnail_hash.png" "$thumbnail_uri" "$((thumbnail_mtime + 1)).310000"
+thumbnail_mismatch="$(
+    jq -nc --arg path "$thumbnail_source" \
+        '{id:38,method:"thumbnailBatch",params:{items:[{path:$path,mimeType:"image/jpeg"}]}}' \
+        | "$backend" --serve)"
+jq -e '.id == 38 and .ok == true and .items[0].status != "ready"' <<<"$thumbnail_mismatch" >/dev/null
+
 thumbnail_items="["
 for _ in $(seq 1 65); do thumbnail_items+='{ "path": "relative" },'; done
 thumbnail_items="${thumbnail_items%,}]"
@@ -352,14 +411,17 @@ jq -e '.id == 16 and .ok == true' <<<"$private_copy" >/dev/null
 [[ $(stat -c '%a' "$test_dir/private-destination/private-source") == 600 ]]
 
 # Listings expose symbolic permissions, effective executable state, and
-# creation metadata for the file info view.
+# creation metadata for the file info view. Image dimensions are read from the
+# header so preview skeletons have their aspect ratio before decoding begins.
 printf 'script' > "$test_dir/info-target"
 chmod 644 "$test_dir/info-target"
 mkdir -- "$test_dir/info-dir"
 chmod 755 "$test_dir/info-dir"
+write_thumbnail_fixture "$test_dir/info-image.png" 3 2
 info_listing="$(printf '{"id":40,"method":"list","params":{"path":"%s","showHidden":true}}\n' "$test_dir" | "$backend" --serve)"
 jq -e '.id == 40 and .ok == true and ([.entries[] | select(.name=="info-target")][0] | .permissions == "-rw-r--r--" and .isExecutable == false and (.created | type == "string"))' <<<"$info_listing" >/dev/null
 jq -e '[.entries[] | select(.name=="info-dir")][0] | .permissions == "drwxr-xr-x"' <<<"$info_listing" >/dev/null
+jq -e '[.entries[] | select(.name=="info-image.png")][0] | .imageWidth == 3 and .imageHeight == 2' <<<"$info_listing" >/dev/null
 
 # The executable bit toggles owner/group/other together, mirroring `chmod a+x`.
 exec_on="$(printf '{"id":41,"method":"setExecutable","params":{"path":"%s/info-target","executable":true}}\n' "$test_dir" | "$backend" --serve)"

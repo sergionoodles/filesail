@@ -41,7 +41,8 @@ Item {
     Image {
         id: previewImage
         anchors.fill: parent
-        source: root.preview.state === "ready" && root.preview.lease ? root.preview.url : ""
+        source: root.preview.state === "ready" && root.preview.lease
+            ? root.preview.url + "#filesail-" + root.preview.revision : ""
         sourceSize.width: root.thumbnailSize
         sourceSize.height: root.thumbnailSize
         asynchronous: true; cache: false; fillMode: Image.PreserveAspectFit

@@ -179,6 +179,8 @@ void BackendServer::ensurePreviewService()
         return;
     filesailLog(LogLevel::Debug, "preview", "creating preview service on demand");
     m_previewService = new PreviewService(this);
+    connect(m_previewService, &PreviewService::eventReady, this,
+            [this](const QJsonObject &event) { writeResponse(event); });
 }
 
 void BackendServer::schedulePreviewServiceIdle()
@@ -403,6 +405,11 @@ void BackendServer::handleRequest(const QByteArray &line)
             writeResponse({{"id", id}, {"ok", false}, {"error", "Backend job queue is full"}});
             return;
         }
+        if (m_previewJobs.contains(id)) {
+            writeResponse({{"id", id}, {"ok", false}, {"error", "Duplicate thumbnail request ID"},
+                           {"errorCode", "already_in_progress"}});
+            return;
+        }
         ensurePreviewService();
         m_previewIdleTimer->stop();
         const CancellationToken token = std::make_shared<std::atomic_bool>(false);
@@ -411,7 +418,7 @@ void BackendServer::handleRequest(const QByteArray &line)
         filesailLog(LogLevel::Debug, "preview",
                     QStringLiteral("job acquire count=%1").arg(m_previewJobs.size()));
         ++m_activeJobs;
-        m_previewService->thumbnails(id, params, token, [this, id, token](QJsonObject result) {
+        m_previewService->thumbnails(id, params, m_readPool, token, [this, id, token](QJsonObject result) {
             const bool canceled = cancellationRequested(token);
             m_cancellationTokens.remove(id);
             m_previewJobs.remove(id);

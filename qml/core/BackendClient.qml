@@ -274,7 +274,7 @@ QtObject {
     }
 
     function requestThumbnails(items, flavor, priority, onSuccess, onFailure) {
-        return request("thumbnailBatch", { items, flavor, priority }, onSuccess, onFailure);
+        return request("thumbnailBatch", { items, flavor, priority, incremental: true }, onSuccess, onFailure);
     }
 
     function requestTextPreview(path, appearance, onSuccess, onFailure) {

@@ -34,6 +34,7 @@ FileVisual 1.0 FileVisual.qml
 PreviewPane 1.0 PreviewPane.qml
 PreviewPanel 1.0 PreviewPanel.qml
 ImageSelectionPreview 1.0 ImageSelectionPreview.qml
+ImageFilePreview 1.0 ImageFilePreview.qml
 FileMetadataPreview 1.0 FileMetadataPreview.qml
 VisualFilePreview 1.0 VisualFilePreview.qml
 TextFilePreview 1.0 TextFilePreview.qml

@@ -8,6 +8,7 @@
 #include <QElapsedTimer>
 #include <QFile>
 #include <QFileInfo>
+#include <QImageReader>
 #include <QJsonDocument>
 #include <QMimeDatabase>
 #include <QMutex>
@@ -1086,7 +1087,7 @@ QJsonObject listDirectory(const QJsonObject &params, const CancellationToken &to
             : mimeDatabase.mimeTypeForFile(info, QMimeDatabase::MatchExtension);
         const QString iconName = !mime.iconName().isEmpty() ? mime.iconName()
                                                             : mime.genericIconName();
-        jsonEntries.append(QJsonObject{
+        QJsonObject jsonEntry{
             {"name", info.fileName()},
             {"path", info.absoluteFilePath()},
             {"url", QUrl::fromLocalFile(info.absoluteFilePath()).toString()},
@@ -1104,7 +1105,19 @@ QJsonObject listDirectory(const QJsonObject &params, const CancellationToken &to
                             : QString()},
             {"mimeType", mime.name()},
             {"iconName", info.isDir() ? QStringLiteral("folder") : iconName},
-        });
+        };
+        if (mime.name().startsWith(QLatin1String("image/")) && info.isFile() && info.isReadable()) {
+            QImageReader reader(info.absoluteFilePath());
+            reader.setAutoTransform(true);
+            QSize dimensions = reader.size();
+            if (reader.transformation().testFlag(QImageIOHandler::TransformationRotate90))
+                dimensions.transpose();
+            if (dimensions.isValid() && dimensions.width() > 0 && dimensions.height() > 0) {
+                jsonEntry.insert("imageWidth", dimensions.width());
+                jsonEntry.insert("imageHeight", dimensions.height());
+            }
+        }
+        jsonEntries.append(jsonEntry);
     }
 
     QJsonObject result{{"path", path},

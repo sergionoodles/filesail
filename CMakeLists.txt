@@ -18,7 +18,7 @@ set(CMAKE_AUTOMOC ON)
 
 option(FILESAIL_BUILD_DBUS "Build the optional FileManager1 D-Bus service" OFF)
 
-find_package(Qt6 6.6 REQUIRED COMPONENTS Core Concurrent DBus)
+find_package(Qt6 6.6 REQUIRED COMPONENTS Core Concurrent DBus Gui)
 find_package(PkgConfig REQUIRED)
 pkg_check_modules(LIBARCHIVE REQUIRED IMPORTED_TARGET libarchive)
 pkg_check_modules(WAYLAND_CLIENT REQUIRED IMPORTED_TARGET wayland-client)
@@ -97,7 +97,7 @@ target_compile_options(filesail-cli PRIVATE
     $<$<CXX_COMPILER_ID:GNU,Clang>:-Wall -Wextra -Wpedantic>
 )
 
-target_link_libraries(filesail-backend PRIVATE Qt6::Core Qt6::Concurrent Qt6::DBus PkgConfig::LIBARCHIVE)
+target_link_libraries(filesail-backend PRIVATE Qt6::Core Qt6::Concurrent Qt6::DBus Qt6::Gui PkgConfig::LIBARCHIVE)
 target_include_directories(filesail-backend PRIVATE ${CMAKE_CURRENT_BINARY_DIR}/generated)
 target_compile_options(filesail-backend PRIVATE
     $<$<CXX_COMPILER_ID:GNU,Clang>:-Wall -Wextra -Wpedantic>
@@ -189,6 +189,9 @@ if(FILESAIL_QUICKSHELL AND Python3_Interpreter_FOUND)
         COMMAND ${Python3_EXECUTABLE} ${CMAKE_CURRENT_SOURCE_DIR}/tests/theme-smoke.py
             ${FILESAIL_QUICKSHELL})
     set_tests_properties(theme-smoke PROPERTIES TIMEOUT 90)
+    add_test(NAME image-preview-smoke
+        COMMAND ${Python3_EXECUTABLE} ${CMAKE_CURRENT_SOURCE_DIR}/tests/image-preview-smoke.py)
+    set_tests_properties(image-preview-smoke PROPERTIES TIMEOUT 30)
 endif()
 if(Python3_Interpreter_FOUND)
     add_test(NAME operation-cancellation

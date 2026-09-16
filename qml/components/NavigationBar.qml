@@ -22,6 +22,7 @@ Rectangle {
     required property Action sortAscendingAction
     required property Action sortDescendingAction
     required property Action foldersFirstAction
+    required property Action keybindingsAction
     required property Action aboutAction
     readonly property int actionIconSize: Math.round(18 * Theme.scale)
 
@@ -180,6 +181,11 @@ Rectangle {
                 implicitHeight: 1
                 color: Theme.divider
             }
+        }
+        ThemedMenuItem {
+            text: root.keybindingsAction.text
+            enabled: root.keybindingsAction.enabled
+            onTriggered: root.keybindingsAction.trigger()
         }
         ThemedMenuItem {
             text: root.aboutAction.text

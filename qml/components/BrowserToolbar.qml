@@ -30,6 +30,7 @@ ColumnLayout {
     required property Action sortDescendingAction
     required property Action foldersFirstAction
     required property Action previewAction
+    required property Action keybindingsAction
     required property Action aboutAction
 
     readonly property real navigationSectionHeight: navigationBar.y + navigationBar.height
@@ -59,6 +60,7 @@ ColumnLayout {
         sortAscendingAction: root.sortAscendingAction
         sortDescendingAction: root.sortDescendingAction
         foldersFirstAction: root.foldersFirstAction
+        keybindingsAction: root.keybindingsAction
         aboutAction: root.aboutAction
         onNavigate: path => root.navigate(path)
     }

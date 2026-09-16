@@ -197,6 +197,7 @@ Rectangle {
                 sortDescendingAction: actions.sortDescendingAction
                 foldersFirstAction: actions.foldersFirstAction
                 previewAction: actions.previewAction
+                keybindingsAction: actions.keybindingsAction
                 aboutAction: actions.aboutAction
                 onNavigate: path => root.navigate(path)
             }

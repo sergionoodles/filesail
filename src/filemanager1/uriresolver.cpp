@@ -1,33 +1,18 @@
 #include "uriresolver.h"
 
-#include <QDir>
-#include <QFile>
-#include <QUrl>
+#include "localpath.h"
 
 namespace FileManager1 {
 
 QString localPath(const QString &raw)
 {
-    if (raw.isEmpty() || raw.contains(QChar::Null) || raw.size() > 4096)
+    if (raw.size() > 4096)
         return {};
-
-    if (raw.startsWith("file:", Qt::CaseInsensitive)) {
-        const QUrl url(raw, QUrl::StrictMode);
-        if (!url.isValid() || !url.isLocalFile()
-            || (!url.host().isEmpty() && url.host() != "localhost")
-            || !url.userInfo().isEmpty() || !url.query().isEmpty() || !url.fragment().isEmpty())
-            return {};
-        const QString path = url.toLocalFile();
-        if (path.isEmpty() || path.contains(QChar::Null) || !QDir::isAbsolutePath(path)
-            || QFile::decodeName(QFile::encodeName(path)) != path)
-            return {};
-        return QDir::cleanPath(path);
-    }
-
-    if (!QDir::isAbsolutePath(raw) || raw.contains("://")
-        || QFile::decodeName(QFile::encodeName(raw)) != raw)
+    // Plain paths that look like another scheme's URI are never local files.
+    if (!raw.startsWith(QLatin1String("file:"), Qt::CaseInsensitive) && raw.contains(QLatin1String("://")))
         return {};
-    return QDir::cleanPath(raw);
+    LocalPath::Error error;
+    return LocalPath::parse(raw, &error);
 }
 
 }

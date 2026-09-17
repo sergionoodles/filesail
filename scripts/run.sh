@@ -37,7 +37,7 @@ while (($#)); do
         --help|-h) printf '%s\n' 'Usage: filesail [--path PATH] [PATH]' 'Options: --new-instance (temporary duplicate-host escape hatch)' 'Environment: FILESAIL_LOG=error|warn|info|debug (default: info)' 'Development transfer delay: FILESAIL_DEV_TRANSFER_DELAY_MS (default: 15; use 0 for native speed)'; exit 0 ;;
         --new-instance|--allow-duplicate) force_new_instance=true; shift ;;
         --ensure-window) ensure_window=true; shift ;;
-        -*) printf 'filesail: unknown option: %s\\n' "$1" >&2; exit 2 ;;
+        -*) printf 'filesail: unknown option: %s\n' "$1" >&2; exit 2 ;;
         *) requested_path="$1"; shift ;;
     esac
 done

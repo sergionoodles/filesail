@@ -255,7 +255,6 @@ void ClipboardBridge::publishOwned(const Payload &payload)
 
 bool ClipboardBridge::writeFiles(const QStringList &paths, Mode mode, QString *reason)
 {
-    if (!m_available) { if (reason) *reason = m_capabilityError; return false; }
     if (paths.isEmpty() || paths.size() > MaxItems) {
         if (reason)
             *reason = QStringLiteral("clipboard path count is outside the supported limit");
@@ -271,6 +270,14 @@ bool ClipboardBridge::writeFiles(const QStringList &paths, Mode mode, QString *r
         }
         if (!seen.contains(path)) { seen.insert(path); unique.append(path); }
     }
+    // Every published selection is echoed in snapshots, so it must fit in a
+    // protocol frame.
+    if (!pathsFitProtocolFrame(unique)) {
+        if (reason)
+            *reason = QStringLiteral("clipboard selection is too large for FileSail");
+        return false;
+    }
+    if (!m_available) { if (reason) *reason = m_capabilityError; return false; }
     Source *source = new Source{this, createSource(), {mode, unique}, {}, {}};
     if (!source->object) {
         delete source; if (reason) *reason = QStringLiteral("could not create a Wayland clipboard source"); return false;

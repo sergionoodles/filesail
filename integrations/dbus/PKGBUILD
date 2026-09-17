@@ -29,8 +29,10 @@ check() {
 }
 
 package() {
-    DESTDIR="$pkgdir" cmake --install "$srcdir/filesail-dbus-build"
-    rm -f -- "$pkgdir/usr/bin/filesail" "$pkgdir/usr/bin/filesail-backend"
-    rm -rf -- "$pkgdir/usr/share/filesail" "$pkgdir/usr/share/applications" \
-        "$pkgdir/usr/share/icons" "$pkgdir/usr/share/pixmaps"
+    # Install only this package's files explicitly. A full `cmake --install`
+    # would also stage binaries owned by the main filesail package.
+    install -Dm755 -- "$srcdir/filesail-dbus-build/filesail-filemanager1" \
+        "$pkgdir/usr/bin/filesail-filemanager1"
+    install -Dm644 -- "$srcdir/filesail/packaging/filesail-filemanager1.service" \
+        "$pkgdir/usr/lib/systemd/user/filesail-filemanager1.service"
 }

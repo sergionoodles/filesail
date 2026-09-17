@@ -72,6 +72,11 @@ private:
     QFileSystemWatcher *m_locationsWatcher = nullptr;
     QTimer *m_locationsDebounce = nullptr;
     QThreadPool m_readPool;
+    // Previews and application launches can block for seconds (archive
+    // decompression, MIME/handler subprocesses). Separate pools keep them
+    // from starving directory listings.
+    QThreadPool m_previewPool;
+    QThreadPool m_launchPool;
     QThreadPool m_mutationPool;
     PreviewService *m_previewService = nullptr;
     VolumeService *m_volumeService = nullptr;

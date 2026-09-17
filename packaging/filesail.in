@@ -65,7 +65,7 @@ while (($#)); do
             shift
             ;;
         -*)
-            printf 'filesail: unknown option: %s\\n' "$1" >&2
+            printf 'filesail: unknown option: %s\n' "$1" >&2
             exit 2
             ;;
         *)

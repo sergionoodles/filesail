@@ -25,11 +25,11 @@ Item {
     }
     Component.onDestruction: { if (requestId >= 0) BackendClient.cancelPreview(requestId); }
     ColumnLayout { anchors.fill: parent; anchors.margins: Theme.spaceM; spacing: Theme.spaceS
-        Text { Layout.fillWidth: true; text: root.statusText; color: Theme.textMuted }
+        Text { Layout.fillWidth: true; text: Format.safeText(root.statusText); textFormat: Text.PlainText; color: Theme.textMuted }
         ListView { Layout.fillWidth: true; Layout.fillHeight: true; model: root.entries; clip: true
             delegate: RowLayout { required property var modelData; width: ListView.view.width
-                Text { Layout.fillWidth: true; text: modelData.name; color: Theme.text; elide: Text.ElideRight }
-                Text { text: Format.size(modelData.size, false); color: Theme.textMuted }
+                Text { Layout.fillWidth: true; text: Format.safeText(modelData.name); textFormat: Text.PlainText; color: Theme.text; elide: Text.ElideRight }
+                Text { text: Format.size(modelData.size, false); textFormat: Text.PlainText; color: Theme.textMuted }
             }
         }
     }

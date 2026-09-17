@@ -1,5 +1,7 @@
 #include "savedlocations.h"
 
+#include "localpath.h"
+
 #include <QDir>
 #include <QFile>
 #include <QFileInfo>
@@ -33,7 +35,7 @@ QString configFilePath()
 bool safePath(const QString &path)
 {
     return !path.isEmpty() && !path.contains(QChar::Null) && QDir::isAbsolutePath(path)
-        && QFile::decodeName(QFile::encodeName(path)) == path;
+        && LocalPath::isRepresentable(path);
 }
 
 bool validCollection(const QString &collection)
@@ -165,23 +167,17 @@ bool writeSnapshot(const QJsonObject &snapshot, QString *error)
 
 QString canonicalDirectory(const QJsonValue &value, QString *error)
 {
-    if (!value.isString() || value.toString().trimmed().isEmpty()) {
+    LocalPath::Error pathError;
+    const QString path = LocalPath::parse(value, &pathError);
+    if (pathError == LocalPath::Error::Missing) {
         *error = "Missing or invalid path";
         return {};
     }
-    const QString raw = value.toString();
-    QString path = raw;
-    if (raw.startsWith("file:")) {
-        const QUrl url(raw, QUrl::StrictMode);
-        if (!url.isValid() || !url.isLocalFile() || (!url.host().isEmpty() && url.host() != "localhost")
-            || !url.userInfo().isEmpty() || !url.query().isEmpty() || !url.fragment().isEmpty()) {
-            *error = "path must be an absolute local path";
-            return {};
-        }
-        path = url.toLocalFile();
+    if (pathError == LocalPath::Error::NotLocal) {
+        *error = "path must be an absolute local path";
+        return {};
     }
-    path = QDir::cleanPath(path);
-    if (!safePath(path) || !QFileInfo(path).isDir()) {
+    if (pathError != LocalPath::Error::None || !QFileInfo(path).isDir()) {
         *error = QStringLiteral("Not a directory: %1").arg(path);
         return {};
     }

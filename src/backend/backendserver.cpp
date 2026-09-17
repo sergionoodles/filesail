@@ -1,6 +1,7 @@
 #include "backendserver.h"
 
 #include "fileoperations.h"
+#include "localpath.h"
 #include "logging.h"
 #include "savedlocations.h"
 #include "previewservice.h"
@@ -57,31 +58,17 @@ QString randomControlId()
 
 QString watchPath(const QJsonObject &params, bool mustExist, QString *error)
 {
-    const QJsonValue value = params.value("path");
-    if (!value.isString() || value.toString().trimmed().isEmpty()) {
+    LocalPath::Error pathError;
+    const QString path = LocalPath::parse(params.value("path"), &pathError);
+    if (pathError == LocalPath::Error::Missing) {
         *error = "Missing or invalid path";
         return {};
     }
-
-    const QString raw = value.toString();
-    QString path = raw;
-    if (raw.startsWith("file:")) {
-        const QUrl url(raw, QUrl::StrictMode);
-        if (!url.isValid() || !url.isLocalFile()
-            || (!url.host().isEmpty() && url.host() != "localhost")
-            || !url.userInfo().isEmpty() || !url.query().isEmpty()
-            || !url.fragment().isEmpty()) {
-            *error = "path must be an absolute local path";
-            return {};
-        }
-        path = url.toLocalFile();
-    }
-    if (path.isEmpty() || path.contains(QChar::Null) || !QDir::isAbsolutePath(path)) {
+    if (pathError != LocalPath::Error::None) {
         *error = "path must be an absolute local path";
         return {};
     }
 
-    path = QDir::cleanPath(path);
     const QFileInfo info(path);
     if (mustExist && (!info.exists() || !info.isDir())) {
         *error = QStringLiteral("Not a directory: %1").arg(path);
@@ -138,6 +125,8 @@ BackendServer::BackendServer(QObject *parent)
     , m_backendInstance(QUuid::createUuid().toString(QUuid::WithoutBraces))
 {
     m_readPool.setMaxThreadCount(2);
+    m_previewPool.setMaxThreadCount(2);
+    m_launchPool.setMaxThreadCount(2);
     m_mutationPool.setMaxThreadCount(1);
     m_volumeService = new VolumeService(m_backendInstance, this);
     connect(m_volumeService, &VolumeService::snapshotChanged, this,
@@ -392,9 +381,9 @@ void BackendServer::handleRequest(const QByteArray &line)
         }
         enqueueMutation(id, method, params, [params](const CancellationToken &, const ProgressCallback &) { return FileOperations::setExecutable(params); });
     } else if (method == "open") {
-        enqueueOperation(id, m_readPool, [params](const CancellationToken &) { return FileOperations::openPath(params); }, false);
+        enqueueOperation(id, m_launchPool, [params](const CancellationToken &) { return FileOperations::openPath(params); }, false);
     } else if (method == "terminal") {
-        enqueueOperation(id, m_readPool, [params](const CancellationToken &) { return FileOperations::openTerminal(params); }, false);
+        enqueueOperation(id, m_launchPool, [params](const CancellationToken &) { return FileOperations::openTerminal(params); }, false);
     } else if (method == "previewCapabilities") {
         ensurePreviewService();
         m_previewIdleTimer->stop();
@@ -418,7 +407,7 @@ void BackendServer::handleRequest(const QByteArray &line)
         filesailLog(LogLevel::Debug, "preview",
                     QStringLiteral("job acquire count=%1").arg(m_previewJobs.size()));
         ++m_activeJobs;
-        m_previewService->thumbnails(id, params, m_readPool, token, [this, id, token](QJsonObject result) {
+        m_previewService->thumbnails(id, params, m_previewPool, token, [this, id, token](QJsonObject result) {
             const bool canceled = cancellationRequested(token);
             m_cancellationTokens.remove(id);
             m_previewJobs.remove(id);
@@ -437,10 +426,10 @@ void BackendServer::handleRequest(const QByteArray &line)
         cancelMutationRequest(id, params);
     } else if (method == "textPreview") {
         ensurePreviewService();
-        enqueueOperation(id, m_readPool, [this, params](const CancellationToken &token) { return m_previewService->text(params, token); }, true, true);
+        enqueueOperation(id, m_previewPool, [this, params](const CancellationToken &token) { return m_previewService->text(params, token); }, true, true);
     } else if (method == "archivePreview") {
         ensurePreviewService();
-        enqueueOperation(id, m_readPool, [this, params](const CancellationToken &token) { return m_previewService->archive(params, token); }, true, true);
+        enqueueOperation(id, m_previewPool, [this, params](const CancellationToken &token) { return m_previewService->archive(params, token); }, true, true);
     } else if (method == "cancelPreview") {
         const int requestId = params.value("requestId").toInt(-1);
         if (const auto token = m_cancellationTokens.value(requestId)) {

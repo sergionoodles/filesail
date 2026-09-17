@@ -9,6 +9,7 @@
 #include <QSocketNotifier>
 
 #include <cerrno>
+#include <csignal>
 #include <fcntl.h>
 #include <unistd.h>
 
@@ -47,7 +48,9 @@ private:
         value.insert("protocol", "filesail.clipboard.v1");
         value.insert("version", 1);
         value.insert("event", event);
-        write(QJsonDocument(value).toJson(QJsonDocument::Compact) + '\n');
+        if (!write(value))
+            write({{"protocol", "filesail.clipboard.v1"}, {"version", 1}, {"event", "error"},
+                   {"reason", "clipboard protocol frame is too large"}});
     }
 
     void writeResponse(int id, bool ok, QJsonObject value = {})
@@ -56,17 +59,21 @@ private:
         value.insert("version", 1);
         value.insert("id", id);
         value.insert("ok", ok);
-        write(QJsonDocument(value).toJson(QJsonDocument::Compact) + '\n');
+        if (!write(value))
+            write({{"protocol", "filesail.clipboard.v1"}, {"version", 1}, {"id", id}, {"ok", false},
+                   {"error", "clipboard protocol frame is too large"}});
     }
 
-    void write(const QByteArray &line)
+    // Returns false without writing when the frame exceeds the protocol limit.
+    // The helper stays alive so the client can keep using it.
+    bool write(const QJsonObject &value)
     {
-        if (line.size() > FileSail::Clipboard::MaxFrameBytes) {
-            QCoreApplication::quit();
-            return;
-        }
+        const QByteArray line = QJsonDocument(value).toJson(QJsonDocument::Compact) + '\n';
+        if (line.size() > FileSail::Clipboard::MaxFrameBytes)
+            return false;
         m_output.append(line);
         flushOutput();
+        return true;
     }
 
     void flushOutput()
@@ -215,6 +222,9 @@ private:
 
 int main(int argc, char **argv)
 {
+    // Paste targets may close their receive pipe early; report EPIPE as a
+    // failed send instead of terminating the helper and its selection.
+    std::signal(SIGPIPE, SIG_IGN);
     QCoreApplication app(argc, argv);
     if (argc != 2 || QString::fromLocal8Bit(argv[1]) != "--serve")
         return 2;

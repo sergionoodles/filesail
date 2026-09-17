@@ -73,6 +73,8 @@ add_executable(filesail-backend
     src/backend/previewservice.h
     src/backend/volumeservice.cpp
     src/backend/volumeservice.h
+    src/common/localpath.cpp
+    src/common/localpath.h
 )
 
 add_executable(filesail-clipboard
@@ -98,7 +100,7 @@ target_compile_options(filesail-cli PRIVATE
 )
 
 target_link_libraries(filesail-backend PRIVATE Qt6::Core Qt6::Concurrent Qt6::DBus Qt6::Gui PkgConfig::LIBARCHIVE)
-target_include_directories(filesail-backend PRIVATE ${CMAKE_CURRENT_BINARY_DIR}/generated)
+target_include_directories(filesail-backend PRIVATE ${CMAKE_CURRENT_BINARY_DIR}/generated src/common)
 target_compile_options(filesail-backend PRIVATE
     $<$<CXX_COMPILER_ID:GNU,Clang>:-Wall -Wextra -Wpedantic>
 )
@@ -110,7 +112,10 @@ if(FILESAIL_BUILD_DBUS)
         src/filemanager1/filemanager1service.h
         src/filemanager1/uriresolver.cpp
         src/filemanager1/uriresolver.h
+        src/common/localpath.cpp
+        src/common/localpath.h
     )
+    target_include_directories(filesail-filemanager1 PRIVATE src/common)
     target_link_libraries(filesail-filemanager1 PRIVATE Qt6::Core Qt6::DBus)
     target_compile_options(filesail-filemanager1 PRIVATE
         $<$<CXX_COMPILER_ID:GNU,Clang>:-Wall -Wextra -Wpedantic>
@@ -214,8 +219,9 @@ if(FILESAIL_BUILD_DBUS)
     add_executable(filesail-uriresolver-test
         tests/uriresolver-test.cpp
         src/filemanager1/uriresolver.cpp
+        src/common/localpath.cpp
     )
-    target_include_directories(filesail-uriresolver-test PRIVATE src/filemanager1)
+    target_include_directories(filesail-uriresolver-test PRIVATE src/filemanager1 src/common)
     target_link_libraries(filesail-uriresolver-test PRIVATE Qt6::Core)
     add_test(NAME filemanager1-uriresolver COMMAND filesail-uriresolver-test)
     add_test(

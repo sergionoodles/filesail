@@ -29,6 +29,9 @@ QtObject {
     property int restartCount: 0
     property bool restartBackoff: false
     property int requestTimeout: 10000
+    // Mirrors the helper's protocol limits (clipboardcodec.h).
+    readonly property int maximumItems: 4096
+    readonly property int maximumPathBytes: 1024 * 1024 - 64 * 1024
     property var inFlight: ({})
     readonly property int pendingCount: pendingRevision >= 0 ? Object.keys(pendingRequests).length : 0
     readonly property bool shouldRun: sessionLeases > 0 || operationLeases > 0 || pendingCount > 0
@@ -192,12 +195,25 @@ QtObject {
         complete(message);
     }
 
+    function utf8Length(text) {
+        try {
+            return unescape(encodeURIComponent(text)).length;
+        } catch (error) {
+            return Infinity;
+        }
+    }
+
     function publish(selectionPaths, selectionMode, onSuccess, onFailure) {
         if (!available) {
             if (onFailure) onFailure(reason || qsTr("Clipboard transport unavailable"));
             return -1;
         }
         const cleanPaths = selectionPaths.slice();
+        // An oversized request frame would be dropped by the helper.
+        if (cleanPaths.length > maximumItems || utf8Length(JSON.stringify(cleanPaths)) > maximumPathBytes) {
+            if (onFailure) onFailure(qsTr("The selection is too large to place on the clipboard"));
+            return -1;
+        }
         return request("writeFiles", { paths: cleanPaths, mode: selectionMode === "cut" ? "cut" : "copy" },
             result => {
                 setSnapshot(result);
@@ -332,6 +348,11 @@ QtObject {
         }
     }
 
+    property Timer stableTimer: Timer {
+        interval: 5000
+        onTriggered: root.restartCount = 0
+    }
+
     property Process helper: Process {
         command: [root.clipboardCommand, "--serve"]
         stdinEnabled: true
@@ -339,7 +360,9 @@ QtObject {
         stdout: SplitParser { onRead: line => root.handleLine(line) }
         stderr: SplitParser { onRead: line => Logger.warn("clipboard", String(line)) }
         onStarted: {
-            root.restartCount = 0;
+            // restartCount is cleared only after the helper stays up; resetting
+            // it here would let a helper that exits immediately restart forever.
+            root.stableTimer.restart();
             root.restartBackoff = false;
             root.reason = qsTr("Reading desktop clipboard");
             root.flush();
@@ -347,6 +370,7 @@ QtObject {
             root.request("snapshot", {}, root.setSnapshot, message => root.reason = message);
         }
         onExited: {
+            root.stableTimer.stop();
             root.available = false;
             root.owned = false;
             root.state = "unavailable";

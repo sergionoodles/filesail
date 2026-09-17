@@ -90,6 +90,17 @@ for preview_path in "file://${test_dir#/}/preview-target" "file://user@${test_di
         '{id: 34, method: "thumbnailBatch", params: {items: [{path: $path}]}}' | "$backend" --serve)"
     jq -e '.id == 34 and .ok == true and (.items | length == 1) and .items[0].status == "unsupported"' <<<"$thumbnail_invalid" >/dev/null
 done
+# Compressed archives are listed by reading entry data in bounded blocks.
+# Entry names are raw data; presentation escaping belongs to the client.
+mkdir -p -- "$test_dir/archive-source"
+printf 'one' > "$test_dir/archive-source/a&b <c>.txt"
+printf 'two' > "$test_dir/archive-source/second.txt"
+tar -C "$test_dir/archive-source" -czf "$test_dir/listing.tar.gz" 'a&b <c>.txt' second.txt
+archive_listing="$(jq -nc --arg path "$test_dir/listing.tar.gz" \
+    '{id: 37, method: "archivePreview", params: {path: $path}}' | "$backend" --serve)"
+jq -e '.id == 37 and .ok == true and .kind == "archive" and .truncated == false
+    and ([.entries[].name] == ["a&b <c>.txt", "second.txt"])' <<<"$archive_listing" >/dev/null
+
 preview_url="$(jq -nc --arg path "file://$test_dir/preview-target" \
     '{id: 35, method: "textPreview", params: {path: $path}}' | "$backend" --serve)"
 jq -e '.id == 35 and .ok == true and .html == "<pre>preview safety</pre>"' <<<"$preview_url" >/dev/null
@@ -241,13 +252,30 @@ terminal_output="$test_dir/terminal-working-directory"
 terminal_script="$test_dir/test-terminal"
 printf '%s\n' '#!/usr/bin/env bash' 'printf "%s" "$PWD" > "$FILESAIL_TERMINAL_OUTPUT"' > "$terminal_script"
 chmod +x -- "$terminal_script"
-terminal_response="$(env TERMINAL="$terminal_script" FILESAIL_TERMINAL_OUTPUT="$terminal_output" "$backend" --serve <<<"{\"id\":21,\"method\":\"terminal\",\"params\":{\"path\":\"$test_dir\"}}")"
+# "Open Terminal Here" shares terminal resolution with terminal-based default
+# applications. Isolate PATH and XDG config so host terminals cannot win.
+mkdir -p -- "$test_dir/termbin" "$test_dir/empty-xdg-dirs"
+ln -s -- "$(command -v bash)" "$test_dir/termbin/bash"
+terminal_env=(PATH="$test_dir/termbin" XDG_CONFIG_DIRS="$test_dir/empty-xdg-dirs" FILESAIL_TERMINAL_OUTPUT="$terminal_output")
+terminal_response="$(env "${terminal_env[@]}" TERMINAL="$terminal_script" "$backend" --serve <<<"{\"id\":21,\"method\":\"terminal\",\"params\":{\"path\":\"$test_dir\"}}")"
 jq -e '.id == 21 and .ok == true' <<<"$terminal_response" >/dev/null
 for _ in {1..20}; do
     [[ -f "$terminal_output" ]] && break
     sleep 0.1
 done
 [[ $(<"$terminal_output") == "$test_dir" ]]
+
+# xdg-terminal-exec takes precedence and receives no execution flag.
+rm -f -- "$terminal_output"
+printf '%s\n' '#!/usr/bin/env bash' 'printf "%s:%s" "$PWD" "$#" > "$FILESAIL_TERMINAL_OUTPUT"' > "$test_dir/termbin/xdg-terminal-exec"
+chmod +x -- "$test_dir/termbin/xdg-terminal-exec"
+standard_terminal="$(env "${terminal_env[@]}" TERMINAL="$terminal_script" "$backend" --serve <<<"{\"id\":79,\"method\":\"terminal\",\"params\":{\"path\":\"$test_dir\"}}")"
+jq -e '.id == 79 and .ok == true' <<<"$standard_terminal" >/dev/null
+for _ in {1..20}; do
+    [[ -f "$terminal_output" ]] && break
+    sleep 0.1
+done
+[[ $(<"$terminal_output") == "$test_dir:0" ]]
 
 # Opening files uses the desktop default with a plain local path and reports
 # launcher failures instead of a false success. Handler detection is skipped
@@ -290,6 +318,14 @@ terminal_open="$(FILESAIL_OPEN_ARGS="$test_dir/terminal-open-args" PATH="$test_d
 jq -e '.id == 74 and .ok == true' <<<"$terminal_open" >/dev/null
 mapfile -t open_argv < "$test_dir/terminal-open-args"
 [[ ${#open_argv[@]} == 3 && ${open_argv[0]} == -e && ${open_argv[1]} == fake-editor && ${open_argv[2]} == "$test_dir/open target.txt" ]]
+
+# Field codes are expanded once: a filename containing "%d" or "%u" must reach
+# the handler unchanged instead of being expanded again.
+printf 'field codes' > "$test_dir/notes%d %u.txt"
+field_code_open="$(FILESAIL_OPEN_ARGS="$test_dir/field-code-args" PATH="$test_dir/fakebin:/usr/bin:/bin" XDG_DATA_HOME="$test_dir/data" TERMINAL=fake-terminal "$backend" --serve <<<"{\"id\":78,\"method\":\"open\",\"params\":{\"path\":\"$test_dir/notes%d %u.txt\"}}")"
+jq -e '.id == 78 and .ok == true' <<<"$field_code_open" >/dev/null
+mapfile -t open_argv < "$test_dir/field-code-args"
+[[ ${#open_argv[@]} == 3 && ${open_argv[1]} == fake-editor && ${open_argv[2]} == "$test_dir/notes%d %u.txt" ]]
 
 # Defaults are resolved the Nautilus way: GIO first (it also falls back
 # across MIME subclasses where xdg-mime reports no default, e.g. markdown),

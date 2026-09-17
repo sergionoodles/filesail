@@ -45,6 +45,21 @@ while 1 not in responses or 2 not in responses:
 assert responses[1]["ok"] is True
 assert responses[2]["ok"] is True
 assert responses[2]["state"] == "unavailable"
+
+# A selection too large for one snapshot frame is rejected, and the helper
+# keeps serving requests instead of exiting.
+large_paths = ["/tmp/%d-%s" % (index, "a" * 395) for index in range(2500)]
+process.stdin.write(json.dumps({"id": 3, "method": "writeFiles",
+                                "params": {"paths": large_paths, "mode": "copy"}}) + "\n")
+process.stdin.write('{"id":4,"method":"snapshot","params":{}}\n')
+process.stdin.flush()
+while 3 not in responses or 4 not in responses:
+    message = read_message()
+    if "id" in message:
+        responses[message["id"]] = message
+assert responses[3]["ok"] is False
+assert "too large" in responses[3]["error"]
+assert responses[4]["ok"] is True
 process.stdin.close()
 assert process.wait(timeout=2) == 0
 PY

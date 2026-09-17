@@ -1,4 +1,5 @@
 #include "previewservice.h"
+#include "localpath.h"
 #include "logging.h"
 
 #include <QCryptographicHash>
@@ -119,6 +120,19 @@ QString validatedThumbnail(const QString &path, const QString &uri, const QStrin
     return !cached.isEmpty() && after.exists() && fingerprint(after) == expectedFingerprint ? cached : QString();
 }
 
+// True when any read filter (gzip, xz, zstd, ...) wraps the archive stream.
+// Filter index `archive_filter_count - 1` is the raw file; it reports
+// ARCHIVE_FILTER_NONE and is included in the check harmlessly.
+bool streamCompressed(struct archive *reader)
+{
+    const int count = archive_filter_count(reader);
+    for (int index = 0; index < count; ++index) {
+        if (archive_filter_code(reader, index) != ARCHIVE_FILTER_NONE)
+            return true;
+    }
+    return false;
+}
+
 QDBusInterface tumbler()
 {
     return QDBusInterface("org.freedesktop.thumbnails.Thumbnailer1", "/org/freedesktop/thumbnails/Thumbnailer1",
@@ -143,23 +157,10 @@ PreviewService::PreviewService(QObject *parent)
 
 QString PreviewService::localRegularFile(const QJsonObject &params, QString *error)
 {
-    const QString raw = params.value("path").toString();
-    if (raw.isEmpty() || raw.contains(QChar::Null)) { *error = "path must be an absolute local path"; return {}; }
-    QString path = raw;
-    if (raw.startsWith("file:")) {
-        const QUrl url(raw, QUrl::StrictMode);
-        if (!url.isValid() || !url.isLocalFile()
-            || (!url.host().isEmpty() && url.host() != "localhost")
-            || !url.userInfo().isEmpty() || !url.query().isEmpty() || !url.fragment().isEmpty()) {
-            *error = "path must be an absolute local path"; return {};
-        }
-        path = url.toLocalFile();
-    }
-    if (path.isEmpty() || path.contains(QChar::Null) || !QDir::isAbsolutePath(path)
-        || QFile::decodeName(QFile::encodeName(path)) != path) {
-        *error = "path must be an absolute local path"; return {};
-    }
-    const QFileInfo info(QDir::cleanPath(path));
+    LocalPath::Error pathError;
+    const QString path = LocalPath::parse(params.value("path"), &pathError);
+    if (pathError != LocalPath::Error::None) { *error = "path must be an absolute local path"; return {}; }
+    const QFileInfo info(path);
     if (!info.exists() || !info.isFile() || !info.isReadable()) {
         *error = "preview requires a readable regular file"; return {};
     }
@@ -462,6 +463,7 @@ QJsonObject PreviewService::archive(const QJsonObject &params, const Cancellatio
     QJsonArray entries;
     struct archive_entry *entry = nullptr;
     bool truncated = false;
+    bool skipTimedOut = false;
     qsizetype metadataBytes = 0;
     QElapsedTimer deadline;
     deadline.start();
@@ -473,11 +475,32 @@ QJsonObject PreviewService::archive(const QJsonObject &params, const Cancellatio
         const mode_t type = archive_entry_filetype(entry);
         const QString kind = type == AE_IFDIR ? "directory" : type == AE_IFLNK ? "symlink" : "file";
         metadataBytes += name.size() * static_cast<qsizetype>(sizeof(QChar));
-        entries.append(QJsonObject{{"name", escaped(name.left(32 * 1024))}, {"type", kind},
+        QString displayName = name.left(32 * 1024);
+        displayName.replace(QChar::Null, QChar(0xfffd));
+        entries.append(QJsonObject{{"name", displayName}, {"type", kind},
             {"size", static_cast<double>(archive_entry_size(entry))}, {"encrypted", archive_entry_is_encrypted(entry) > 0}});
-        archive_read_data_skip(reader);
+        if (!streamCompressed(reader)) {
+            // The container seeks past entry data, so skipping is cheap.
+            archive_read_data_skip(reader);
+            continue;
+        }
+        // A compressed stream cannot seek: skipping an entry means
+        // decompressing it. Read in blocks so cancellation and the listing
+        // deadline are honored inside large entries.
+        const void *block = nullptr;
+        size_t blockSize = 0;
+        la_int64_t blockOffset = 0;
+        int status = ARCHIVE_OK;
+        while ((status = archive_read_data_block(reader, &block, &blockSize, &blockOffset)) == ARCHIVE_OK
+               || status == ARCHIVE_WARN) {
+            if (cancellationRequested(token)) { archive_read_free(reader); return {}; }
+            if (deadline.elapsed() >= 5000) { skipTimedOut = true; break; }
+        }
+        if (skipTimedOut || status < ARCHIVE_WARN) break;
     }
-    if (entries.size() == 250 && metadataBytes < 4 * 1024 * 1024 && deadline.elapsed() < 5000) {
+    if (skipTimedOut) {
+        truncated = true;
+    } else if (entries.size() == 250 && metadataBytes < 4 * 1024 * 1024 && deadline.elapsed() < 5000) {
         if (cancellationRequested(token)) { archive_read_free(reader); return {}; }
         truncated = archive_read_next_header(reader, &entry) == ARCHIVE_OK;
     } else {

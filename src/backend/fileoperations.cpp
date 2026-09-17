@@ -1,5 +1,6 @@
 #include "fileoperations.h"
 #include "foldercontext.h"
+#include "localpath.h"
 #include "logging.h"
 
 #include <QDateTime>
@@ -134,39 +135,22 @@ QJsonObject success(const QJsonObject &values = {})
     return result;
 }
 
-bool isRoundTrippableLocalPath(const QString &path)
-{
-    return QFile::decodeName(QFile::encodeName(path)) == path;
-}
-
 QString validateLocalPath(const QJsonValue &value, const QString &label, QString *error)
 {
-    if (!value.isString() || value.toString().trimmed().isEmpty()) {
+    LocalPath::Error pathError;
+    const QString path = LocalPath::parse(value, &pathError);
+    switch (pathError) {
+    case LocalPath::Error::None:
+        break;
+    case LocalPath::Error::Missing:
         *error = QStringLiteral("Missing or invalid %1").arg(label);
-        return {};
-    }
-
-    const QString raw = value.toString();
-    QString path = raw;
-    if (raw.startsWith("file:")) {
-        const QUrl url(raw, QUrl::StrictMode);
-        if (!url.isValid() || !url.isLocalFile()
-            || (!url.host().isEmpty() && url.host() != "localhost")
-            || !url.userInfo().isEmpty() || !url.query().isEmpty()
-            || !url.fragment().isEmpty()) {
-            *error = QStringLiteral("%1 must be an absolute local path").arg(label);
-            return {};
-        }
-        path = url.toLocalFile();
-    }
-    if (path.isEmpty() || path.contains(QChar::Null) || !QDir::isAbsolutePath(path)) {
+        break;
+    case LocalPath::Error::NotLocal:
         *error = QStringLiteral("%1 must be an absolute local path").arg(label);
-        return {};
-    }
-    path = QDir::cleanPath(path);
-    if (!isRoundTrippableLocalPath(path)) {
+        break;
+    case LocalPath::Error::Unrepresentable:
         *error = QStringLiteral("%1 cannot be represented safely in the current locale").arg(label);
-        return {};
+        break;
     }
     return path;
 }
@@ -1389,31 +1373,36 @@ QString findDefaultDesktopFile(const QStringList &mimeNames)
     return {};
 }
 
-// Flag placed between the terminal's own arguments and the wrapped command
-// for commands named directly (TERMINAL, gsettings, legacy candidates).
-// xdg-terminal-exec and entries parsed from xdg-terminals.list carry their
-// own execution argument instead.
-QStringList withLegacyExecFlag(QStringList terminal)
+// A resolved terminal: `argv` opens an interactive shell in the working
+// directory; `execArgs` is appended before a wrapped command.
+struct TerminalCommand {
+    QStringList argv;
+    QStringList execArgs;
+};
+
+// Execution flag for commands named directly (TERMINAL, gsettings, legacy
+// candidates). xdg-terminal-exec and entries parsed from xdg-terminals.list
+// carry their own execution argument instead.
+TerminalCommand withLegacyExecFlag(const QStringList &command)
 {
-    const QString program = terminal.takeFirst();
-    const QString key = QFileInfo(program).fileName().toLower();
+    const QString key = QFileInfo(command.constFirst()).fileName().toLower();
+    TerminalCommand terminal{command, {}};
     if (key == QStringLiteral("kitty") || key == QStringLiteral("foot")) {
         // Take the wrapped command directly.
     } else if (key == QStringLiteral("gnome-terminal") || key == QStringLiteral("gnome-console")
                || key == QStringLiteral("console")
                || key == QStringLiteral("pantheon-terminal")) {
-        terminal.append(QStringLiteral("--"));
+        terminal.execArgs = {QStringLiteral("--")};
     } else if (key == QStringLiteral("wezterm")) {
-        terminal.append(QStringLiteral("start"));
-        terminal.append(QStringLiteral("--"));
+        terminal.execArgs = {QStringLiteral("start"), QStringLiteral("--")};
     } else if (key == QStringLiteral("xfce4-terminal")) {
-        terminal.append(QStringLiteral("-x"));
+        terminal.execArgs = {QStringLiteral("-x")};
     } else {
         // alacritty, konsole, ghostty, xterm, x-terminal-emulator and most
         // TERMINAL values accept -e.
-        terminal.append(QStringLiteral("-e"));
+        terminal.execArgs = {QStringLiteral("-e")};
     }
-    return QStringList{program} + terminal;
+    return terminal;
 }
 
 QStringList legacyTerminalCandidates()
@@ -1571,7 +1560,7 @@ TerminalEntry readTerminalEntry(const QString &fileName)
     return terminal;
 }
 
-QStringList terminalFromGsettings()
+TerminalCommand terminalFromGsettings()
 {
     if (QStandardPaths::findExecutable(QStringLiteral("gsettings")).isEmpty())
         return {};
@@ -1593,27 +1582,25 @@ QStringList terminalFromGsettings()
     return withLegacyExecFlag(command);
 }
 
-// Terminal prefix argv (program first, execution flag last); the wrapped
-// application argv is appended by the caller. Order mirrors GLib/Nautilus,
-// which ignores TERMINAL and delegates to xdg-terminal-exec: the standard
-// launcher first, then its config parsed directly, then an explicit TERMINAL
-// override, then the GNOME default, then legacy candidates.
-QStringList resolveTerminalPrefix(QString *error)
+// The user's terminal, shared by terminal-based default applications and
+// "Open Terminal Here". Order mirrors GLib/Nautilus, which ignores TERMINAL
+// and delegates to xdg-terminal-exec: the standard launcher first, then its
+// config parsed directly, then an explicit TERMINAL override, then the GNOME
+// default, then legacy candidates.
+TerminalCommand resolveTerminal(QString *error)
 {
     if (!QStandardPaths::findExecutable(QStringLiteral("xdg-terminal-exec")).isEmpty()) {
         filesailLog(LogLevel::Debug, "open", QStringLiteral("terminal: xdg-terminal-exec"));
-        return {QStringLiteral("xdg-terminal-exec")};
+        return {{QStringLiteral("xdg-terminal-exec")}, {}};
     }
     for (const QString &id : configuredTerminalIds()) {
         const TerminalEntry terminal = readTerminalEntry(id);
         if (!terminal.valid)
             continue;
-        QStringList prefix = terminal.baseArgv;
-        if (!terminal.execArg.isEmpty())
-            prefix.append(terminal.execArg);
         filesailLog(LogLevel::Debug, "open",
                     QStringLiteral("terminal: configured entry %1").arg(id));
-        return prefix;
+        return {terminal.baseArgv,
+                terminal.execArg.isEmpty() ? QStringList{} : QStringList{terminal.execArg}};
     }
     const QStringList override = QProcess::splitCommand(qEnvironmentVariable("TERMINAL"));
     if (!override.isEmpty()) {
@@ -1627,11 +1614,11 @@ QStringList resolveTerminalPrefix(QString *error)
                         .arg(override.constFirst()));
         return withLegacyExecFlag(override);
     }
-    const QStringList gsettingsTerminal = terminalFromGsettings();
-    if (!gsettingsTerminal.isEmpty()) {
+    const TerminalCommand gsettingsTerminal = terminalFromGsettings();
+    if (!gsettingsTerminal.argv.isEmpty()) {
         filesailLog(LogLevel::Debug, "open",
                     QStringLiteral("terminal: gsettings default %1")
-                        .arg(gsettingsTerminal.constFirst()));
+                        .arg(gsettingsTerminal.argv.constFirst()));
         return gsettingsTerminal;
     }
     for (const QString &candidate : legacyTerminalCandidates()) {
@@ -1641,9 +1628,7 @@ QStringList resolveTerminalPrefix(QString *error)
             return withLegacyExecFlag({candidate});
         }
     }
-    *error = QStringLiteral(
-        "The default application for this file needs a terminal, but no terminal emulator was found. "
-        "Set the TERMINAL environment variable.");
+    *error = QStringLiteral("No terminal emulator was found. Set the TERMINAL environment variable.");
     return {};
 }
 
@@ -1653,35 +1638,35 @@ QStringList expandDesktopExec(const QString &execLine, const QString &localPath,
 {
     if (execLine.trimmed().isEmpty())
         return {};
-    // Placeholder for a literal % so field-code detection and expansion below
-    // never mistake an escaped %%F for a file code.
-    const QString percentPlaceholder = QString(QChar(0xE000)) + QStringLiteral("PERCENT")
-        + QString(QChar(0xE001));
-    QString protectedLine = execLine;
-    protectedLine.replace(QStringLiteral("%%"), percentPlaceholder);
     // Split before expanding so paths containing spaces stay a single argument.
-    const QStringList rawArgv = QProcess::splitCommand(protectedLine);
+    const QStringList rawArgv = QProcess::splitCommand(execLine);
     if (rawArgv.isEmpty())
         return {};
     bool hasFileCode = false;
     QStringList argv;
     argv.reserve(rawArgv.size() + 1);
-    for (QString arg : rawArgv) {
-        if (arg.contains(QStringLiteral("%f")) || arg.contains(QStringLiteral("%F"))
-            || arg.contains(QStringLiteral("%u")) || arg.contains(QStringLiteral("%U")))
-            hasFileCode = true;
-        arg.replace(QStringLiteral("%f"), localPath);
-        arg.replace(QStringLiteral("%F"), localPath);
-        arg.replace(QStringLiteral("%u"), fileUri);
-        arg.replace(QStringLiteral("%U"), fileUri);
-        arg.replace(QStringLiteral("%c"), appName);
-        arg.replace(QStringLiteral("%k"), desktopFilePath);
-        for (const QString &code :
-             {QStringLiteral("%i"), QStringLiteral("%d"), QStringLiteral("%D"),
-              QStringLiteral("%n"), QStringLiteral("%N"), QStringLiteral("%v"),
-              QStringLiteral("%m")})
-            arg.replace(code, QString());
-        arg.replace(percentPlaceholder, QStringLiteral("%"));
+    for (const QString &raw : rawArgv) {
+        // Expand in one left-to-right pass over the original argument so text
+        // inserted by a field code (a filename containing "%d", for example)
+        // is never expanded again.
+        QString arg;
+        for (qsizetype index = 0; index < raw.size(); ++index) {
+            const QChar character = raw.at(index);
+            if (character != QLatin1Char('%') || index + 1 >= raw.size()) {
+                arg.append(character);
+                continue;
+            }
+            const QChar code = raw.at(++index);
+            switch (code.unicode()) {
+            case '%': arg.append(QLatin1Char('%')); break;
+            case 'f': case 'F': hasFileCode = true; arg.append(localPath); break;
+            case 'u': case 'U': hasFileCode = true; arg.append(fileUri); break;
+            case 'c': arg.append(appName); break;
+            case 'k': arg.append(desktopFilePath); break;
+            case 'i': case 'd': case 'D': case 'n': case 'N': case 'v': case 'm': break;
+            default: arg.append(character); arg.append(code); break;
+            }
+        }
         if (!arg.isEmpty())
             argv.append(arg);
     }
@@ -1755,10 +1740,11 @@ QJsonObject openPath(const QJsonObject &params)
                 return failure(QStringLiteral("Could not parse the default application entry: %1")
                                    .arg(desktopFileName));
             QString terminalError;
-            const QStringList prefix = resolveTerminalPrefix(&terminalError);
+            const TerminalCommand terminalCommand = resolveTerminal(&terminalError);
             if (!terminalError.isEmpty())
-                return failure(terminalError);
-            const QStringList wrapped = prefix + applicationArgv;
+                return failure(QStringLiteral("The default application for this file needs a terminal. %1")
+                                   .arg(terminalError));
+            const QStringList wrapped = terminalCommand.argv + terminalCommand.execArgs + applicationArgv;
             QProcess terminal;
             terminal.setProgram(wrapped.constFirst());
             terminal.setArguments(wrapped.mid(1));
@@ -1804,27 +1790,15 @@ QJsonObject openTerminal(const QJsonObject &params)
     if (!QFileInfo(path).isDir())
         return failure(QStringLiteral("Directory does not exist: %1").arg(path));
 
-    QStringList command = QProcess::splitCommand(qEnvironmentVariable("TERMINAL"));
-    if (command.isEmpty()) {
-        QStringList candidates = {QStringLiteral("xdg-terminal-exec")};
-        candidates += legacyTerminalCandidates();
-        for (const QString &candidate : candidates) {
-            if (!QStandardPaths::findExecutable(candidate).isEmpty()) {
-                command = {candidate};
-                break;
-            }
-        }
-    }
-    if (command.isEmpty())
-        return failure("No terminal emulator found. Set the TERMINAL environment variable.");
-
-    const QString program = command.takeFirst();
-    if (QStandardPaths::findExecutable(program).isEmpty())
-        return failure(QStringLiteral("Terminal executable was not found: %1").arg(program));
+    // Without a wrapped command, each terminal starts the user's shell in
+    // its working directory.
+    const TerminalCommand command = resolveTerminal(&error);
+    if (!error.isEmpty())
+        return failure(error);
 
     QProcess terminal;
-    terminal.setProgram(program);
-    terminal.setArguments(command);
+    terminal.setProgram(command.argv.constFirst());
+    terminal.setArguments(command.argv.mid(1));
     terminal.setWorkingDirectory(path);
     terminal.setStandardInputFile(QProcess::nullDevice());
     terminal.setStandardOutputFile(QProcess::nullDevice());

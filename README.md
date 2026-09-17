@@ -5,7 +5,7 @@ desktops. The first host targets Noctalia on Niri; the UI and backend are kept
 portable for Omarchy/Hyprland. The standalone window follows the Noctalia
 palette through Noctalia 5 app theming.
 
-![FileSail screenshot](docs/screenshot.jpg)
+![FileSail screenshot](docs/screenshot.png)
 
 The current MVP scaffold includes:
 

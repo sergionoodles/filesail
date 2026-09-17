@@ -2,6 +2,8 @@
 
 #include <QDir>
 #include <QFile>
+#include <QJsonArray>
+#include <QJsonDocument>
 #include <QSet>
 #include <QUrl>
 
@@ -85,9 +87,21 @@ DecodeResult decodeLines(const QByteArray &bytes, bool allowMode, Mode defaultMo
     }
     if (!sawPath)
         return failure(allowMode ? "clipboard metadata has no file URIs" : "clipboard URI list has no files");
-    return {true, {mode, uniquePaths(paths)}, {}};
+    const QStringList unique = uniquePaths(paths);
+    if (!pathsFitProtocolFrame(unique))
+        return failure("clipboard selection is too large for FileSail");
+    return {true, {mode, unique}, {}};
 }
 
+}
+
+bool pathsFitProtocolFrame(const QStringList &paths)
+{
+    QJsonArray array;
+    for (const QString &path : paths)
+        array.append(path);
+    return QJsonDocument(array).toJson(QJsonDocument::Compact).size()
+        <= MaxFrameBytes - SnapshotReserveBytes;
 }
 
 QString modeName(Mode mode)

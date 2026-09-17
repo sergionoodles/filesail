@@ -52,5 +52,18 @@ int main(int argc, char **argv)
     check(!decodeUriList("file:///tmp/a%ZZ\n").ok, "malformed percent escape was accepted");
     check(!decodeUriList("file:///tmp/a\nhttps://example.test/b\n").ok,
           "mixed local and remote URIs were accepted");
+
+    // Every accepted selection is echoed in helper snapshots, so selections
+    // larger than one protocol frame are rejected rather than killing the helper.
+    check(pathsFitProtocolFrame(paths), "small selection did not fit a protocol frame");
+    QByteArray largeList;
+    QStringList largePaths;
+    for (int index = 0; index < 3000; ++index) {
+        const QString path = QStringLiteral("/tmp/%1-%2").arg(index).arg(QString(400, QLatin1Char('a')));
+        largePaths.append(path);
+        largeList.append(QUrl::fromLocalFile(path).toEncoded() + '\n');
+    }
+    check(!pathsFitProtocolFrame(largePaths), "oversized selection fit a protocol frame");
+    check(!decodeUriList(largeList).ok, "oversized clipboard selection was accepted");
     return 0;
 }

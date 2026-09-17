@@ -34,10 +34,15 @@ ColumnLayout {
     required property Action aboutAction
 
     readonly property real navigationSectionHeight: navigationBar.y + navigationBar.height
+    readonly property bool popupActive: navigationBar.popupActive
     signal navigate(string path)
 
     function beginPathEditing() {
         navigationBar.beginPathEditing();
+    }
+
+    function beginFiltering(triggerText) {
+        navigationBar.beginFiltering(triggerText);
     }
 
     spacing: 0

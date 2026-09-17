@@ -93,7 +93,7 @@ QtObject {
     property Action previewAction: Action { text: qsTr("Preview pane"); shortcut: "Ctrl+P"; checked: root.previewPaneEnabled; enabled: !root.modalActive; onTriggered: Settings.setPreviewPaneEnabled(!Settings.previewPaneEnabled) }
     property Action aboutAction: Action { text: qsTr("About FileSail"); enabled: !root.modalActive; onTriggered: root.aboutRequested() }
     property Action keybindingsAction: Action {
-        text: qsTr("Show keyboard shortcuts"); shortcut: "?"; enabled: !root.modalActive
+        text: qsTr("Show keyboard shortcuts"); shortcut: "Shift+?"; enabled: !root.modalActive
         onTriggered: root.keybindingsRequested()
     }
 
@@ -118,7 +118,8 @@ QtObject {
                     { label: qsTr("Jump to start / end"), shortcut: qsTr("Home / End") },
                     { label: qsTr("Page through list"), shortcut: qsTr("Page Up / Page Down") },
                     { label: qsTr("Go to parent folder"), shortcut: qsTr("Backspace") },
-                    { label: qsTr("Toggle focused selection"), shortcut: qsTr("Space") },
+                    { label: qsTr("Toggle focused selection"), shortcut: qsTr("Ctrl+Space") },
+                    { label: qsTr("Filter this folder"), shortcut: qsTr("Type filename text") },
                     { label: qsTr("Clear selection"), shortcut: qsTr("Escape") }
                 ]
             },

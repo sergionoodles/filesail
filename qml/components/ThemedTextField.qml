@@ -28,6 +28,6 @@ TextField {
         name: root.leadingIconName
         iconSize: 17 * Theme.scale
         iconColor: Qt.alpha(Theme.primary, 0.65)
-        visible: root.leadingIconName.length > 0 && root.text.length === 0
+        visible: root.leadingIconName.length > 0
     }
 }

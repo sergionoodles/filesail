@@ -213,6 +213,8 @@ Rectangle {
                     SplitView.minimumWidth: 360 * Theme.scale
                     session: session
                     viewMode: root.viewMode
+                    inputBlocked: root.modalActive || toolbar.popupActive || contextMenu.visible
+                    onFilterRequested: text => toolbar.beginFiltering(text)
                     onContextMenuRequested: (entry, background, x, y) => {
                         if (entry && !session.selectedPaths[entry.path])
                             session.selectEntry(entry.path, 0);

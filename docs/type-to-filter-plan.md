@@ -1,6 +1,6 @@
 # Type to filter the current folder
 
-Status: draft; implementation has not started.
+Status: implemented.
 
 ## Intended behavior
 

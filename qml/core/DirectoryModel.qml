@@ -132,6 +132,11 @@ QtObject {
                 root.refresh(root.dirtyLoadKind);
                 return;
             }
+            const pathChanged = result.path !== root.path;
+            if (pathChanged) {
+                root.filter = "";
+                filterDelay.stop();
+            }
             root.sourceEntries = result.entries ?? [];
             root.pathIndexes = ({});
             for (let index = 0; index < root.sourceEntries.length; ++index)

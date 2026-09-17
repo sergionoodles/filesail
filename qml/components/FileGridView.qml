@@ -9,6 +9,7 @@ GridView {
     required property var session
     property var marqueeBaseSelection: []
     property bool marqueeAdditive: false
+    property var filterEventHandler: null
     signal contextMenuRequested(var entry, real x, real y)
 
     function focusView() {
@@ -160,6 +161,10 @@ GridView {
     }
 
     Keys.onPressed: event => {
+        if (gridView.filterEventHandler && gridView.filterEventHandler(event)) {
+            event.accepted = true;
+            return;
+        }
         const modifiers = event.modifiers;
         const control = (modifiers & Qt.ControlModifier) !== 0;
         const columns = gridView.columnCount();

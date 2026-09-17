@@ -25,11 +25,20 @@ Rectangle {
     required property Action keybindingsAction
     required property Action aboutAction
     readonly property int actionIconSize: Math.round(18 * Theme.scale)
+    readonly property bool popupActive: overflowMenu.visible
 
     signal navigate(string path)
 
     function beginPathEditing() {
         breadcrumbs.editing = true;
+    }
+
+    function beginFiltering(triggerText) {
+        searchInput.forceActiveFocus();
+        searchInput.deselect();
+        searchInput.cursorPosition = searchInput.text.length;
+        searchInput.insert(searchInput.text.length, triggerText);
+        searchInput.cursorPosition = searchInput.text.length;
     }
 
     Layout.fillWidth: true

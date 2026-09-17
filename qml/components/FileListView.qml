@@ -9,6 +9,7 @@ ColumnLayout {
 
     required property var session
     property var model: null
+    property var filterEventHandler: null
     property var marqueeBaseSelection: []
     property bool marqueeAdditive: false
     signal contextMenuRequested(var entry, real x, real y)
@@ -243,6 +244,10 @@ ColumnLayout {
         }
 
         Keys.onPressed: event => {
+            if (root.filterEventHandler && root.filterEventHandler(event)) {
+                event.accepted = true;
+                return;
+            }
             const modifiers = event.modifiers;
             const control = (modifiers & Qt.ControlModifier) !== 0;
             let target = listView.currentIndex < 0 ? 0 : listView.currentIndex;
